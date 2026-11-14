@@ -396,15 +396,10 @@ component BreadcrumbBar inherits Rectangle {
     in property <bool> interactive: false;
     callback select(int);
 
-    height: 28px;
-    horizontal-stretch: 0;
-    background: Palette.alternate-background;
-    border-radius: 4px;
-    clip: true;
+    height: 24px;
+    background: transparent;
 
     HorizontalLayout {
-        padding-left: 6px;
-        padding-right: 6px;
         spacing: 2px;
         alignment: start;
 
@@ -506,6 +501,7 @@ export component AppWindow inherits Window {
     in-out property <int> current-preset: 0;
     in-out property <string> preset-name: "";
     in-out property <string> active-name: "";
+    in-out property <bool> editing: false;
 
     in-out property <float> gamma: 1.0;
     in-out property <float> contrast: 1.0;
@@ -525,9 +521,11 @@ export component AppWindow inherits Window {
     in-out property <bool> color-expanded: true;
     in-out property <bool> comparing: false;
     in-out property <int> theme-mode: 0;
-    in property <[Crumb]> crumbs: root.page == 0 && root.active-name != ""
-        ? [{ label: "预设库" }, { label: root.active-name }]
-        : [];
+    in property <[Crumb]> crumbs: root.page == 0
+        ? (root.editing && root.active-name != ""
+            ? [{ label: "预设库" }, { label: root.active-name }]
+            : [{ label: "预设库" }])
+        : (root.page == 1 ? [{ label: "应用" }] : [{ label: "设置" }]);
 
     callback changed();
     callback reset();
@@ -566,147 +564,188 @@ export component AppWindow inherits Window {
                 entries: [{ label: "预设库", kind: 0 }, { label: "应用", kind: 1 }];
                 current <=> root.page;
                 compact <=> root.nav-compact;
-                activated => { bg.focus(); }
+                activated => {
+                    bg.focus();
+                    if (root.page == 0) {
+                        root.editing = false;
+                    }
+                }
             }
 
             Rectangle {
                 background: Palette.background;
 
-                if root.page == 0 : Rectangle {
-                    background: transparent;
+                Rectangle {
+                    y: 0;
+                    height: 40px;
+                    background: Palette.alternate-background;
 
                     HorizontalLayout {
-                        Rectangle {
-                            width: 232px;
-                            background: transparent;
+                        padding-left: 20px;
+                        padding-right: 16px;
 
-                            VerticalLayout {
-                                padding: 16px;
+                        BreadcrumbBar {
+                            items: root.crumbs;
+                            interactive: root.page == 0 && root.editing;
+                            select(idx) => {
+                                root.editing = false;
+                                root.active-name = "";
+                                root.current-preset = -1;
+                                root.clear-selection();
+                            }
+                        }
+
+                        Rectangle { }
+                    }
+                }
+
+                if root.page == 0 : Rectangle {
+                    y: 40px;
+                    height: parent.height - 40px;
+                    background: transparent;
+
+                    if !root.editing : Rectangle {
+                        background: transparent;
+
+                        VerticalLayout {
+                            padding: 24px;
+                            spacing: 16px;
+
+                            HorizontalLayout {
+                                height: 32px;
                                 spacing: 8px;
 
-                                Text {
-                                    text: "预设";
-                                    font-size: 15px;
-                                    font-weight: 600;
-                                    color: Palette.foreground;
+                                IconButton {
+                                    glyph: "\u{e710}";
+                                    label: "新建预设";
+                                    clicked => {
+                                        root.reset();
+                                        root.preset-name = "";
+                                        root.active-name = "";
+                                        root.editing = true;
+                                    }
                                 }
 
-                                Rectangle {
-                                    background: Palette.background;
-                                    border-radius: 8px;
-                                    border-width: 1px;
-                                    border-color: Theme.card-stroke;
-                                    drop-shadow-blur: 8px;
-                                    drop-shadow-offset-y: 2px;
-                                    drop-shadow-color: Palette.foreground.with-alpha(0.05);
-                                    clip: true;
+                                Rectangle { }
+                            }
 
-                                    Flickable {
-                                        mouse-drag-pan-enabled: false;
+                            Rectangle {
+                                background: Palette.background;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: Theme.card-stroke;
+                                drop-shadow-blur: 8px;
+                                drop-shadow-offset-y: 2px;
+                                drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                                vertical-stretch: 0;
+                                clip: true;
 
-                                        VerticalLayout {
-                                            spacing: 0;
+                                VerticalLayout {
+                                    spacing: 0;
 
-                                            for name[idx] in root.presets : Rectangle {
-                                                height: 38px;
-                                                background: idx == root.current-preset ? Palette.accent-background.with-alpha(0.10) : transparent;
+                                    for name[idx] in root.presets : Rectangle {
+                                        height: 44px;
+                                        background: idx == root.current-preset ? Palette.accent-background.with-alpha(0.10) : (row-hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
 
-                                                Rectangle {
-                                                    visible: idx == root.current-preset;
-                                                    x: 0;
-                                                    y: 9px;
-                                                    width: 3px;
-                                                    height: 20px;
-                                                    border-radius: 1.5px;
-                                                    background: Palette.accent-background;
-                                                }
+                                        if idx > 0 : Rectangle {
+                                            x: 16px;
+                                            y: 0;
+                                            width: parent.width - 32px;
+                                            height: 1px;
+                                            background: Theme.divider;
+                                        }
 
-                                                HorizontalLayout {
-                                                    padding-left: 16px;
-                                                    padding-right: 12px;
-                                                    Text {
-                                                        text: name;
-                                                        vertical-alignment: center;
-                                                        color: Palette.foreground;
-                                                    }
-                                                }
+                                        HorizontalLayout {
+                                            padding-left: 16px;
+                                            padding-right: 16px;
+                                            spacing: 8px;
 
-                                                TouchArea {
-                                                    clicked => {
-                                                        root.current-preset = idx;
-                                                        root.choose(idx);
-                                                        bg.focus();
-                                                    }
-                                                }
+                                            Text {
+                                                text: name;
+                                                vertical-alignment: center;
+                                                font-size: 14px;
+                                                color: Palette.foreground;
                                             }
 
                                             Rectangle { }
+
+                                            Glyph {
+                                                text: "\u{e76c}";
+                                                size: 12px;
+                                                tint: Palette.foreground.with-alpha(0.45);
+                                                vertical-alignment: center;
+                                            }
+                                        }
+
+                                        row-hit := TouchArea {
+                                            clicked => {
+                                                root.current-preset = idx;
+                                                root.choose(idx);
+                                                root.editing = true;
+                                                bg.focus();
+                                            }
+                                        }
+                                    }
+
+                                    if root.presets.length == 0 : Rectangle {
+                                        height: 64px;
+
+                                        Text {
+                                            text: "还没有预设";
+                                            font-size: 13px;
+                                            color: Palette.foreground.with-alpha(0.45);
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
                                         }
                                     }
                                 }
+                            }
+
+                            Rectangle { }
+                        }
+                    }
+
+                    if root.editing : Rectangle {
+                        background: transparent;
+
+                        VerticalLayout {
+                            padding: 24px;
+                            spacing: 16px;
+
+                            HorizontalLayout {
+                                height: 32px;
+                                spacing: 8px;
 
                                 LineEdit {
                                     text <=> root.preset-name;
                                     placeholder-text: "预设名称";
-                                    height: 32px;
+                                    width: 232px;
                                 }
 
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    height: 32px;
-                                    IconButton {
-                                        glyph: "\u{e74e}";
-                                        label: "保存";
-                                        clicked => { root.save-preset(root.preset-name); }
-                                    }
-                                    IconButton {
-                                        glyph: "\u{e74d}";
-                                        label: "删除";
-                                        clicked => { root.delete-preset(); }
-                                    }
-                                    Rectangle { }
+                                IconButton {
+                                    glyph: "\u{e74e}";
+                                    label: "保存";
+                                    clicked => { root.save-preset(root.preset-name); }
                                 }
+
+                                IconButton {
+                                    glyph: "\u{e74d}";
+                                    label: "删除";
+                                    clicked => { root.delete-preset(); }
+                                }
+
+                                Rectangle { }
                             }
-                        }
-
-                        Rectangle {
-                            background: transparent;
 
                             HorizontalLayout {
-                                padding-left: 16px;
-                                padding-right: 12px;
-                                padding-top: 16px;
-                                padding-bottom: 16px;
                                 spacing: 8px;
+                                vertical-stretch: 1;
 
                                 scroller := Flickable {
                                     mouse-drag-pan-enabled: false;
 
                                     VerticalLayout {
                                         spacing: 16px;
-
-                                        if root.crumbs.length > 1 : HorizontalLayout {
-                                            height: 28px;
-
-                                            BreadcrumbBar {
-                                                items: root.crumbs;
-                                                interactive: true;
-                                                select(idx) => {
-                                                    root.active-name = "";
-                                                    root.current-preset = -1;
-                                                    root.clear-selection();
-                                                }
-                                            }
-
-                                            Rectangle { }
-                                        }
-
-                                        if root.crumbs.length <= 1 : Text {
-                                            text: "参数";
-                                            font-size: 15px;
-                                            font-weight: 600;
-                                            color: Palette.foreground;
-                                        }
 
                                         VerticalLayout {
                                             spacing: 8px;
@@ -926,24 +965,20 @@ export component AppWindow inherits Window {
                                         y: bar.progress * (bar.view-h - bar.thumb-h);
                                     }
                                 }
+
                             }
                         }
                     }
                 }
 
                 if root.page == 1 : Rectangle {
+                    y: 40px;
+                    height: parent.height - 40px;
                     background: transparent;
 
                     VerticalLayout {
                         padding: 24px;
                         spacing: 16px;
-
-                        Text {
-                            text: "应用";
-                            font-size: 15px;
-                            font-weight: 600;
-                            color: Palette.foreground;
-                        }
 
                         Text {
                             text: "绑定的应用切到前台时自动套用对应预设，切走后恢复桌面参数。";
@@ -1023,18 +1058,13 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == 2 : Rectangle {
+                    y: 40px;
+                    height: parent.height - 40px;
                     background: transparent;
 
                     VerticalLayout {
                         padding: 24px;
                         spacing: 16px;
-
-                        Text {
-                            text: "设置";
-                            font-size: 15px;
-                            font-weight: 600;
-                            color: Palette.foreground;
-                        }
 
                         Text {
                             text: "界面外观与行为，改动立即生效。";

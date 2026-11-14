@@ -442,6 +442,9 @@ fn install_snapshot_hook(ui: &AppWindow) {
                 ui.set_preset_name(SharedString::from(name.clone()));
                 ui.set_active_name(SharedString::from(name));
             }
+            if std::env::var("LUMATUNE_SHOT_EDIT").is_ok() {
+                ui.set_editing(true);
+            }
             if std::env::var("LUMATUNE_SHOT_COMPACT").is_ok() {
                 ui.set_nav_compact(true);
             }
