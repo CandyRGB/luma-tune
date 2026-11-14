@@ -275,7 +275,7 @@ function apply-theme() {
 
 界面采用 Windows 11 设置页的卡片结构：组标题（光照 / 色彩）在卡片**外面**，卡片是 `border-radius: 8px` 的圆角块（`Palette.background`，1px `Theme.card-stroke` 描边）。参数行高 40px，行间用缩进 16px 的 1px 分隔线，首行不画线。
 
-左侧是**导航边栏**（`NavRail`），宽 200px，可收缩到 48px（收缩后只留图标）。顶部只有一枚三横线按钮（40px 行高，点击区 40×36——与导航项尺寸完全一致，图标同为 16px 字形），展开与收起共用同一个按钮，位置固定不动。不做产品图标与名称——系统标题栏已经显示了程序名，再放一遍是重复。导航项依次为「预设库」「应用」，最底部固定「设置」。
+左侧是**导航边栏**（`NavRail`），宽 200px，可收缩到 48px（收缩后只留图标）。顶部只有一枚三横线按钮（点击区 40×36——与导航项尺寸完全一致，图标同为 16px 字形），展开与收起共用同一个按钮，位置固定不动。按钮与第一个导航项之间**不留额外间隔**，和导航项之间一样走 `spacing: 2px`。不做产品图标与名称——系统标题栏已经显示了程序名，再放一遍是重复。导航项依次为「预设库」「应用」，最底部固定「设置」。
 
 导航项按 WinUI `NavigationView` 的资源常量排布，不是估的：
 
@@ -286,7 +286,7 @@ function apply-theme() {
 | `NavigationViewIconBoxWidth` | 40 | 图标盒宽 |
 | `NavigationViewItemOnLeftIconBoxHeight` | 16 | 图标尺寸 |
 | `NavigationViewSelectionIndicatorWidth` / `Height` / `Radius` | 3 / 16 / 2 | 左侧竖条 |
-| `NavigationViewPaneHeaderRowMinHeight` | 40 | 标识区行高 |
+| `NavigationViewPaneHeaderRowMinHeight` | 40 | 官方的标识区最小行高；我们不用它——按钮 36 高、与列表同节奏，多出的 4px 会让汉堡和第一个条目之间比条目之间更疏 |
 
 图标的水平位置由 `x: (min(parent.width, 40px) - 20px) / 2` 决定——**永远按最窄的面板宽度计算**。这样展开与收缩时图标落在同一根轴线（距面板左缘 24px），切换时不会横向跳动。顶部三横线按钮共用这根轴线。文字从 x=40 开始，收缩时隐藏。
 

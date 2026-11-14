@@ -103,11 +103,11 @@ component NavRail inherits Rectangle {
         spacing: 2px;
 
         Rectangle {
-            height: 40px;
+            height: 36px;
 
             Rectangle {
                 x: 0;
-                y: 2px;
+                y: 0;
                 width: 40px;
                 height: 36px;
                 border-radius: 4px;
@@ -130,8 +130,6 @@ component NavRail inherits Rectangle {
                 }
             }
         }
-
-        Rectangle { height: 8px; }
 
         for entry[idx] in root.entries : NavItem {
             label: entry.label;
