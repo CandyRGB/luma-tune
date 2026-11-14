@@ -1,0 +1,1119 @@
+import { LineEdit, Palette, Slider } from "std-widgets.slint";
+
+global Theme {
+    out property <brush> card-stroke: Palette.foreground.with-alpha(0.10);
+    out property <brush> divider: Palette.foreground.with-alpha(0.08);
+}
+
+component Glyph inherits Text {
+    in property <length> size: 18px;
+    in property <brush> tint: Palette.foreground;
+
+    font-family: "Segoe Fluent Icons";
+    font-size: root.size;
+    color: root.tint;
+    width: root.size + 4px;
+    height: root.size + 4px;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+}
+
+component NavIcon inherits Glyph {
+    in property <int> kind: 0;
+
+    size: 16px;
+    text: root.kind == 0 ? "\u{e8f1}" : (root.kind == 1 ? "\u{e8a9}" : "\u{e713}");
+}
+
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <int> kind: 0;
+    in property <bool> selected: false;
+    in property <bool> compact: false;
+    callback activate();
+
+    height: 36px;
+    background: root.selected ? Palette.foreground.with-alpha(0.07) : (hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
+    border-radius: 4px;
+
+    animate background { duration: 120ms; }
+
+    Rectangle {
+        x: 0;
+        y: (parent.height - self.height) / 2;
+        width: 3px;
+        height: root.selected ? 16px : 4px;
+        border-radius: 2px;
+        background: Palette.accent-background;
+        opacity: root.selected ? 1 : 0;
+
+        animate height { duration: 150ms; easing: ease-out; }
+        animate opacity { duration: 150ms; }
+    }
+
+    NavIcon {
+        kind: root.kind;
+        x: (min(parent.width, 40px) - 20px) / 2;
+        y: (parent.height - 20px) / 2;
+        tint: root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.85);
+
+        animate tint { duration: 120ms; }
+    }
+
+    Text {
+        x: 40px;
+        y: 0;
+        height: parent.height;
+        width: max(parent.width - 52px, 0px);
+        text: root.label;
+        vertical-alignment: center;
+        font-weight: 400;
+        color: Palette.foreground;
+        font-size: 14px;
+        overflow: elide;
+        opacity: root.compact ? 0 : 1;
+    }
+
+    hit := TouchArea {
+        clicked => { root.activate(); }
+    }
+}
+
+struct NavEntry {
+    label: string,
+    kind: int,
+}
+
+component NavRail inherits Rectangle {
+    in property <[NavEntry]> entries;
+    in property <NavEntry> footer: { label: "设置", kind: 2 };
+    in-out property <int> current: 0;
+    in-out property <bool> compact: false;
+    callback activated();
+
+    width: root.compact ? 48px : 200px;
+    background: Palette.alternate-background;
+    clip: true;
+
+    VerticalLayout {
+        padding-top: 8px;
+        padding-bottom: 8px;
+        padding-left: 4px;
+        padding-right: 4px;
+        spacing: 2px;
+
+        Rectangle {
+            height: 40px;
+
+            Rectangle {
+                x: 0;
+                y: 2px;
+                width: 40px;
+                height: 36px;
+                border-radius: 4px;
+                background: nav-toggle.pressed ? Palette.foreground.with-alpha(0.03) : (nav-toggle.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
+
+                animate background { duration: 100ms; }
+
+                Glyph {
+                    x: (parent.width - 20px) / 2;
+                    y: (parent.height - 20px) / 2;
+                    text: "\u{e700}";
+                    size: 16px;
+                    tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+
+                    animate tint { duration: 100ms; }
+                }
+
+                nav-toggle := TouchArea {
+                    clicked => { root.compact = !root.compact; }
+                }
+            }
+        }
+
+        Rectangle { height: 8px; }
+
+        for entry[idx] in root.entries : NavItem {
+            label: entry.label;
+            kind: entry.kind;
+            compact: root.compact;
+            selected: root.current == idx;
+            activate => {
+                root.current = idx;
+                root.activated();
+            }
+        }
+
+        Rectangle { }
+
+        NavItem {
+            label: root.footer.label;
+            kind: root.footer.kind;
+            compact: root.compact;
+            selected: root.current == root.entries.length;
+            activate => {
+                root.current = root.entries.length;
+                root.activated();
+            }
+        }
+    }
+}
+
+component CardRow inherits VerticalLayout {
+    in property <string> label;
+    in property <float> minimum;
+    in property <float> maximum;
+    in property <string> suffix: "";
+    in property <bool> divider: true;
+    in-out property <float> value: 0;
+    callback edited();
+
+    spacing: 0;
+
+    if root.divider : HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+
+        Rectangle {
+            height: 1px;
+            background: Theme.divider;
+        }
+    }
+
+    HorizontalLayout {
+        height: 40px;
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 12px;
+
+        Text {
+            text: root.label;
+            width: 108px;
+            vertical-alignment: center;
+            color: Palette.foreground;
+            font-size: 13px;
+            overflow: elide;
+        }
+
+        Rectangle { }
+
+        Slider {
+            width: 240px;
+            minimum: root.minimum;
+            maximum: root.maximum;
+            value <=> root.value;
+            changed(v) => { root.edited(); }
+        }
+
+        Text {
+            text: "\{Math.round(root.value * 100) / 100}\{root.suffix}";
+            width: 56px;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            color: Palette.foreground.with-alpha(0.55);
+            font-size: 12px;
+        }
+    }
+}
+
+component IconButton inherits Rectangle {
+    in property <string> glyph;
+    in property <string> label;
+    callback clicked();
+
+    height: 32px;
+    horizontal-stretch: 0;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Palette.border;
+    background: hit.pressed ? Palette.foreground.with-alpha(0.12) : (hit.has-hover ? Palette.foreground.with-alpha(0.06) : Palette.background);
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        alignment: center;
+
+        Glyph {
+            text: root.glyph;
+            size: 14px;
+            tint: Palette.foreground;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.label;
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+        }
+    }
+
+    hit := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component ThemeMock inherits Rectangle {
+    in property <brush> page-color: #ffffff;
+    in property <brush> pane-color: #f0f0f0;
+    in property <brush> bar-color: #c9c9c9;
+    in property <brush> accent-color: #005fb8;
+
+    background: root.page-color;
+
+    Rectangle {
+        width: parent.width * 0.32;
+        height: parent.height;
+        background: root.pane-color;
+    }
+
+    Rectangle {
+        x: parent.width * 0.32 + 10px;
+        y: 16px;
+        width: parent.width * 0.34;
+        height: 5px;
+        border-radius: 2.5px;
+        background: root.bar-color;
+    }
+
+    Rectangle {
+        x: parent.width * 0.32 + 10px;
+        y: 30px;
+        width: parent.width * 0.26;
+        height: 5px;
+        border-radius: 2.5px;
+        background: root.bar-color;
+    }
+
+    Rectangle {
+        x: parent.width * 0.32 + 10px;
+        y: 46px;
+        width: parent.width * 0.30;
+        height: 6px;
+        border-radius: 3px;
+        background: root.accent-color;
+    }
+
+    Rectangle {
+        x: parent.width * 0.32 + 10px;
+        y: 62px;
+        width: parent.width * 0.42;
+        height: 8px;
+        border-radius: 3px;
+        background: root.bar-color;
+    }
+}
+
+component ThemeTile inherits Rectangle {
+    in property <int> mode: 0;
+    in property <bool> selected: false;
+    in property <string> label: "";
+    callback pick();
+
+    height: 112px;
+    background: transparent;
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: 8px;
+
+        Rectangle {
+            width: parent.width;
+            height: 84px;
+            border-radius: 6px;
+            border-width: 2px;
+            border-color: root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.10);
+            clip: true;
+
+            if root.mode == 0 : Rectangle {
+                background: transparent;
+
+                ThemeMock {
+                    x: 0;
+                    width: parent.width / 2;
+                    height: parent.height;
+                    page-color: #fafafa;
+                    pane-color: #f0f0f0;
+                    bar-color: #c9c9c9;
+                    accent-color: #005fb8;
+                }
+
+                ThemeMock {
+                    x: parent.width / 2;
+                    width: parent.width / 2;
+                    height: parent.height;
+                    page-color: #1c1c1c;
+                    pane-color: #2c2c2c;
+                    bar-color: #5c5c5c;
+                    accent-color: #60cdff;
+                }
+            }
+
+            if root.mode == 1 : ThemeMock {
+                width: parent.width;
+                height: parent.height;
+                page-color: #fafafa;
+                pane-color: #f0f0f0;
+                bar-color: #c9c9c9;
+                accent-color: #005fb8;
+            }
+
+            if root.mode == 2 : ThemeMock {
+                width: parent.width;
+                height: parent.height;
+                page-color: #1c1c1c;
+                pane-color: #2c2c2c;
+                bar-color: #5c5c5c;
+                accent-color: #60cdff;
+            }
+        }
+
+        Text {
+            width: parent.width;
+            height: 16px;
+            text: root.label;
+            font-size: 12px;
+            horizontal-alignment: center;
+            color: Palette.foreground;
+        }
+    }
+
+    hit := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.pick(); }
+    }
+}
+
+struct Crumb {
+    label: string,
+}
+
+component BreadcrumbBar inherits Rectangle {
+    in property <[Crumb]> items;
+    in property <bool> interactive: false;
+    callback select(int);
+
+    height: 28px;
+    horizontal-stretch: 0;
+    background: Palette.alternate-background;
+    border-radius: 4px;
+    clip: true;
+
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        spacing: 2px;
+        alignment: start;
+
+        for item[idx] in root.items : HorizontalLayout {
+            spacing: 2px;
+            horizontal-stretch: 0;
+
+            if idx > 0 : Glyph {
+                text: "\u{e76c}";
+                size: 10px;
+                tint: Palette.foreground.with-alpha(0.42);
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                height: 24px;
+                border-radius: 4px;
+                horizontal-stretch: 0;
+                background: (crumb-hit.has-hover && idx < root.items.length - 1) ? Palette.foreground.with-alpha(0.05) : transparent;
+
+                animate background { duration: 100ms; }
+
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    alignment: center;
+
+                    Text {
+                        text: item.label;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        color: idx == root.items.length - 1 ? Palette.foreground : Palette.foreground.with-alpha(0.62);
+                    }
+                }
+
+                crumb-hit := TouchArea {
+                    enabled: root.interactive && idx < root.items.length - 1;
+                    clicked => { root.select(idx); }
+                }
+            }
+        }
+
+        Rectangle { }
+    }
+}
+
+component SectionHeader inherits HorizontalLayout {
+    in property <string> title;
+    in property <string> action;
+    callback activate();
+
+    height: 28px;
+    spacing: 8px;
+
+    Text {
+        text: root.title;
+        font-size: 14px;
+        font-weight: 600;
+        color: Palette.foreground;
+        vertical-alignment: center;
+    }
+
+    Rectangle { }
+
+    Rectangle {
+        width: 92px;
+        height: 24px;
+        background: transparent;
+
+        Text {
+            text: root.action;
+            font-size: 12px;
+            color: Palette.accent-background;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        TouchArea {
+            clicked => { root.activate(); }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "LumaTune";
+    width: 1040px;
+    height: 640px;
+    background: Palette.alternate-background;
+    default-font-family: "Microsoft YaHei UI";
+
+    in property <string> display-text: "";
+    in-out property <string> status: "";
+
+    in-out property <int> page: 0;
+    in-out property <bool> nav-compact: false;
+
+    in-out property <[string]> presets: [];
+    in-out property <[string]> binding-rows: [];
+    in-out property <int> current-preset: 0;
+    in-out property <string> preset-name: "";
+    in-out property <string> active-name: "";
+
+    in-out property <float> gamma: 1.0;
+    in-out property <float> contrast: 1.0;
+    in-out property <float> brightness: 0.0;
+    in-out property <float> shadows: 0.0;
+    in-out property <float> highlights: 0.0;
+    in-out property <float> black-point: 0.0;
+    in-out property <float> white-point: 1.0;
+    in-out property <float> black-level: 0.0;
+    in-out property <float> white-level: 1.0;
+    in-out property <float> temperature: 6500;
+    in-out property <float> tint: 0.0;
+    in-out property <float> gain-r: 1.0;
+    in-out property <float> gain-g: 1.0;
+    in-out property <float> gain-b: 1.0;
+    in-out property <bool> light-expanded: true;
+    in-out property <bool> color-expanded: true;
+    in-out property <bool> comparing: false;
+    in-out property <int> theme-mode: 0;
+    in property <[Crumb]> crumbs: root.page == 0 && root.active-name != ""
+        ? [{ label: "预设库" }, { label: root.active-name }]
+        : [];
+
+    callback changed();
+    callback reset();
+    callback toggle-compare();
+    callback choose(int);
+    callback save-preset(string);
+    callback delete-preset();
+    callback bind-foreground();
+    callback unbind-foreground();
+    callback pick-theme(int);
+    callback clear-selection();
+
+    function apply-theme() {
+        Palette.color-scheme = root.theme-mode == 1 ? ColorScheme.light : (root.theme-mode == 2 ? ColorScheme.dark : ColorScheme.unknown);
+    }
+
+    changed theme-mode => { root.apply-theme(); }
+
+    bg := FocusScope {
+        width: root.width;
+        height: root.height;
+
+        init => {
+            bg.focus();
+            root.apply-theme();
+        }
+
+        TouchArea {
+            width: bg.width;
+            height: bg.height;
+            clicked => { bg.focus(); }
+        }
+
+        HorizontalLayout {
+            NavRail {
+                entries: [{ label: "预设库", kind: 0 }, { label: "应用", kind: 1 }];
+                current <=> root.page;
+                compact <=> root.nav-compact;
+                activated => { bg.focus(); }
+            }
+
+            Rectangle {
+                background: Palette.background;
+
+                if root.page == 0 : Rectangle {
+                    background: transparent;
+
+                    HorizontalLayout {
+                        Rectangle {
+                            width: 232px;
+                            background: transparent;
+
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 8px;
+
+                                Text {
+                                    text: "预设";
+                                    font-size: 15px;
+                                    font-weight: 600;
+                                    color: Palette.foreground;
+                                }
+
+                                Rectangle {
+                                    background: Palette.background;
+                                    border-radius: 8px;
+                                    border-width: 1px;
+                                    border-color: Theme.card-stroke;
+                                    drop-shadow-blur: 8px;
+                                    drop-shadow-offset-y: 2px;
+                                    drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                                    clip: true;
+
+                                    Flickable {
+                                        mouse-drag-pan-enabled: false;
+
+                                        VerticalLayout {
+                                            spacing: 0;
+
+                                            for name[idx] in root.presets : Rectangle {
+                                                height: 38px;
+                                                background: idx == root.current-preset ? Palette.accent-background.with-alpha(0.10) : transparent;
+
+                                                Rectangle {
+                                                    visible: idx == root.current-preset;
+                                                    x: 0;
+                                                    y: 9px;
+                                                    width: 3px;
+                                                    height: 20px;
+                                                    border-radius: 1.5px;
+                                                    background: Palette.accent-background;
+                                                }
+
+                                                HorizontalLayout {
+                                                    padding-left: 16px;
+                                                    padding-right: 12px;
+                                                    Text {
+                                                        text: name;
+                                                        vertical-alignment: center;
+                                                        color: Palette.foreground;
+                                                    }
+                                                }
+
+                                                TouchArea {
+                                                    clicked => {
+                                                        root.current-preset = idx;
+                                                        root.choose(idx);
+                                                        bg.focus();
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle { }
+                                        }
+                                    }
+                                }
+
+                                LineEdit {
+                                    text <=> root.preset-name;
+                                    placeholder-text: "预设名称";
+                                    height: 32px;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    height: 32px;
+                                    IconButton {
+                                        glyph: "\u{e74e}";
+                                        label: "保存";
+                                        clicked => { root.save-preset(root.preset-name); }
+                                    }
+                                    IconButton {
+                                        glyph: "\u{e74d}";
+                                        label: "删除";
+                                        clicked => { root.delete-preset(); }
+                                    }
+                                    Rectangle { }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            background: transparent;
+
+                            HorizontalLayout {
+                                padding-left: 16px;
+                                padding-right: 12px;
+                                padding-top: 16px;
+                                padding-bottom: 16px;
+                                spacing: 8px;
+
+                                scroller := Flickable {
+                                    mouse-drag-pan-enabled: false;
+
+                                    VerticalLayout {
+                                        spacing: 16px;
+
+                                        if root.crumbs.length > 1 : HorizontalLayout {
+                                            height: 28px;
+
+                                            BreadcrumbBar {
+                                                items: root.crumbs;
+                                                interactive: true;
+                                                select(idx) => {
+                                                    root.active-name = "";
+                                                    root.current-preset = -1;
+                                                    root.clear-selection();
+                                                }
+                                            }
+
+                                            Rectangle { }
+                                        }
+
+                                        if root.crumbs.length <= 1 : Text {
+                                            text: "参数";
+                                            font-size: 15px;
+                                            font-weight: 600;
+                                            color: Palette.foreground;
+                                        }
+
+                                        VerticalLayout {
+                                            spacing: 8px;
+
+                                            SectionHeader {
+                                                title: "光照";
+                                                action: root.light-expanded ? "收起" : "显示全部 9 项";
+                                                activate => { root.light-expanded = !root.light-expanded; }
+                                            }
+
+                                            Rectangle {
+                                                background: Palette.background;
+                                                border-radius: 8px;
+                                                border-width: 1px;
+                                                border-color: Theme.card-stroke;
+                                                drop-shadow-blur: 8px;
+                                                drop-shadow-offset-y: 2px;
+                                                drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                                                clip: true;
+
+                                                VerticalLayout {
+                                                    spacing: 0;
+
+                                                    CardRow {
+                                                        label: "Gamma";
+                                                        minimum: 0.2;
+                                                        maximum: 5.0;
+                                                        divider: false;
+                                                        value <=> root.gamma;
+                                                        edited => { root.changed(); }
+                                                    }
+                                                    CardRow {
+                                                        label: "对比度";
+                                                        minimum: 0.2;
+                                                        maximum: 3.0;
+                                                        value <=> root.contrast;
+                                                        edited => { root.changed(); }
+                                                    }
+                                                    CardRow {
+                                                        label: "亮度";
+                                                        minimum: -0.12;
+                                                        maximum: 0.12;
+                                                        value <=> root.brightness;
+                                                        edited => { root.changed(); }
+                                                    }
+                                                    CardRow {
+                                                        label: "暗部";
+                                                        minimum: -0.3;
+                                                        maximum: 0.3;
+                                                        value <=> root.shadows;
+                                                        edited => { root.changed(); }
+                                                    }
+                                                    CardRow {
+                                                        label: "高光";
+                                                        minimum: -0.3;
+                                                        maximum: 0.3;
+                                                        value <=> root.highlights;
+                                                        edited => { root.changed(); }
+                                                    }
+
+                                                    if root.light-expanded : VerticalLayout {
+                                                        spacing: 0;
+
+                                                        CardRow {
+                                                            label: "输入黑位";
+                                                            minimum: 0.0;
+                                                            maximum: 0.5;
+                                                            value <=> root.black-point;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                        CardRow {
+                                                            label: "输入白位";
+                                                            minimum: 0.5;
+                                                            maximum: 1.0;
+                                                            value <=> root.white-point;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                        CardRow {
+                                                            label: "输出黑位";
+                                                            minimum: 0.0;
+                                                            maximum: 0.15;
+                                                            value <=> root.black-level;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                        CardRow {
+                                                            label: "输出白位";
+                                                            minimum: 0.7;
+                                                            maximum: 1.0;
+                                                            value <=> root.white-level;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            spacing: 8px;
+
+                                            SectionHeader {
+                                                title: "色彩";
+                                                action: root.color-expanded ? "收起" : "显示全部 5 项";
+                                                activate => { root.color-expanded = !root.color-expanded; }
+                                            }
+
+                                            Rectangle {
+                                                background: Palette.background;
+                                                border-radius: 8px;
+                                                border-width: 1px;
+                                                border-color: Theme.card-stroke;
+                                                drop-shadow-blur: 8px;
+                                                drop-shadow-offset-y: 2px;
+                                                drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                                                clip: true;
+
+                                                VerticalLayout {
+                                                    spacing: 0;
+
+                                                    CardRow {
+                                                        label: "色温";
+                                                        minimum: 1000;
+                                                        maximum: 10000;
+                                                        suffix: " K";
+                                                        divider: false;
+                                                        value <=> root.temperature;
+                                                        edited => { root.changed(); }
+                                                    }
+                                                    CardRow {
+                                                        label: "色调";
+                                                        minimum: -1.0;
+                                                        maximum: 1.0;
+                                                        value <=> root.tint;
+                                                        edited => { root.changed(); }
+                                                    }
+
+                                                    if root.color-expanded : VerticalLayout {
+                                                        spacing: 0;
+
+                                                        CardRow {
+                                                            label: "红增益";
+                                                            minimum: 0.5;
+                                                            maximum: 1.5;
+                                                            value <=> root.gain-r;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                        CardRow {
+                                                            label: "绿增益";
+                                                            minimum: 0.5;
+                                                            maximum: 1.5;
+                                                            value <=> root.gain-g;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                        CardRow {
+                                                            label: "蓝增益";
+                                                            minimum: 0.5;
+                                                            maximum: 1.5;
+                                                            value <=> root.gain-b;
+                                                            edited => { root.changed(); }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            height: 32px;
+                                            IconButton {
+                                                glyph: "\u{e8ab}";
+                                                label: root.comparing ? "对比中" : "对比";
+                                                clicked => { root.toggle-compare(); }
+                                            }
+                                            IconButton {
+                                                glyph: "\u{e72c}";
+                                                label: "重置";
+                                                clicked => { root.reset(); }
+                                            }
+                                            Rectangle { }
+                                        }
+
+                                        VerticalLayout {
+                                            spacing: 4px;
+
+                                            Text {
+                                                text: root.status;
+                                                color: Palette.foreground.with-alpha(0.75);
+                                                font-size: 12px;
+                                                wrap: word-wrap;
+                                                visible: root.status != "";
+                                            }
+
+                                            Text {
+                                                text: root.display-text;
+                                                font-size: 12px;
+                                                color: Palette.foreground.with-alpha(0.45);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                bar := Rectangle {
+                                    width: 6px;
+                                    background: transparent;
+
+                                    property <length> view-h: scroller.height;
+                                    property <length> content-h: scroller.content-height;
+                                    property <length> thumb-h: Math.max(32px, self.view-h * self.view-h / Math.max(self.content-h, 1px));
+                                    property <length> travel: Math.max(self.content-h - self.view-h, 0px);
+                                    property <float> progress: self.travel > 0px ? -scroller.content-y / self.travel : 0;
+
+                                    Rectangle {
+                                        width: 6px;
+                                        border-radius: 3px;
+                                        background: Palette.foreground.with-alpha(0.32);
+                                        visible: bar.travel > 0px;
+                                        height: bar.thumb-h;
+                                        y: bar.progress * (bar.view-h - bar.thumb-h);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.page == 1 : Rectangle {
+                    background: transparent;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 16px;
+
+                        Text {
+                            text: "应用";
+                            font-size: 15px;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                        }
+
+                        Text {
+                            text: "绑定的应用切到前台时自动套用对应预设，切走后恢复桌面参数。";
+                            font-size: 12px;
+                            color: Palette.foreground.with-alpha(0.6);
+                            wrap: word-wrap;
+                        }
+
+                        HorizontalLayout {
+                            height: 32px;
+                            spacing: 8px;
+
+                            IconButton {
+                                glyph: "\u{e710}";
+                                label: "绑定当前前台应用到选中预设";
+                                clicked => { root.bind-foreground(); }
+                            }
+                            IconButton {
+                                glyph: "\u{e711}";
+                                label: "解除前台应用的绑定";
+                                clicked => { root.unbind-foreground(); }
+                            }
+                            Rectangle { }
+                        }
+
+                        Rectangle {
+                            background: Palette.background;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: Theme.card-stroke;
+                            drop-shadow-blur: 8px;
+                            drop-shadow-offset-y: 2px;
+                            drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                            clip: true;
+
+                            VerticalLayout {
+                                spacing: 0;
+
+                                for row[idx] in root.binding-rows : Rectangle {
+                                    height: 40px;
+
+                                    if idx > 0 : Rectangle {
+                                        x: 16px;
+                                        y: 0;
+                                        width: parent.width - 32px;
+                                        height: 1px;
+                                        background: Theme.divider;
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 16px;
+                                        padding-right: 16px;
+                                        Text {
+                                            text: row;
+                                            vertical-alignment: center;
+                                            font-size: 13px;
+                                            color: Palette.foreground;
+                                        }
+                                    }
+                                }
+
+                                if root.binding-rows.length == 0 : Rectangle {
+                                    height: 56px;
+                                    Text {
+                                        text: "还没有预设";
+                                        font-size: 13px;
+                                        color: Palette.foreground.with-alpha(0.45);
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle { }
+                    }
+                }
+
+                if root.page == 2 : Rectangle {
+                    background: transparent;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 16px;
+
+                        Text {
+                            text: "设置";
+                            font-size: 15px;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                        }
+
+                        Text {
+                            text: "界面外观与行为，改动立即生效。";
+                            font-size: 12px;
+                            color: Palette.foreground.with-alpha(0.6);
+                            wrap: word-wrap;
+                        }
+
+                        SectionHeader {
+                            title: "外观";
+                            action: "";
+                        }
+
+                        Rectangle {
+                            background: Palette.background;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: Theme.card-stroke;
+                            drop-shadow-blur: 8px;
+                            drop-shadow-offset-y: 2px;
+                            drop-shadow-color: Palette.foreground.with-alpha(0.05);
+                            vertical-stretch: 0;
+                            clip: true;
+
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 12px;
+
+                                Text {
+                                    text: "应用模式";
+                                    font-size: 13px;
+                                    font-weight: 600;
+                                    color: Palette.foreground;
+                                }
+
+                                Text {
+                                    text: "跟随系统时，随 Windows 的浅色 / 深色设置自动切换。";
+                                    font-size: 12px;
+                                    color: Palette.foreground.with-alpha(0.6);
+                                    wrap: word-wrap;
+                                }
+
+                                HorizontalLayout {
+                                    height: 112px;
+                                    spacing: 12px;
+
+                                    ThemeTile {
+                                        width: 132px;
+                                        mode: 0;
+                                        label: "跟随系统";
+                                        selected: root.theme-mode == 0;
+                                        pick => { root.pick-theme(0); }
+                                    }
+
+                                    ThemeTile {
+                                        width: 132px;
+                                        mode: 1;
+                                        label: "浅色";
+                                        selected: root.theme-mode == 1;
+                                        pick => { root.pick-theme(1); }
+                                    }
+
+                                    ThemeTile {
+                                        width: 132px;
+                                        mode: 2;
+                                        label: "深色";
+                                        selected: root.theme-mode == 2;
+                                        pick => { root.pick-theme(2); }
+                                    }
+
+                                    Rectangle { }
+                                }
+                            }
+                        }
+
+                        Rectangle { }
+                    }
+                }
+            }
+        }
+    }
+}

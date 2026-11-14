@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = ["crates/gamma-probe", "crates/lumatune-core", "crates/lumatune-win", "apps/lumatune"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[profile.release]
+opt-level = 2
