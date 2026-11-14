@@ -103,31 +103,26 @@ component NavRail inherits Rectangle {
         spacing: 2px;
 
         Rectangle {
+            width: 40px;
             height: 36px;
+            horizontal-stretch: 0;
+            border-radius: 4px;
+            background: nav-toggle.pressed ? Palette.foreground.with-alpha(0.03) : (nav-toggle.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
 
-            Rectangle {
-                x: 0;
-                y: 0;
-                width: 40px;
-                height: 36px;
-                border-radius: 4px;
-                background: nav-toggle.pressed ? Palette.foreground.with-alpha(0.03) : (nav-toggle.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
+            animate background { duration: 100ms; }
 
-                animate background { duration: 100ms; }
+            Glyph {
+                x: (parent.width - 20px) / 2;
+                y: (parent.height - 20px) / 2;
+                text: "\u{e700}";
+                size: 16px;
+                tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
 
-                Glyph {
-                    x: (parent.width - 20px) / 2;
-                    y: (parent.height - 20px) / 2;
-                    text: "\u{e700}";
-                    size: 16px;
-                    tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+                animate tint { duration: 100ms; }
+            }
 
-                    animate tint { duration: 100ms; }
-                }
-
-                nav-toggle := TouchArea {
-                    clicked => { root.compact = !root.compact; }
-                }
+            nav-toggle := TouchArea {
+                clicked => { root.compact = !root.compact; }
             }
         }
 

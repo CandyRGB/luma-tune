@@ -3,3 +3,5 @@
 *.bmp
 .refs/
 .workbuddy/
+shot_*.png
+nav_zoom.png
