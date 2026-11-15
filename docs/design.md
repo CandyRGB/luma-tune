@@ -347,7 +347,22 @@ function apply-theme() {
 | `Icon.cancel` | `dismiss` | `Icon.back` | `arrow_left` |
 | `Icon.menu` | `navigation` | `Icon.chevron` | `chevron_right` |
 
-所有路径**只在 `Glyph` 组件里出现一次**——12 支三元表达式把 `Icon` 枚举映射成 `commands`，界面各处的写法一律是 `icon: Icon.save`。加图标：从 `@fluentui/svg-icons` 取 `xxx_24_regular.svg` → 转成绝对命令 → 在枚举尾部加成员、在三元链里加一支。
+路径数据集中在一个独立模块 **`apps/lumatune/ui/icons.slint`**，导出 `Icon` 枚举与 `Glyph` 组件；其他 `.slint` 文件只需要一行导入：
+
+```slint
+import { Glyph, Icon } from "icons.slint";
+
+Glyph { icon: Icon.save; size: 14px; tint: Palette.foreground; }
+```
+
+| 成员 | 说明 |
+| --- | --- |
+| `enum Icon` | 12 个语义名，界面里只写 `Icon.save` 这类枚举，不出现路径字符串 |
+| `component Glyph` | 属性 `icon` / `size`（默认 18px）/ `tint`；外框为 `size + 4`，内部 `Path` 以 24 视图框绘制 |
+
+模块只依赖 `std-widgets` 的 `Palette`（作为 `tint` 的默认值），不依赖应用的任何组件，可以直接复制到别的 Slint 项目用。
+
+加图标：从 `@fluentui/svg-icons` 取 `xxx_24_regular.svg` → 转成绝对命令 → 在枚举尾部加成员、在三元链里加一支。
 
 24 的视图框里墨迹约占 75–83%，所以 16px 的图标实际墨迹约 13px，与 14px 的文字搭配正好；这也是为什么导航用 16、面包屑分隔符用 10、行尾箭头用 12。
 
