@@ -390,8 +390,6 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    install_snapshot_hook(&ui);
-
     let bench = Timer::default();
     if std::env::var("LUMATUNE_BENCH_NAV").is_ok() {
         let weak = ui.as_weak();
@@ -416,107 +414,6 @@ fn main() -> Result<(), slint::PlatformError> {
     drop(writer);
     drop(watcher);
     result
-}
-
-fn install_snapshot_hook(ui: &AppWindow) {
-    let Ok(path) = std::env::var("LUMATUNE_SHOT") else {
-        return;
-    };
-    let anim = std::env::var("LUMATUNE_SHOT_ANIM").is_ok();
-
-    let prep = ui.as_weak();
-    slint::Timer::single_shot(Duration::from_millis(350), move || {
-        if let Some(ui) = prep.upgrade() {
-            if std::env::var("LUMATUNE_SHOT_EXPANDED").is_ok() {
-                ui.set_light_expanded(true);
-                ui.set_color_expanded(true);
-            }
-            if let Ok(modes) = std::env::var("LUMATUNE_SHOT_THEME") {
-                for mode in modes.split(',') {
-                    if let Ok(index) = mode.trim().parse::<i32>() {
-                        ui.set_theme_mode(index);
-                    }
-                }
-            }
-            if let Ok(name) = std::env::var("LUMATUNE_SHOT_PRESET") {
-                ui.set_preset_name(SharedString::from(name.clone()));
-                ui.set_active_name(SharedString::from(name));
-            }
-            if std::env::var("LUMATUNE_SHOT_EDIT").is_ok() {
-                ui.set_editing(true);
-            }
-            if std::env::var("LUMATUNE_SHOT_COMPACT").is_ok() {
-                ui.set_nav_compact(true);
-            }
-            if let Ok(page) = std::env::var("LUMATUNE_SHOT_PAGE") {
-                if let Ok(index) = page.parse::<i32>() {
-                    ui.set_page(index);
-                }
-            }
-        }
-    });
-
-    if anim {
-        let toggle = ui.as_weak();
-        slint::Timer::single_shot(Duration::from_millis(500), move || {
-            if let Some(ui) = toggle.upgrade() {
-                ui.set_nav_compact(!ui.get_nav_compact());
-            }
-        });
-    }
-
-    let delay = if anim { 590 } else { 700 };
-    let weak = ui.as_weak();
-    slint::Timer::single_shot(Duration::from_millis(delay), move || {
-        if let Some(ui) = weak.upgrade() {
-            match ui.window().take_snapshot() {
-                Ok(buffer) => match write_bmp(std::path::Path::new(&path), &buffer) {
-                    Ok(()) => eprintln!("snapshot written to {path}"),
-                    Err(err) => eprintln!("snapshot write failed: {err}"),
-                },
-                Err(err) => eprintln!("snapshot failed: {err}"),
-            }
-        }
-        let _ = slint::quit_event_loop();
-    });
-}
-fn write_bmp(
-    path: &std::path::Path,
-    buffer: &slint::SharedPixelBuffer<slint::Rgba8Pixel>,
-) -> std::io::Result<()> {
-    let width = buffer.width() as usize;
-    let height = buffer.height() as usize;
-    let stride = width * 4;
-    let image_size = stride * height;
-    let file_size = 54 + image_size;
-
-    let mut out: Vec<u8> = Vec::with_capacity(file_size);
-    out.extend_from_slice(b"BM");
-    out.extend_from_slice(&(file_size as u32).to_le_bytes());
-    out.extend_from_slice(&0u32.to_le_bytes());
-    out.extend_from_slice(&54u32.to_le_bytes());
-    out.extend_from_slice(&40u32.to_le_bytes());
-    out.extend_from_slice(&(width as i32).to_le_bytes());
-    out.extend_from_slice(&(height as i32).to_le_bytes());
-    out.extend_from_slice(&1u16.to_le_bytes());
-    out.extend_from_slice(&32u16.to_le_bytes());
-    out.extend_from_slice(&0u32.to_le_bytes());
-    out.extend_from_slice(&(image_size as u32).to_le_bytes());
-    out.extend_from_slice(&2835i32.to_le_bytes());
-    out.extend_from_slice(&2835i32.to_le_bytes());
-    out.extend_from_slice(&0u32.to_le_bytes());
-    out.extend_from_slice(&0u32.to_le_bytes());
-
-    let pixels = buffer.as_slice();
-    for row in (0..height).rev() {
-        for pixel in &pixels[row * width..(row + 1) * width] {
-            out.push(pixel.b);
-            out.push(pixel.g);
-            out.push(pixel.r);
-            out.push(255);
-        }
-    }
-    std::fs::write(path, out)
 }
 
 fn fill_model(ui: &AppWindow, list: &[Preset]) {
