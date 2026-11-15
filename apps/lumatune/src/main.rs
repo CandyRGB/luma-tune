@@ -390,23 +390,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    let bench = Timer::default();
-    if std::env::var("LUMATUNE_BENCH_NAV").is_ok() {
-        let weak = ui.as_weak();
-        let mut tick = 0i32;
-        bench.start(TimerMode::Repeated, Duration::from_millis(250), move || {
-            tick += 1;
-            if let Some(ui) = weak.upgrade() {
-                ui.set_nav_compact(tick % 2 == 0);
-            }
-            if tick >= 12 {
-                let _ = slint::quit_event_loop();
-            }
-        });
-    }
-
     let result = ui.run();
-    bench.stop();
 
     if let Some(session) = runtime.borrow_mut().session.as_mut() {
         session.restore();

@@ -182,7 +182,7 @@ Slint 自带 `SLINT_DEBUG_PERFORMANCE=refresh_lazy,console` 会打印帧率、�
 | 展开 / 收缩动画中（release） | 24–35 fps |
 | 单次 180ms 过渡的 CPU（release） | **约 190 ms** |
 
-测法：内置基准钩子 `LUMATUNE_BENCH_NAV=1` 每 250 ms 切换一次 `compact`，跑 3 秒；用进程累计 CPU 时间对比空闲跑（两者都含约 0.5 s 启动开销）。release 下空闲 0.59 s，动画 2.88 s，差值 2.28 s ÷ 12 次 = 190 ms/次。
+测法：当时内置了一个基准钩子（每 250 ms 切换一次 `compact`，跑 3 秒），用进程累计 CPU 时间对比空闲跑（两者都含约 0.5 s 启动开销）。release 下空闲 0.59 s，动画 2.88 s，差值 2.28 s ÷ 12 次 = 190 ms/次。该钩子已随截图钩子一并删除，表中数字是删除前测得的历史数据。
 
 对成本的归因试了两项，都不显著：
 
