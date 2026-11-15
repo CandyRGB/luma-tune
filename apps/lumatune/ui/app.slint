@@ -55,7 +55,7 @@ component NavItem inherits Rectangle {
         kind: root.kind;
         x: (min(parent.width, 40px) - 20px) / 2;
         y: (parent.height - 20px) / 2;
-        tint: root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.85);
+        tint: Palette.foreground.with-alpha(0.85);
 
         animate tint { duration: 120ms; }
     }
