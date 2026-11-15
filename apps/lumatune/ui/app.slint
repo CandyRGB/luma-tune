@@ -89,7 +89,9 @@ component NavRail inherits Rectangle {
     in property <NavEntry> footer: { label: "设置", kind: 2 };
     in-out property <int> current: 0;
     in-out property <bool> compact: false;
+    in property <bool> can-go-back: false;
     callback activated();
+    callback back();
 
     width: root.compact ? 48px : 200px;
     background: Palette.alternate-background;
@@ -101,6 +103,27 @@ component NavRail inherits Rectangle {
         padding-left: 4px;
         padding-right: 4px;
         spacing: 4px;
+
+        Rectangle {
+            width: 40px;
+            height: 36px;
+            horizontal-stretch: 0;
+            border-radius: 4px;
+            background: back-hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent;
+
+            Glyph {
+                x: (parent.width - 20px) / 2;
+                y: (parent.height - 20px) / 2;
+                text: "\u{e72b}";
+                size: 16px;
+                tint: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
+            }
+
+            back-hit := TouchArea {
+                enabled: root.can-go-back;
+                clicked => { root.back(); }
+            }
+        }
 
         Rectangle {
             width: 40px;
@@ -557,6 +580,14 @@ export component AppWindow inherits Window {
                 entries: [{ label: "预设库", kind: 0 }, { label: "应用", kind: 1 }];
                 current <=> root.page;
                 compact <=> root.nav-compact;
+                can-go-back: root.page == 0 && root.editing;
+                back => {
+                    root.editing = false;
+                    root.active-name = "";
+                    root.current-preset = -1;
+                    root.clear-selection();
+                    bg.focus();
+                }
                 activated => {
                     bg.focus();
                     if (root.page == 0) {

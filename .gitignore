@@ -4,9 +4,7 @@
 .refs/
 .workbuddy/
 shot_*.png
-nav_zoom.png
-nav_4px.png
-nav_selected.png
-footer_zoom.png
-footer_4px.png
+nav_*.png
+footer_*.png
+back_*.png
 state_*.png
