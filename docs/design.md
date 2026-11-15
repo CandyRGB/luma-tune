@@ -137,7 +137,10 @@ Slint 1.18，控件风格用内置的 **fluent**，不显式指定样式——�
 
 ```slint
 NavRail {
-    entries: [{ label: "预设库", kind: 0 }, { label: "应用", kind: 1 }];
+    items: [
+        { page: NavPage.presets, icon: Icon.library, label: "预设库" },
+        { page: NavPage.apps,    icon: Icon.apps,    label: "应用" },
+    ];
     current <=> root.page;
     compact <=> root.nav-compact;
     activated => { bg.focus(); }
@@ -146,13 +149,19 @@ NavRail {
 
 | 成员 | 作用 |
 | --- | --- |
-| `entries: [NavEntry]` | 顶部条目，`NavEntry` 是 `{ label, kind }` |
-| `footer: NavEntry` | 底部固定条目，默认「设置」 |
-| `current` | 选中项索引，底部条目的索引等于 `entries.length` |
+| `items: [NavItemSpec]` | 顶部条目，`NavItemSpec` 是 `{ page, icon, label }` |
+| `footer: NavItemSpec` | 底部固定条目，默认 `{ NavPage.settings, Icon.settings, "设置" }` |
+| `current: NavPage` | 选中项，按**枚举**比较，不依赖数组下标 |
 | `compact` | 展开 / 收缩 |
+| `can-go-back` | 回退箭头是否可用 |
 | `activated()` | 任何一次选中后触发，用于清焦点 |
+| `back()` | 回退箭头被点 |
 
 `current` 和 `compact` 都是 `in-out` 双向绑定，所以点击由组件内部写入、外层直接读同一个属性，不需要转发回调。
+
+**为什么页面键用枚举而不是下标**：数组下标会随条目顺序漂移，底部条目还得靠 `entries.length` 现算；改成 `NavPage` 后每条自带身份，增删或重排都不影响选中，写错名字还会编译失败。Slint 没有 map/dict 类型，但枚举被编译成整数，`==` 比较是 O(1)，效果等价于哈希。
+
+按你的参照写法（`Icon="Play"` / `Tag="SamplePage1"`），对应关系是：`Icon="Play"` → `icon: Icon.xxx`，`Tag` → `page: NavPage.xxx`，`Content` → `label`。唯一对不上的是 `NavigationView.MenuItems` 那种子元素语法——Slint 组件不能接受一组同构子元素，只能传数组。
 
 动效只做**颜色与形变**，不做布局动画：
 
@@ -319,6 +328,8 @@ function apply-theme() {
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
 图标全部来自系统字体 **Segoe Fluent Icons**（`C:\Windows\Fonts\SegoeIcons.ttf`），用 `Glyph` 组件以字形渲染，颜色继承 `Palette.foreground`，因此自动跟随主题。不引入 SVG 资源：WinUI 本身就是用这套字体画图标的，字形方案还能省掉资源管理与着色处理。
+
+码位**只在 `Glyph` 组件里出现一次**——12 支三元表达式把 `Icon` 枚举映射成字形，界面各处的写法一律是 `icon: Icon.save`，不再有散落的 `"\u{e74e}"` 字符串。加图标只需在枚举尾巴加一个成员、在三元链里加一支。
 
 Slint 里按 `\u{E713}` 写（注意是大括号形式，`\uE713` 会报 "expected '{'"）。用到的码位：
 
