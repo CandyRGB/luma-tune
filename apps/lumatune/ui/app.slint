@@ -1,5 +1,5 @@
 import { LineEdit, Palette, Slider } from "std-widgets.slint";
-import { Glyph, Icon } from "icons.slint";
+import { Icon, Icons } from "icons.slint";
 
 export enum NavPage {
     presets,
@@ -14,7 +14,7 @@ global Theme {
 
 component NavItem inherits Rectangle {
     in property <string> label;
-    in property <Icon> icon: Icon.library;
+    in property <Icons> icon: Icons.library;
     in property <bool> selected: false;
     in property <bool> compact: false;
     callback activate();
@@ -38,7 +38,7 @@ component NavItem inherits Rectangle {
         animate opacity { duration: 150ms; }
     }
 
-    Glyph {
+    Icon {
         icon: root.icon;
         size: 16px;
         x: (min(parent.width, 40px) - 20px) / 2;
@@ -69,13 +69,13 @@ component NavItem inherits Rectangle {
 
 struct NavItemSpec {
     page: NavPage,
-    icon: Icon,
+    icon: Icons,
     label: string,
 }
 
 component NavRail inherits Rectangle {
     in property <[NavItemSpec]> items;
-    in property <NavItemSpec> footer: { page: NavPage.settings, icon: Icon.settings, label: "设置" };
+    in property <NavItemSpec> footer: { page: NavPage.settings, icon: Icons.settings, label: "设置" };
     in-out property <NavPage> current: NavPage.presets;
     in-out property <bool> compact: false;
     in property <bool> can-go-back: false;
@@ -106,10 +106,10 @@ component NavRail inherits Rectangle {
             border-radius: 4px;
             background: back-hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent;
 
-            Glyph {
+            Icon {
                 x: (parent.width - 20px) / 2;
                 y: (parent.height - 20px) / 2;
-                icon: Icon.back;
+                icon: Icons.back;
                 size: 16px;
                 tint: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
             }
@@ -129,10 +129,10 @@ component NavRail inherits Rectangle {
 
             animate background { duration: 100ms; }
 
-            Glyph {
+            Icon {
                 x: (parent.width - 20px) / 2;
                 y: (parent.height - 20px) / 2;
-                icon: Icon.menu;
+                icon: Icons.menu;
                 size: 16px;
                 tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
 
@@ -228,7 +228,7 @@ component CardRow inherits VerticalLayout {
 }
 
 component IconButton inherits Rectangle {
-    in property <Icon> icon: Icon.add;
+    in property <Icons> icon: Icons.add;
     in property <string> label;
     callback clicked();
 
@@ -245,7 +245,7 @@ component IconButton inherits Rectangle {
         spacing: 6px;
         alignment: center;
 
-        Glyph {
+        Icon {
             icon: root.icon;
             size: 16px;
             tint: Palette.foreground;
@@ -417,8 +417,8 @@ component BreadcrumbBar inherits Rectangle {
             spacing: 2px;
             horizontal-stretch: 0;
 
-            if idx > 0 : Glyph {
-                icon: Icon.chevron;
+            if idx > 0 : Icon {
+                icon: Icons.chevron;
                 size: 10px;
                 tint: Palette.foreground.with-alpha(0.42);
             }
@@ -571,8 +571,8 @@ export component AppWindow inherits Window {
         HorizontalLayout {
             NavRail {
                 items: [
-                    { page: NavPage.presets, icon: Icon.library, label: "预设库" },
-                    { page: NavPage.apps, icon: Icon.apps, label: "应用" },
+                    { page: NavPage.presets, icon: Icons.library, label: "预设库" },
+                    { page: NavPage.apps, icon: Icons.apps, label: "应用" },
                 ];
                 current <=> root.page;
                 compact <=> root.nav-compact;
@@ -642,7 +642,7 @@ export component AppWindow inherits Window {
                                 spacing: 8px;
 
                                 IconButton {
-                                    icon: Icon.add;
+                                    icon: Icons.add;
                                     label: "新建预设";
                                     clicked => {
                                         root.reset();
@@ -695,8 +695,8 @@ export component AppWindow inherits Window {
 
                                             Rectangle { }
 
-                                            Glyph {
-                                                icon: Icon.chevron;
+                                            Icon {
+                                                icon: Icons.chevron;
                                                 size: 12px;
                                                 tint: Palette.foreground.with-alpha(0.45);
                                             }
@@ -748,13 +748,13 @@ export component AppWindow inherits Window {
                                 }
 
                                 IconButton {
-                                    icon: Icon.save;
+                                    icon: Icons.save;
                                     label: "保存";
                                     clicked => { root.save-preset(root.preset-name); }
                                 }
 
                                 IconButton {
-                                    icon: Icon.trash;
+                                    icon: Icons.trash;
                                     label: "删除";
                                     clicked => { root.delete-preset(); }
                                 }
@@ -939,12 +939,12 @@ export component AppWindow inherits Window {
                                             spacing: 8px;
                                             height: 32px;
                                             IconButton {
-                                                icon: Icon.compare;
+                                                icon: Icons.compare;
                                                 label: root.comparing ? "对比中" : "对比";
                                                 clicked => { root.toggle-compare(); }
                                             }
                                             IconButton {
-                                                icon: Icon.reset;
+                                                icon: Icons.reset;
                                                 label: "重置";
                                                 clicked => { root.reset(); }
                                             }
@@ -1017,12 +1017,12 @@ export component AppWindow inherits Window {
                             spacing: 8px;
 
                             IconButton {
-                                icon: Icon.add;
+                                icon: Icons.add;
                                 label: "绑定当前前台应用到选中预设";
                                 clicked => { root.bind-foreground(); }
                             }
                             IconButton {
-                                icon: Icon.cancel;
+                                icon: Icons.cancel;
                                 label: "解除前台应用的绑定";
                                 clicked => { root.unbind-foreground(); }
                             }

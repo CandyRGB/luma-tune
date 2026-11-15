@@ -1,6 +1,6 @@
 import { Palette } from "std-widgets.slint";
 
-export enum Icon {
+export enum Icons {
     library,
     apps,
     settings,
@@ -15,26 +15,29 @@ export enum Icon {
     chevron,
 }
 
-export component Glyph inherits Image {
-    in property <Icon> icon: Icon.library;
-    in property <length> size: 18px;
+export component Icon inherits Text {
+    in property <Icons> icon: Icons.library;
+    in property <length> size: 16px;
     in property <brush> tint: Palette.foreground;
 
+    text: root.icon == Icons.library ? "\u{e8f1}"
+        : root.icon == Icons.apps ? "\u{e8a9}"
+        : root.icon == Icons.settings ? "\u{e713}"
+        : root.icon == Icons.save ? "\u{e74e}"
+        : root.icon == Icons.trash ? "\u{e74d}"
+        : root.icon == Icons.compare ? "\u{e8ab}"
+        : root.icon == Icons.reset ? "\u{e72c}"
+        : root.icon == Icons.add ? "\u{e710}"
+        : root.icon == Icons.cancel ? "\u{e711}"
+        : root.icon == Icons.back ? "\u{e72b}"
+        : root.icon == Icons.menu ? "\u{e700}"
+        : "\u{e76c}";
+
+    font-family: "Segoe Fluent Icons";
+    font-size: root.size;
+    color: root.tint;
     width: root.size + 4px;
     height: root.size + 4px;
-    colorize: root.tint;
-    image-fit: contain;
-
-    source: root.icon == Icon.library ? @image-url("icons/library_16_regular.svg")
-        : root.icon == Icon.apps ? @image-url("icons/grid_16_regular.svg")
-        : root.icon == Icon.settings ? @image-url("icons/settings_16_regular.svg")
-        : root.icon == Icon.save ? @image-url("icons/save_16_regular.svg")
-        : root.icon == Icon.trash ? @image-url("icons/delete_16_regular.svg")
-        : root.icon == Icon.compare ? @image-url("icons/arrow_swap_16_regular.svg")
-        : root.icon == Icon.reset ? @image-url("icons/arrow_clockwise_16_regular.svg")
-        : root.icon == Icon.add ? @image-url("icons/add_16_regular.svg")
-        : root.icon == Icon.cancel ? @image-url("icons/dismiss_16_regular.svg")
-        : root.icon == Icon.back ? @image-url("icons/arrow_left_16_regular.svg")
-        : root.icon == Icon.menu ? @image-url("icons/navigation_16_regular.svg")
-        : @image-url("icons/chevron_right_16_regular.svg");
+    horizontal-alignment: center;
+    vertical-alignment: center;
 }

@@ -138,8 +138,8 @@ Slint 1.18，控件风格用内置的 **fluent**，不显式指定样式——�
 ```slint
 NavRail {
     items: [
-        { page: NavPage.presets, icon: Icon.library, label: "预设库" },
-        { page: NavPage.apps,    icon: Icon.apps,    label: "应用" },
+        { page: NavPage.presets, icon: Icons.library, label: "预设库" },
+        { page: NavPage.apps,    icon: Icons.apps,    label: "应用" },
     ];
     current <=> root.page;
     compact <=> root.nav-compact;
@@ -150,7 +150,7 @@ NavRail {
 | 成员 | 作用 |
 | --- | --- |
 | `items: [NavItemSpec]` | 顶部条目，`NavItemSpec` 是 `{ page, icon, label }` |
-| `footer: NavItemSpec` | 底部固定条目，默认 `{ NavPage.settings, Icon.settings, "设置" }` |
+| `footer: NavItemSpec` | 底部固定条目，默认 `{ NavPage.settings, Icons.settings, "设置" }` |
 | `current: NavPage` | 选中项，按**枚举**比较，不依赖数组下标 |
 | `compact` | 展开 / 收缩 |
 | `can-go-back` | 回退箭头是否可用 |
@@ -161,7 +161,7 @@ NavRail {
 
 **为什么页面键用枚举而不是下标**：数组下标会随条目顺序漂移，底部条目还得靠 `entries.length` 现算；改成 `NavPage` 后每条自带身份，增删或重排都不影响选中，写错名字还会编译失败。Slint 没有 map/dict 类型，但枚举被编译成整数，`==` 比较是 O(1)，效果等价于哈希。
 
-按你的参照写法（`Icon="Play"` / `Tag="SamplePage1"`），对应关系是：`Icon="Play"` → `icon: Icon.xxx`，`Tag` → `page: NavPage.xxx`，`Content` → `label`。唯一对不上的是 `NavigationView.MenuItems` 那种子元素语法——Slint 组件不能接受一组同构子元素，只能传数组。
+按你的参照写法（`Icon="Play"` / `Tag="SamplePage1"`），对应关系是：`Icon="Play"` → `icon: Icons.xxx`，`Tag` → `page: NavPage.xxx`，`Content` → `label`。唯一对不上的是 `NavigationView.MenuItems` 那种子元素语法——Slint 组件不能接受一组同构子元素，只能传数组。
 
 动效只做**颜色与形变**，不做布局动画：
 
@@ -288,7 +288,7 @@ function apply-theme() {
 
 左侧是**导航边栏**（`NavRail`），宽 200px，可收缩到 48px（收缩后只留图标）。顶部是一枚三横线按钮，40×36，与导航项尺寸完全一致、图标同为 16px 字形，展开与收起共用同一个按钮。
 
-它上方还有一枚**回退按钮**（40×36，同样无包裹行，字形 14px——比折叠按钮的 16px 小一档）：`can-go-back` 为真时用常态前景、可点；为假时降到 35% 且 `TouchArea.enabled = false`，连悬停都不响应。两枚按钮共用同一根 24px 轴线和 4px 节奏。
+它上方还有一枚**回退按钮**（40×36，同样无包裹行，图标与折叠按钮同为 16px 字形）：`can-go-back` 为真时用常态前景、可点；为假时降到 35% 且 `TouchArea.enabled = false`，连悬停都不响应。两枚按钮共用同一根 24px 轴线和 4px 节奏。
 
 折叠按钮**没有任何包裹行**：它和导航项一样是列表的直接子项，所以「按钮 → 第一个条目」的间距就直接等于 `VerticalLayout` 的 `spacing: 4px`，与条目之间完全一致。早期它被塞在一个 40px 高的行里（那是放产品标识用的），才多出一截余量；现在产品标识已移除，那层壳也跟着删掉了。
 
@@ -327,47 +327,35 @@ function apply-theme() {
 
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
-图标来自微软官方 **[fluentui-system-icons](https://github.com/microsoft/fluentui-system-icons)**（MIT），**以 SVG 文件形式存放**在 `apps/lumatune/ui/icons/`，由 `icons.slint` 用 `@image-url` 引用、`colorize` 着色：
+图标用 **Segoe Fluent Icons** 的字体字形，`icons.slint` 把语义枚举翻译成码位，`Icon` 组件继承 `Text`：
 
 ```slint
-import { Glyph, Icon } from "icons.slint";
+import { Icon, Icons } from "icons.slint";
 
-Glyph { icon: Icon.save; size: 16px; tint: Palette.foreground; }
+Icon { icon: Icons.save; size: 16px; tint: Palette.foreground; }
 ```
 
 | 成员 | 说明 |
 | --- | --- |
-| `enum Icon` | 语义名（`Icon.save` 等），界面里不出现文件路径 |
-| `component Glyph` | 基于 `Image`：`icon` / `size` / `tint`，外框 `size + 4`、`image-fit: contain`、`colorize: tint` |
+| `enum Icons` | 语义名（`Icons.save` 等），界面里不出现码位 |
+| `component Icon` | 继承 `Text`：`text` 由 `icon` 三元选出码位，`font-family: "Segoe Fluent Icons"`、`font-size: size`、`color: tint`；外框 `size + 4`、双向居中 |
 
-**必须用对应尺寸的图稿**。Fluent 为 12 / 16 / 20 / 24 / 28 / 32 / 48 各画了一套，不是同一张图缩放。用 `_24_regular` 显示在 16px 时，笔画落在像素缝隙里被抗锯齿抹成灰糊；`_16_regular` 的笔画落回像素网格，竖线才独立。规则：显示尺寸 ≤16 用 16 图稿，需要 12 的用 `_12_regular`。
-
-**SVG 解码需要开启特性**。Slint 的 `slint` crate 没有透传 `svg`，需要在应用 crate 里对同一版本的 `i-slint-core` 显式开启（Cargo 的特性合并会把 `resvg` 带进来）：
-
-```toml
-i-slint-core = { version = "=1.18.1", features = ["svg"] }
-```
-
-**为什么不再用 Segoe Fluent Icons 字体**：那套字形依赖 Windows 自带字体（Win10 1709 起），换到 macOS / Linux 会退化成方块或别的字形。SVG 由 Slint 自己的渲染器解码，跨平台一致。
-
-资源名到枚举成员的映射（枚举名是给界面用的，资源名是对着图标库找的）：
-
-| 枚举 | 资源 | 枚举 | 资源 |
+| 枚举 | 码位 | 枚举 | 码位 |
 | --- | --- | --- | --- |
-| `Icon.library` | `library` | `Icon.save` | `save` |
-| `Icon.apps` | `grid` | `Icon.trash` | `delete` |
-| `Icon.settings` | `settings` | `Icon.compare` | `arrow_swap` |
-| `Icon.add` | `add` | `Icon.reset` | `arrow_clockwise` |
-| `Icon.cancel` | `dismiss` | `Icon.back` | `arrow_left` |
-| `Icon.menu` | `navigation` | `Icon.chevron` | `chevron_right` |
+| `Icons.library` | `e8f1` | `Icons.save` | `e74e` |
+| `Icons.apps` | `e8a9` | `Icons.trash` | `e74d` |
+| `Icons.settings` | `e713` | `Icons.compare` | `e8ab` |
+| `Icons.add` | `e710` | `Icons.reset` | `e72c` |
+| `Icons.cancel` | `e711` | `Icons.back` | `e72b` |
+| `Icons.menu` | `e700` | `Icons.chevron` | `e76c` |
 
-加图标：把 `xxx_16_regular.svg` 放进 `ui/icons/` → 在枚举尾部加成员 → 在 `source` 的三元链里加一支 `root.icon == Icon.xxx ? @image-url("icons/xxx_16_regular.svg")`。
+加图标：在 [Segoe Fluent Icons 码位表](https://learn.microsoft.com/windows/apps/design/style/segoe-fluent-icons-font) 里查到码位 → 枚举尾部加成员 → `text` 三元链加一支。
+
+**为什么最终选了字体而不是 SVG**：SVG 方案要维护 1721 个文件（3.1 MB）、每个图标一句 `@image-url`、着色靠 `colorize`、留白靠外层盒子躲开 `image-fit: contain` 的缩放陷阱；字体方案一行一个码位，尺寸就是 `font-size`，颜色就是 `color`，没有缩放、没有解码。渲染上字形由 DirectWrite 按设备像素光栅化并做灰度校正，观感比 resvg 的线性 alpha 混合更轻、更贴 Win11 本体。
+
+**代价**：这套字形依赖系统字体（Win11 自带；Win10 只有 Segoe MDL2 Assets，码位不完全兼容），换到 macOS / Linux 会退化成方块。若将来真要跨平台，正确解法是内嵌 `FluentSystemIcons-Regular.ttf`（MIT，2.9 MB）再改 `font-family`——但 Slint 桌面端没有稳定的自定义字体注册 API，`import "xxx.ttf"` 只在 MCU 目标下生效，桌面要开 `unstable-fontique-011` 特性调 `shared_collection().register_fonts()`。原先的 1721 个 SVG（提交 `fd0d3c8`）已从工作区删除，需要时从历史里取。
 
 模块只依赖 `std-widgets` 的 `Palette`（`tint` 默认值），不依赖应用组件，可直接复制到别的 Slint 工程。
-
-**资产是全量的，枚举是按需的**：`ui/icons/` 里存了官方 16px 全套 **1721 个 SVG（3.1 MB）**，而 `Icon` 枚举只声明当前用到的 12 个——没被 `@image-url` 引用的文件不会进二进制。加图标只需两步：枚举尾部加成员、`source` 三元链加一支。
-
-**为什么不把 1721 个全塞进枚举**：试过，Slint 编译器在 1721 支的三元链上**栈溢出**（`STATUS_STACK_OVERFLOW`，构建脚本直接崩）。单一表达式能承载的分支数有实际上限，所以库的形态是「全量资产 + 按需声明」，不是「一个枚举装下所有图标」。若真要全量可编程访问，得按字母分桶拆成多个子组件再分发，代价是多一层间接和更大的二进制。
 
 行的排布仿设置页：标签靠左定宽 108px，滑块定宽 240px 与数值一起右对齐，中间留白。滑块不撑满整行——14 个满幅滑杆会变成一堵蓝色长条。
 
