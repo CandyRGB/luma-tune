@@ -33,7 +33,7 @@ component NavItem inherits Rectangle {
     callback activate();
 
     height: 36px;
-    background: root.selected ? Palette.foreground.with-alpha(0.07) : (hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
+    background: root.selected ? Palette.foreground.with-alpha(0.04) : (hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
     border-radius: 4px;
 
     animate background { duration: 120ms; }
@@ -94,8 +94,14 @@ component NavRail inherits Rectangle {
     callback back();
 
     width: root.compact ? 48px : 200px;
-    background: Palette.alternate-background;
+    background: Palette.background;
     clip: true;
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Palette.foreground.with-alpha(0.03);
+    }
 
     VerticalLayout {
         padding-top: 8px;
@@ -602,7 +608,13 @@ export component AppWindow inherits Window {
                 Rectangle {
                     y: 0;
                     height: 40px;
-                    background: Palette.alternate-background;
+                    background: Palette.background;
+
+                    Rectangle {
+                        width: parent.width;
+                        height: parent.height;
+                        background: Palette.foreground.with-alpha(0.03);
+                    }
 
                     HorizontalLayout {
                         padding-left: 20px;

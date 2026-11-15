@@ -121,9 +121,11 @@ Slint 1.18，控件风格用内置的 **fluent**，不显式指定样式——�
 
 | 层 | 令牌 | 浅色值 | 对应 WinUI |
 | --- | --- | --- | --- |
-| 导航边栏 | `alternate-background` | #F0F0F0 | 窗格底（acrylic 扁平化后的灰） |
-| 内容区 | `background` | #FAFAFA | `LayerFillColorDefault` |
+| 导航边栏 / 标题带 | `background` + 3% 前景覆盖 | #F2F2F2（242） | 窗格底（acrylic 扁平化后的灰） |
+| 内容区 | `background` | #FAFAFA（250） | `LayerFillColorDefault` |
 | 卡片 | `background` + 1px `Theme.card-stroke` | #FAFAFA + 10% 前景描边 | `CardBackgroundFillColorDefault` + `CardStrokeColorDefault` |
+
+导航底与标题带之所以不是直接用 `alternate-background`（#F0F0F0 = 240），是因为对着官方示例取色发现它的窗格是 **243–244**，我们的要暗 3–4 级。现在用「`background` 打底 + 3% 前景覆盖」压到 **242**，与官方基本重合；深色下则变成 35（内容 28），层次比原来的 44 更接近 WinUI 那种若隐若现的分层。
 
 卡片与内容区同色是 WinUI 的做法：卡片不靠填色区分，靠**细描边 + 8px 圆角 + 2px 偏移的 5% 阴影**。所以卡片描边不能用 `Palette.border`——那是 45% 黑的控件描边，用在卡片上过重；`Theme.card-stroke`（10%）与 `Theme.divider`（8%）是应用内定义的两档细线。
 
@@ -298,7 +300,7 @@ function apply-theme() {
 
 这条不能写成 `root.compact ? 居中 : 固定值`：两态用不同的坐标来源，差值就藏在常量里（实测会差 2px）。
 
-选中态是 7% 透明的 `foreground` 底 + 3×16 的强调色竖条；**图标与文字都不变色、不加粗**，字形与未选中项完全一致，强调色只出现在左侧那根竖条上。不用 `selection-background`（fluent 里那是饱和强调色，整块蓝太吵）。
+选中态是 4% 透明的 `foreground` 底 + 3×16 的强调色竖条；**图标与文字都不变色、不加粗**，字形与未选中项完全一致，强调色只出现在左侧那根竖条上。不用 `selection-background`（fluent 里那是饱和强调色，整块蓝太吵）。
 
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
