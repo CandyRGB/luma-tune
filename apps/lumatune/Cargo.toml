@@ -4,6 +4,7 @@ edition.workspace = true
 version.workspace = true
 
 [dependencies]
+i-slint-core = { version = "=1.18.1", features = ["svg"] }
 lumatune-core = { version = "0.1.0", path = "../../crates/lumatune-core" }
 lumatune-win = { version = "0.1.0", path = "../../crates/lumatune-win" }
 slint = "1.18.1"

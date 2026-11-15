@@ -327,14 +327,28 @@ function apply-theme() {
 
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
-图标来自微软官方 **[fluentui-system-icons](https://github.com/microsoft/fluentui-system-icons)** 的 24px regular 版本（MIT），把 SVG 的 `d` 内联成 Slint `Path` 的 `commands`，`fill` 绑到 `tint`，因此颜色仍由 `Palette` 驱动、自动跟随主题。
+图标来自微软官方 **[fluentui-system-icons](https://github.com/microsoft/fluentui-system-icons)**（MIT），**以 SVG 文件形式存放**在 `apps/lumatune/ui/icons/`，由 `icons.slint` 用 `@image-url` 引用、`colorize` 着色：
 
-**为什么不再用 Segoe Fluent Icons 字体**：那套字形依赖 Windows 自带字体（Win10 1709 起），换到 macOS / Linux 会退化成方块或别的字形。路径方案只依赖 Slint 自己的渲染器，跨平台一致，也不需要在运行时注册字体。
+```slint
+import { Glyph, Icon } from "icons.slint";
 
-**导入时踩到的两个语法差异**（转换脚本一次处理，之后不再关心）：
+Glyph { icon: Icon.save; size: 16px; tint: Palette.foreground; }
+```
 
-- SVG 大量使用相对命令（`h` / `v` / `a` / `c`…），Slint 的路径解析器只接受**绝对命令**，要把每个相对坐标累加成绝对值。
-- `Z` 之后 SVG 允许直接继续画（隐含从子路径起点开始），Slint 要求**必须重新 `M`**，否则报 `Expected move-to command`。
+| 成员 | 说明 |
+| --- | --- |
+| `enum Icon` | 语义名（`Icon.save` 等），界面里不出现文件路径 |
+| `component Glyph` | 基于 `Image`：`icon` / `size` / `tint`，外框 `size + 4`、`image-fit: contain`、`colorize: tint` |
+
+**必须用对应尺寸的图稿**。Fluent 为 12 / 16 / 20 / 24 / 28 / 32 / 48 各画了一套，不是同一张图缩放。用 `_24_regular` 显示在 16px 时，笔画落在像素缝隙里被抗锯齿抹成灰糊；`_16_regular` 的笔画落回像素网格，竖线才独立。规则：显示尺寸 ≤16 用 16 图稿，需要 12 的用 `_12_regular`。
+
+**SVG 解码需要开启特性**。Slint 的 `slint` crate 没有透传 `svg`，需要在应用 crate 里对同一版本的 `i-slint-core` 显式开启（Cargo 的特性合并会把 `resvg` 带进来）：
+
+```toml
+i-slint-core = { version = "=1.18.1", features = ["svg"] }
+```
+
+**为什么不再用 Segoe Fluent Icons 字体**：那套字形依赖 Windows 自带字体（Win10 1709 起），换到 macOS / Linux 会退化成方块或别的字形。SVG 由 Slint 自己的渲染器解码，跨平台一致。
 
 资源名到枚举成员的映射（枚举名是给界面用的，资源名是对着图标库找的）：
 
@@ -347,24 +361,9 @@ function apply-theme() {
 | `Icon.cancel` | `dismiss` | `Icon.back` | `arrow_left` |
 | `Icon.menu` | `navigation` | `Icon.chevron` | `chevron_right` |
 
-路径数据集中在一个独立模块 **`apps/lumatune/ui/icons.slint`**，导出 `Icon` 枚举与 `Glyph` 组件；其他 `.slint` 文件只需要一行导入：
+加图标：把 `xxx_16_regular.svg` 放进 `ui/icons/` → 在枚举尾部加成员 → 在 `source` 的三元链里加一支 `root.icon == Icon.xxx ? @image-url("icons/xxx_16_regular.svg")`。
 
-```slint
-import { Glyph, Icon } from "icons.slint";
-
-Glyph { icon: Icon.save; size: 14px; tint: Palette.foreground; }
-```
-
-| 成员 | 说明 |
-| --- | --- |
-| `enum Icon` | 12 个语义名，界面里只写 `Icon.save` 这类枚举，不出现路径字符串 |
-| `component Glyph` | 属性 `icon` / `size`（默认 18px）/ `tint`；外框为 `size + 4`，内部 `Path` 以 24 视图框绘制 |
-
-模块只依赖 `std-widgets` 的 `Palette`（作为 `tint` 的默认值），不依赖应用的任何组件，可以直接复制到别的 Slint 项目用。
-
-加图标：从 `@fluentui/svg-icons` 取 `xxx_24_regular.svg` → 转成绝对命令 → 在枚举尾部加成员、在三元链里加一支。
-
-24 的视图框里墨迹约占 75–83%，所以 16px 的图标实际墨迹约 13px，与 14px 的文字搭配正好；这也是为什么导航用 16、面包屑分隔符用 10、行尾箭头用 12。
+模块只依赖 `std-widgets` 的 `Palette`（`tint` 默认值），不依赖应用组件，可直接复制到别的 Slint 工程。当前 12 个文件共 25 KB；官方 16px 全集有 1721 个（3.4 MB），按需取用即可。
 
 行的排布仿设置页：标签靠左定宽 108px，滑块定宽 240px 与数值一起右对齐，中间留白。滑块不撑满整行——14 个满幅滑杆会变成一堵蓝色长条。
 
