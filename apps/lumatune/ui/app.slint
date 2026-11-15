@@ -33,7 +33,7 @@ component NavItem inherits Rectangle {
     callback activate();
 
     height: 36px;
-    background: root.selected ? Palette.foreground.with-alpha(0.07) : (hit.pressed ? Palette.foreground.with-alpha(0.03) : (hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent));
+    background: root.selected ? Palette.foreground.with-alpha(0.07) : (hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
     border-radius: 4px;
 
     animate background { duration: 120ms; }
@@ -55,7 +55,7 @@ component NavItem inherits Rectangle {
         kind: root.kind;
         x: (min(parent.width, 40px) - 20px) / 2;
         y: (parent.height - 20px) / 2;
-        tint: hit.pressed ? Palette.foreground.with-alpha(0.72) : (root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.85));
+        tint: root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.85);
 
         animate tint { duration: 120ms; }
     }
@@ -68,7 +68,7 @@ component NavItem inherits Rectangle {
         text: root.label;
         vertical-alignment: center;
         font-weight: 400;
-        color: hit.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+        color: Palette.foreground;
         font-size: 14px;
         overflow: elide;
         opacity: root.compact ? 0 : 1;

@@ -298,15 +298,6 @@ function apply-theme() {
 
 选中态是 7% 透明的 `foreground` 底 + 3×16 的强调色竖条 + 强调色图标，**文字不加粗**，字形与未选中项完全一致。不用 `selection-background`（fluent 里那是饱和强调色，整块蓝太吵）。
 
-悬停与按下是两档不同的反馈，只靠底色区分太弱：
-
-| 状态 | 底色 | 图标 / 文字 |
-| --- | --- | --- |
-| 悬停 | 前景 4% | 不变 |
-| 按下 | 前景 3% | 降到 72%（WinUI 的 `TextFillColorSecondary`） |
-
-按下的底色其实比悬停**更浅**，这是 WinUI 的原样——可感知的差别由前景变淡承担。只改底色的话，3% 和 4% 在浅灰底上几乎看不出区别。
-
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
 图标全部来自系统字体 **Segoe Fluent Icons**（`C:\Windows\Fonts\SegoeIcons.ttf`），用 `Glyph` 组件以字形渲染，颜色继承 `Palette.foreground`，因此自动跟随主题。不引入 SVG 资源：WinUI 本身就是用这套字体画图标的，字形方案还能省掉资源管理与着色处理。
