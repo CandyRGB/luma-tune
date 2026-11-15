@@ -327,19 +327,29 @@ function apply-theme() {
 
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 
-图标全部来自系统字体 **Segoe Fluent Icons**（`C:\Windows\Fonts\SegoeIcons.ttf`），用 `Glyph` 组件以字形渲染，颜色继承 `Palette.foreground`，因此自动跟随主题。不引入 SVG 资源：WinUI 本身就是用这套字体画图标的，字形方案还能省掉资源管理与着色处理。
+图标来自微软官方 **[fluentui-system-icons](https://github.com/microsoft/fluentui-system-icons)** 的 24px regular 版本（MIT），把 SVG 的 `d` 内联成 Slint `Path` 的 `commands`，`fill` 绑到 `tint`，因此颜色仍由 `Palette` 驱动、自动跟随主题。
 
-码位**只在 `Glyph` 组件里出现一次**——12 支三元表达式把 `Icon` 枚举映射成字形，界面各处的写法一律是 `icon: Icon.save`，不再有散落的 `"\u{e74e}"` 字符串。加图标只需在枚举尾巴加一个成员、在三元链里加一支。
+**为什么不再用 Segoe Fluent Icons 字体**：那套字形依赖 Windows 自带字体（Win10 1709 起），换到 macOS / Linux 会退化成方块或别的字形。路径方案只依赖 Slint 自己的渲染器，跨平台一致，也不需要在运行时注册字体。
 
-Slint 里按 `\u{E713}` 写（注意是大括号形式，`\uE713` 会报 "expected '{'"）。用到的码位：
+**导入时踩到的两个语法差异**（转换脚本一次处理，之后不再关心）：
 
-| 用途 | 码位 | 用途 | 码位 |
+- SVG 大量使用相对命令（`h` / `v` / `a` / `c`…），Slint 的路径解析器只接受**绝对命令**，要把每个相对坐标累加成绝对值。
+- `Z` 之后 SVG 允许直接继续画（隐含从子路径起点开始），Slint 要求**必须重新 `M`**，否则报 `Expected move-to command`。
+
+资源名到枚举成员的映射（枚举名是给界面用的，资源名是对着图标库找的）：
+
+| 枚举 | 资源 | 枚举 | 资源 |
 | --- | --- | --- | --- |
-| 预设库 | `E8F1` | 保存 | `E74E` |
-| 应用 | `E8A9` | 删除 | `E74D` |
-| 设置 | `E713` | 对比 | `E8AB` |
-| 添加 | `E710` | 重置 | `E72C` |
-| 取消 | `E711` | 收起 / 展开 | `E700` |
+| `Icon.library` | `library` | `Icon.save` | `save` |
+| `Icon.apps` | `grid` | `Icon.trash` | `delete` |
+| `Icon.settings` | `settings` | `Icon.compare` | `arrow_swap` |
+| `Icon.add` | `add` | `Icon.reset` | `arrow_clockwise` |
+| `Icon.cancel` | `dismiss` | `Icon.back` | `arrow_left` |
+| `Icon.menu` | `navigation` | `Icon.chevron` | `chevron_right` |
+
+所有路径**只在 `Glyph` 组件里出现一次**——12 支三元表达式把 `Icon` 枚举映射成 `commands`，界面各处的写法一律是 `icon: Icon.save`。加图标：从 `@fluentui/svg-icons` 取 `xxx_24_regular.svg` → 转成绝对命令 → 在枚举尾部加成员、在三元链里加一支。
+
+24 的视图框里墨迹约占 75–83%，所以 16px 的图标实际墨迹约 13px，与 14px 的文字搭配正好；这也是为什么导航用 16、面包屑分隔符用 10、行尾箭头用 12。
 
 行的排布仿设置页：标签靠左定宽 108px，滑块定宽 240px 与数值一起右对齐，中间留白。滑块不撑满整行——14 个满幅滑杆会变成一堵蓝色长条。
 
