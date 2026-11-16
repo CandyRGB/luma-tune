@@ -3,11 +3,10 @@
 // App-agnostic: it renders whatever `[Crumb]` labels it is given and, when
 // `interactive`, reports the index of a clicked crumb through `select(int)`.
 // The last crumb is treated as the current location (emphasized, not clickable).
-// Renders with the Slint `Palette` semantic colors by default.
 //
-// Vertical layout: the bar has `bar-height` and both the text and the chevron
-// separators are centered on its vertical axis, so its bottom edge lands where a
-// host header expects it (e.g. the midpoint between two stacked rail buttons).
+// Background matches the app's navigation rail by default: a solid
+// `Palette.background` with a 3% foreground tint. Clickable crumbs fade their
+// text on hover and fade further while pressed (pressed lighter than hover).
 
 import { Palette } from "std-widgets.slint";
 import { Icon, Icons } from "../icons.slint";
@@ -29,7 +28,14 @@ export component BreadcrumbBar inherits Rectangle {
     callback select(int);
 
     height: root.bar-height;
-    background: transparent;
+    background: Palette.background;
+
+    // Same 3% foreground tint the navigation rail uses, so the two read as one surface.
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Palette.foreground.with-alpha(0.03);
+    }
 
     HorizontalLayout {
         spacing: 2px;
@@ -65,7 +71,17 @@ export component BreadcrumbBar inherits Rectangle {
                         text: item.label;
                         font-size: 13px;
                         vertical-alignment: center;
-                        color: idx == root.items.length - 1 ? Palette.foreground : Palette.foreground.with-alpha(0.62);
+                        // Current (last) crumb stays full strength; earlier crumbs are
+                        // links that fade on hover and fade further while pressed.
+                        color: idx == root.items.length - 1
+                            ? Palette.foreground
+                            : (crumb-hit.pressed
+                                ? Palette.foreground.with-alpha(0.40)
+                                : (crumb-hit.has-hover
+                                    ? Palette.foreground.with-alpha(0.50)
+                                    : Palette.foreground.with-alpha(0.62)));
+
+                        animate color { duration: 100ms; }
                     }
                 }
 
