@@ -405,6 +405,7 @@ export component AppWindow inherits Window {
                                 Button {
                                     icon: @image-url("icons/add_16_regular.svg");
                                     icon-size: 16px;
+                                    colorize-icon: true;
                                     text: "新建预设";
                                     clicked => {
                                         root.reset();
@@ -514,6 +515,7 @@ export component AppWindow inherits Window {
                                 Button {
                                     icon: @image-url("icons/save_16_regular.svg");
                                     icon-size: 16px;
+                                    colorize-icon: true;
                                     text: "保存";
                                     clicked => { root.save-preset(root.preset-name); }
                                 }
@@ -521,6 +523,7 @@ export component AppWindow inherits Window {
                                 Button {
                                     icon: @image-url("icons/delete_16_regular.svg");
                                     icon-size: 16px;
+                                    colorize-icon: true;
                                     text: "删除";
                                     clicked => { root.delete-preset(); }
                                 }
@@ -707,12 +710,14 @@ export component AppWindow inherits Window {
                                             Button {
                                                 icon: @image-url("icons/arrow_swap_16_regular.svg");
                                                 icon-size: 16px;
+                                                colorize-icon: true;
                                                 text: root.comparing ? "对比中" : "对比";
                                                 clicked => { root.toggle-compare(); }
                                             }
                                             Button {
                                                 icon: @image-url("icons/arrow_clockwise_16_regular.svg");
                                                 icon-size: 16px;
+                                                colorize-icon: true;
                                                 text: "重置";
                                                 clicked => { root.reset(); }
                                             }
@@ -787,12 +792,14 @@ export component AppWindow inherits Window {
                             Button {
                                 icon: @image-url("icons/add_16_regular.svg");
                                 icon-size: 16px;
+                                colorize-icon: true;
                                 text: "绑定当前前台应用到选中预设";
                                 clicked => { root.bind-foreground(); }
                             }
                             Button {
                                 icon: @image-url("icons/dismiss_16_regular.svg");
                                 icon-size: 16px;
+                                colorize-icon: true;
                                 text: "解除前台应用的绑定";
                                 clicked => { root.unbind-foreground(); }
                             }
