@@ -137,8 +137,8 @@ component ThemeMock inherits Rectangle {
         x: parent.width * 0.32 + 10px;
         y: 16px;
         width: parent.width * 0.34;
-        height: 5px;
-        border-radius: 2.5px;
+        height: 6px;
+        border-radius: 2px;
         background: root.bar-color;
     }
 
@@ -146,8 +146,8 @@ component ThemeMock inherits Rectangle {
         x: parent.width * 0.32 + 10px;
         y: 30px;
         width: parent.width * 0.26;
-        height: 5px;
-        border-radius: 2.5px;
+        height: 6px;
+        border-radius: 2px;
         background: root.bar-color;
     }
 
@@ -156,7 +156,7 @@ component ThemeMock inherits Rectangle {
         y: 46px;
         width: parent.width * 0.30;
         height: 6px;
-        border-radius: 3px;
+        border-radius: 4px;
         background: root.accent-color;
     }
 
@@ -165,7 +165,7 @@ component ThemeMock inherits Rectangle {
         y: 62px;
         width: parent.width * 0.42;
         height: 8px;
-        border-radius: 3px;
+        border-radius: 4px;
         background: root.bar-color;
     }
 }
@@ -782,7 +782,7 @@ export component AppWindow inherits Window {
 
                                     Rectangle {
                                         width: 6px;
-                                        border-radius: 3px;
+                                        border-radius: 4px;
                                         background: Palette.foreground.with-alpha(0.32);
                                         visible: bar.travel > 0px;
                                         height: bar.thumb-h;
