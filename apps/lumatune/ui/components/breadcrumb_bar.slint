@@ -1,0 +1,73 @@
+// Generic breadcrumb bar: a horizontal trail of text crumbs separated by chevrons.
+//
+// App-agnostic: it renders whatever `[Crumb]` labels it is given and, when
+// `interactive`, reports the index of a clicked crumb through `select(int)`.
+// The last crumb is treated as the current location (emphasized, not clickable).
+// Renders with the Slint `Palette` semantic colors by default.
+
+import { Palette } from "std-widgets.slint";
+import { Icon, Icons } from "../icons.slint";
+
+export struct Crumb {
+    label: string,
+}
+
+export component BreadcrumbBar inherits Rectangle {
+    in property <[Crumb]> items;
+    // When false, crumbs are display-only (no hover, no clicks).
+    in property <bool> interactive: false;
+    in property <length> bar-height: 24px;
+    // Size of the chevron separator glyph.
+    in property <length> separator-size: 10px;
+
+    // Fired with the index of a clicked (non-current) crumb, only when interactive.
+    callback select(int);
+
+    height: root.bar-height;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: 2px;
+        alignment: start;
+
+        for item[idx] in root.items : HorizontalLayout {
+            spacing: 2px;
+            horizontal-stretch: 0;
+
+            if idx > 0 : Icon {
+                icon: Icons.chevron;
+                size: root.separator-size;
+                tint: Palette.foreground.with-alpha(0.42);
+            }
+
+            Rectangle {
+                height: root.bar-height;
+                border-radius: 4px;
+                horizontal-stretch: 0;
+                background: (crumb-hit.has-hover && idx < root.items.length - 1) ? Palette.foreground.with-alpha(0.05) : transparent;
+
+                animate background { duration: 100ms; }
+
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    alignment: center;
+
+                    Text {
+                        text: item.label;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        color: idx == root.items.length - 1 ? Palette.foreground : Palette.foreground.with-alpha(0.62);
+                    }
+                }
+
+                crumb-hit := TouchArea {
+                    enabled: root.interactive && idx < root.items.length - 1;
+                    clicked => { root.select(idx); }
+                }
+            }
+        }
+
+        Rectangle { }
+    }
+}

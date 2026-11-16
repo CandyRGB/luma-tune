@@ -1,6 +1,7 @@
 import { LineEdit, Palette, Slider } from "std-widgets.slint";
 import { Icon, Icons } from "icons.slint";
 import { NavRail } from "components/nav_rail.slint";
+import { BreadcrumbBar, Crumb } from "components/breadcrumb_bar.slint";
 
 export enum NavPage {
     presets,
@@ -248,64 +249,6 @@ component ThemeTile inherits Rectangle {
         width: parent.width;
         height: parent.height;
         clicked => { root.pick(); }
-    }
-}
-
-struct Crumb {
-    label: string,
-}
-
-component BreadcrumbBar inherits Rectangle {
-    in property <[Crumb]> items;
-    in property <bool> interactive: false;
-    callback select(int);
-
-    height: 24px;
-    background: transparent;
-
-    HorizontalLayout {
-        spacing: 2px;
-        alignment: start;
-
-        for item[idx] in root.items : HorizontalLayout {
-            spacing: 2px;
-            horizontal-stretch: 0;
-
-            if idx > 0 : Icon {
-                icon: Icons.chevron;
-                size: 10px;
-                tint: Palette.foreground.with-alpha(0.42);
-            }
-
-            Rectangle {
-                height: 24px;
-                border-radius: 4px;
-                horizontal-stretch: 0;
-                background: (crumb-hit.has-hover && idx < root.items.length - 1) ? Palette.foreground.with-alpha(0.05) : transparent;
-
-                animate background { duration: 100ms; }
-
-                HorizontalLayout {
-                    padding-left: 6px;
-                    padding-right: 6px;
-                    alignment: center;
-
-                    Text {
-                        text: item.label;
-                        font-size: 13px;
-                        vertical-alignment: center;
-                        color: idx == root.items.length - 1 ? Palette.foreground : Palette.foreground.with-alpha(0.62);
-                    }
-                }
-
-                crumb-hit := TouchArea {
-                    enabled: root.interactive && idx < root.items.length - 1;
-                    clicked => { root.select(idx); }
-                }
-            }
-        }
-
-        Rectangle { }
     }
 }
 
