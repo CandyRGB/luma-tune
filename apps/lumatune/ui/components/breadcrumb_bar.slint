@@ -58,9 +58,7 @@ export component BreadcrumbBar inherits Rectangle {
                 height: root.bar-height;
                 border-radius: 4px;
                 horizontal-stretch: 0;
-                background: (crumb-hit.has-hover && idx < root.items.length - 1) ? Palette.foreground.with-alpha(0.05) : transparent;
-
-                animate background { duration: 100ms; }
+                background: transparent;
 
                 HorizontalLayout {
                     padding-left: 6px;
