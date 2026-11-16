@@ -1,24 +1,22 @@
 // Generic navigation rail. A vertical list of icon+label entries with an optional
 // footer entry pinned to the bottom, a back affordance, and a compact/expanded toggle.
 //
-// This component is intentionally app-agnostic: entries carry a caller-chosen integer
-// `id`, and `current` holds the id of the selected entry. The host maps its own page
-// enum to/from these ids via the `selected(id)` callback. It renders with the Slint
-// `Palette` semantic colors by default; override via the documented properties if a
-// different token set is ever needed.
+// App-agnostic: entries carry a caller-chosen integer `id` and an icon `image`
+// (pass `@image-url(...)`); `current` holds the id of the selected entry. The host
+// maps its own page enum to/from these ids via the `selected(id)` callback. Icons
+// are recolored with `colorize` and the Slint `Palette` semantic colors.
 
 import { Palette } from "std-widgets.slint";
-import { Icon, Icons } from "../icons.slint";
 
 export struct NavEntry {
     id: int,
-    icon: Icons,
+    icon: image,
     label: string,
 }
 
 component NavItem inherits Rectangle {
     in property <string> label;
-    in property <Icons> icon: Icons.library;
+    in property <image> icon;
     in property <bool> selected: false;
     in property <bool> compact: false;
     callback activate();
@@ -42,14 +40,15 @@ component NavItem inherits Rectangle {
         animate opacity { duration: 150ms; }
     }
 
-    Icon {
-        icon: root.icon;
-        size: 16px;
-        x: (min(parent.width, 40px) - 20px) / 2;
-        y: (parent.height - 20px) / 2;
-        tint: hit.pressed ? Palette.foreground.with-alpha(0.60) : Palette.foreground.with-alpha(0.85);
+    Image {
+        width: 16px;
+        height: 16px;
+        x: (min(parent.width, 40px) - 16px) / 2;
+        y: (parent.height - 16px) / 2;
+        source: root.icon;
+        colorize: hit.pressed ? Palette.foreground.with-alpha(0.60) : Palette.foreground.with-alpha(0.85);
 
-        animate tint { duration: 120ms; }
+        animate colorize { duration: 120ms; }
     }
 
     Text {
@@ -75,7 +74,7 @@ export component NavRail inherits Rectangle {
     // Entries rendered in order between the controls and the footer.
     in property <[NavEntry]> items;
     // Optional entry pinned near the bottom (e.g. settings). Hidden when show-footer is false.
-    in property <NavEntry> footer: { id: -1, icon: Icons.settings, label: "" };
+    in property <NavEntry> footer: { id: -1, icon: @image-url("../icons/settings_16_regular.svg"), label: "" };
     // Id of the currently selected entry. Echoed back through `selected(id)` on click.
     in-out property <int> current: 0;
     in-out property <bool> compact: false;
@@ -116,12 +115,13 @@ export component NavRail inherits Rectangle {
             border-radius: 4px;
             background: back-hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent;
 
-            Icon {
-                x: (parent.width - 20px) / 2;
-                y: (parent.height - 20px) / 2;
-                icon: Icons.back;
-                size: 16px;
-                tint: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
+            Image {
+                width: 16px;
+                height: 16px;
+                x: (parent.width - 16px) / 2;
+                y: (parent.height - 16px) / 2;
+                source: @image-url("../icons/arrow_left_16_regular.svg");
+                colorize: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
             }
 
             back-hit := TouchArea {
@@ -139,14 +139,15 @@ export component NavRail inherits Rectangle {
 
             animate background { duration: 100ms; }
 
-            Icon {
-                x: (parent.width - 20px) / 2;
-                y: (parent.height - 20px) / 2;
-                icon: Icons.menu;
-                size: 16px;
-                tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+            Image {
+                width: 16px;
+                height: 16px;
+                x: (parent.width - 16px) / 2;
+                y: (parent.height - 16px) / 2;
+                source: @image-url("../icons/line_horizontal_3_16_regular.svg");
+                colorize: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
 
-                animate tint { duration: 100ms; }
+                animate colorize { duration: 100ms; }
             }
 
             nav-toggle := TouchArea {

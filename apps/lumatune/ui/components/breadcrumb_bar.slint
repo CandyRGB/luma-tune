@@ -9,7 +9,6 @@
 // default blackness; clickable crumbs lighten on hover and further while pressed.
 
 import { Palette } from "std-widgets.slint";
-import { Icon, Icons } from "../icons.slint";
 
 export struct Crumb {
     label: string,
@@ -46,12 +45,12 @@ export component BreadcrumbBar inherits Rectangle {
             horizontal-stretch: 0;
             alignment: center;
 
-            if idx > 0 : Icon {
-                icon: Icons.chevron;
-                size: root.separator-size;
-                height: root.bar-height;
-                vertical-alignment: center;
-                tint: Palette.foreground;
+            if idx > 0 : Image {
+                width: root.separator-size;
+                height: root.separator-size;
+                y: (parent.height - self.height) / 2;
+                source: @image-url("../icons/chevron_right_16_regular.svg");
+                colorize: Palette.foreground;
             }
 
             Rectangle {
@@ -69,8 +68,6 @@ export component BreadcrumbBar inherits Rectangle {
                         text: item.label;
                         font-size: 13px;
                         vertical-alignment: center;
-                        // Current (last) crumb stays full strength; earlier crumbs are
-                        // links that fade on hover and fade further while pressed.
                         // Default blackness is the same for every crumb; only the
                         // clickable ones lighten on hover and further while pressed.
                         color: idx == root.items.length - 1

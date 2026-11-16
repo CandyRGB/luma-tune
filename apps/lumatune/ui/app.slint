@@ -1,5 +1,4 @@
-import { LineEdit, Palette, Slider } from "std-widgets.slint";
-import { Icon, Icons } from "icons.slint";
+import { Button, LineEdit, Palette, Slider } from "std-widgets.slint";
 import { NavRail } from "components/nav_rail.slint";
 import { BreadcrumbBar, Crumb } from "components/breadcrumb_bar.slint";
 
@@ -79,43 +78,6 @@ component CardRow inherits VerticalLayout {
             color: Palette.foreground.with-alpha(0.55);
             font-size: 12px;
         }
-    }
-}
-
-component IconButton inherits Rectangle {
-    in property <Icons> icon: Icons.add;
-    in property <string> label;
-    callback clicked();
-
-    height: 32px;
-    horizontal-stretch: 0;
-    border-radius: 4px;
-    border-width: 1px;
-    border-color: Palette.border;
-    background: hit.pressed ? Palette.foreground.with-alpha(0.12) : (hit.has-hover ? Palette.foreground.with-alpha(0.06) : Palette.background);
-
-    HorizontalLayout {
-        padding-left: 12px;
-        padding-right: 12px;
-        spacing: 6px;
-        alignment: center;
-
-        Icon {
-            icon: root.icon;
-            size: 16px;
-            tint: Palette.foreground;
-        }
-
-        Text {
-            text: root.label;
-            font-size: 13px;
-            color: Palette.foreground;
-            vertical-alignment: center;
-        }
-    }
-
-    hit := TouchArea {
-        clicked => { root.clicked(); }
     }
 }
 
@@ -368,10 +330,10 @@ export component AppWindow inherits Window {
         HorizontalLayout {
             NavRail {
                 items: [
-                    { id: NavMap.page-id(NavPage.presets), icon: Icons.library, label: "预设库" },
-                    { id: NavMap.page-id(NavPage.apps), icon: Icons.apps, label: "应用" },
+                    { id: NavMap.page-id(NavPage.presets), icon: @image-url("icons/library_16_regular.svg"), label: "预设库" },
+                    { id: NavMap.page-id(NavPage.apps), icon: @image-url("icons/apps_16_regular.svg"), label: "应用" },
                 ];
-                footer: { id: NavMap.page-id(NavPage.settings), icon: Icons.settings, label: "设置" };
+                footer: { id: NavMap.page-id(NavPage.settings), icon: @image-url("icons/settings_16_regular.svg"), label: "设置" };
                 current: NavMap.page-id(root.page);
                 compact <=> root.nav-compact;
                 can-go-back: root.page == NavPage.presets && root.editing;
@@ -440,9 +402,10 @@ export component AppWindow inherits Window {
                                 height: 32px;
                                 spacing: 8px;
 
-                                IconButton {
-                                    icon: Icons.add;
-                                    label: "新建预设";
+                                Button {
+                                    icon: @image-url("icons/add_16_regular.svg");
+                                    icon-size: 16px;
+                                    text: "新建预设";
                                     clicked => {
                                         root.reset();
                                         root.preset-name = "";
@@ -494,10 +457,12 @@ export component AppWindow inherits Window {
 
                                             Rectangle { }
 
-                                            Icon {
-                                                icon: Icons.chevron;
-                                                size: 12px;
-                                                tint: Palette.foreground.with-alpha(0.45);
+                                            Image {
+                                                width: 12px;
+                                                height: 12px;
+                                                y: (parent.height - self.height) / 2;
+                                                source: @image-url("icons/chevron_right_16_regular.svg");
+                                                colorize: Palette.foreground.with-alpha(0.45);
                                             }
                                         }
 
@@ -546,15 +511,17 @@ export component AppWindow inherits Window {
                                     width: 232px;
                                 }
 
-                                IconButton {
-                                    icon: Icons.save;
-                                    label: "保存";
+                                Button {
+                                    icon: @image-url("icons/save_16_regular.svg");
+                                    icon-size: 16px;
+                                    text: "保存";
                                     clicked => { root.save-preset(root.preset-name); }
                                 }
 
-                                IconButton {
-                                    icon: Icons.trash;
-                                    label: "删除";
+                                Button {
+                                    icon: @image-url("icons/delete_16_regular.svg");
+                                    icon-size: 16px;
+                                    text: "删除";
                                     clicked => { root.delete-preset(); }
                                 }
 
@@ -737,14 +704,16 @@ export component AppWindow inherits Window {
                                         HorizontalLayout {
                                             spacing: 8px;
                                             height: 32px;
-                                            IconButton {
-                                                icon: Icons.compare;
-                                                label: root.comparing ? "对比中" : "对比";
+                                            Button {
+                                                icon: @image-url("icons/arrow_swap_16_regular.svg");
+                                                icon-size: 16px;
+                                                text: root.comparing ? "对比中" : "对比";
                                                 clicked => { root.toggle-compare(); }
                                             }
-                                            IconButton {
-                                                icon: Icons.reset;
-                                                label: "重置";
+                                            Button {
+                                                icon: @image-url("icons/arrow_clockwise_16_regular.svg");
+                                                icon-size: 16px;
+                                                text: "重置";
                                                 clicked => { root.reset(); }
                                             }
                                             Rectangle { }
@@ -815,14 +784,16 @@ export component AppWindow inherits Window {
                             height: 32px;
                             spacing: 8px;
 
-                            IconButton {
-                                icon: Icons.add;
-                                label: "绑定当前前台应用到选中预设";
+                            Button {
+                                icon: @image-url("icons/add_16_regular.svg");
+                                icon-size: 16px;
+                                text: "绑定当前前台应用到选中预设";
                                 clicked => { root.bind-foreground(); }
                             }
-                            IconButton {
-                                icon: Icons.cancel;
-                                label: "解除前台应用的绑定";
+                            Button {
+                                icon: @image-url("icons/dismiss_16_regular.svg");
+                                icon-size: 16px;
+                                text: "解除前台应用的绑定";
                                 clicked => { root.unbind-foreground(); }
                             }
                             Rectangle { }
