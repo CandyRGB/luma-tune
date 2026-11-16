@@ -38,11 +38,11 @@ export component BreadcrumbBar inherits Rectangle {
     }
 
     HorizontalLayout {
-        spacing: 2px;
+        spacing: 0px;
         alignment: start;
 
         for item[idx] in root.items : HorizontalLayout {
-            spacing: 2px;
+            spacing: 0px;
             horizontal-stretch: 0;
             alignment: center;
 
@@ -61,8 +61,8 @@ export component BreadcrumbBar inherits Rectangle {
                 background: transparent;
 
                 HorizontalLayout {
-                    padding-left: 6px;
-                    padding-right: 6px;
+                    padding-left: 1px;
+                    padding-right: 1px;
                     alignment: center;
 
                     Text {
