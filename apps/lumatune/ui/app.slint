@@ -1,5 +1,6 @@
 import { LineEdit, Palette, Slider } from "std-widgets.slint";
 import { Icon, Icons } from "icons.slint";
+import { NavRail } from "components/nav_rail.slint";
 
 export enum NavPage {
     presets,
@@ -12,161 +13,14 @@ global Theme {
     out property <brush> divider: Palette.foreground.with-alpha(0.08);
 }
 
-component NavItem inherits Rectangle {
-    in property <string> label;
-    in property <Icons> icon: Icons.library;
-    in property <bool> selected: false;
-    in property <bool> compact: false;
-    callback activate();
-
-    height: 36px;
-    background: hit.pressed ? Palette.foreground.with-alpha(0.025) : ((root.selected || hit.has-hover) ? Palette.foreground.with-alpha(0.04) : transparent);
-    border-radius: 4px;
-
-    animate background { duration: 120ms; }
-
-    Rectangle {
-        x: 0;
-        y: (parent.height - self.height) / 2;
-        width: 3px;
-        height: root.selected ? 16px : 4px;
-        border-radius: 2px;
-        background: Palette.accent-background;
-        opacity: root.selected ? 1 : 0;
-
-        animate height { duration: 150ms; easing: ease-out; }
-        animate opacity { duration: 150ms; }
+// Maps the app's page enum to/from the integer id used by the generic NavRail.
+global NavMap {
+    public pure function page-id(page: NavPage) -> int {
+        page == NavPage.presets ? 0 : (page == NavPage.apps ? 1 : 2)
     }
 
-    Icon {
-        icon: root.icon;
-        size: 16px;
-        x: (min(parent.width, 40px) - 20px) / 2;
-        y: (parent.height - 20px) / 2;
-        tint: hit.pressed ? Palette.foreground.with-alpha(0.60) : Palette.foreground.with-alpha(0.85);
-
-        animate tint { duration: 120ms; }
-    }
-
-    Text {
-        x: 40px;
-        y: 0;
-        height: parent.height;
-        width: max(parent.width - 52px, 0px);
-        text: root.label;
-        vertical-alignment: center;
-        font-weight: 400;
-        color: hit.pressed ? Palette.foreground.with-alpha(0.62) : Palette.foreground;
-        font-size: 14px;
-        overflow: elide;
-        opacity: root.compact ? 0 : 1;
-    }
-
-    hit := TouchArea {
-        clicked => { root.activate(); }
-    }
-}
-
-struct NavItemSpec {
-    page: NavPage,
-    icon: Icons,
-    label: string,
-}
-
-component NavRail inherits Rectangle {
-    in property <[NavItemSpec]> items;
-    in property <NavItemSpec> footer: { page: NavPage.settings, icon: Icons.settings, label: "设置" };
-    in-out property <NavPage> current: NavPage.presets;
-    in-out property <bool> compact: false;
-    in property <bool> can-go-back: false;
-    callback activated();
-    callback back();
-
-    width: root.compact ? 48px : 200px;
-    background: Palette.background;
-    clip: true;
-
-    Rectangle {
-        width: parent.width;
-        height: parent.height;
-        background: Palette.foreground.with-alpha(0.03);
-    }
-
-    VerticalLayout {
-        padding-top: 4px;
-        padding-bottom: 4px;
-        padding-left: 4px;
-        padding-right: 4px;
-        spacing: 4px;
-
-        Rectangle {
-            width: 40px;
-            height: 36px;
-            horizontal-stretch: 0;
-            border-radius: 4px;
-            background: back-hit.has-hover ? Palette.foreground.with-alpha(0.04) : transparent;
-
-            Icon {
-                x: (parent.width - 20px) / 2;
-                y: (parent.height - 20px) / 2;
-                icon: Icons.back;
-                size: 16px;
-                tint: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
-            }
-
-            back-hit := TouchArea {
-                enabled: root.can-go-back;
-                clicked => { root.back(); }
-            }
-        }
-
-        Rectangle {
-            width: 40px;
-            height: 36px;
-            horizontal-stretch: 0;
-            border-radius: 4px;
-            background: nav-toggle.pressed ? Palette.foreground.with-alpha(0.03) : (nav-toggle.has-hover ? Palette.foreground.with-alpha(0.04) : transparent);
-
-            animate background { duration: 100ms; }
-
-            Icon {
-                x: (parent.width - 20px) / 2;
-                y: (parent.height - 20px) / 2;
-                icon: Icons.menu;
-                size: 16px;
-                tint: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
-
-                animate tint { duration: 100ms; }
-            }
-
-            nav-toggle := TouchArea {
-                clicked => { root.compact = !root.compact; }
-            }
-        }
-
-        for entry in root.items : NavItem {
-            label: entry.label;
-            icon: entry.icon;
-            compact: root.compact;
-            selected: root.current == entry.page;
-            activate => {
-                root.current = entry.page;
-                root.activated();
-            }
-        }
-
-        Rectangle { }
-
-        NavItem {
-            label: root.footer.label;
-            icon: root.footer.icon;
-            compact: root.compact;
-            selected: root.current == root.footer.page;
-            activate => {
-                root.current = root.footer.page;
-                root.activated();
-            }
-        }
+    public pure function page-from-id(id: int) -> NavPage {
+        id == 0 ? NavPage.presets : (id == 1 ? NavPage.apps : NavPage.settings)
     }
 }
 
@@ -571,10 +425,11 @@ export component AppWindow inherits Window {
         HorizontalLayout {
             NavRail {
                 items: [
-                    { page: NavPage.presets, icon: Icons.library, label: "预设库" },
-                    { page: NavPage.apps, icon: Icons.apps, label: "应用" },
+                    { id: NavMap.page-id(NavPage.presets), icon: Icons.library, label: "预设库" },
+                    { id: NavMap.page-id(NavPage.apps), icon: Icons.apps, label: "应用" },
                 ];
-                current <=> root.page;
+                footer: { id: NavMap.page-id(NavPage.settings), icon: Icons.settings, label: "设置" };
+                current: NavMap.page-id(root.page);
                 compact <=> root.nav-compact;
                 can-go-back: root.page == NavPage.presets && root.editing;
                 back => {
@@ -584,7 +439,8 @@ export component AppWindow inherits Window {
                     root.clear-selection();
                     bg.focus();
                 }
-                activated => {
+                selected(id) => {
+                    root.page = NavMap.page-from-id(id);
                     bg.focus();
                     if (root.page == NavPage.presets) {
                         root.editing = false;
