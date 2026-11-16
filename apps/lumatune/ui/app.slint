@@ -396,7 +396,7 @@ export component AppWindow inherits Window {
 
                 Rectangle {
                     y: 0;
-                    height: 40px;
+                    height: 42px;
                     background: Palette.background;
 
                     Rectangle {
@@ -425,8 +425,8 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == NavPage.presets : Rectangle {
-                    y: 40px;
-                    height: parent.height - 40px;
+                    y: 42px;
+                    height: parent.height - 42px;
                     background: transparent;
 
                     if !root.editing : Rectangle {
@@ -796,8 +796,8 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == NavPage.apps : Rectangle {
-                    y: 40px;
-                    height: parent.height - 40px;
+                    y: 42px;
+                    height: parent.height - 42px;
                     background: transparent;
 
                     VerticalLayout {
@@ -882,8 +882,8 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == NavPage.settings : Rectangle {
-                    y: 40px;
-                    height: parent.height - 40px;
+                    y: 42px;
+                    height: parent.height - 42px;
                     background: transparent;
 
                     VerticalLayout {

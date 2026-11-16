@@ -4,6 +4,10 @@
 // `interactive`, reports the index of a clicked crumb through `select(int)`.
 // The last crumb is treated as the current location (emphasized, not clickable).
 // Renders with the Slint `Palette` semantic colors by default.
+//
+// Vertical layout: the bar has `bar-height` and both the text and the chevron
+// separators are centered on its vertical axis, so its bottom edge lands where a
+// host header expects it (e.g. the midpoint between two stacked rail buttons).
 
 import { Palette } from "std-widgets.slint";
 import { Icon, Icons } from "../icons.slint";
@@ -16,7 +20,8 @@ export component BreadcrumbBar inherits Rectangle {
     in property <[Crumb]> items;
     // When false, crumbs are display-only (no hover, no clicks).
     in property <bool> interactive: false;
-    in property <length> bar-height: 24px;
+    // Full height of the bar; content is vertically centered within it.
+    in property <length> bar-height: 42px;
     // Size of the chevron separator glyph.
     in property <length> separator-size: 10px;
 
@@ -33,10 +38,13 @@ export component BreadcrumbBar inherits Rectangle {
         for item[idx] in root.items : HorizontalLayout {
             spacing: 2px;
             horizontal-stretch: 0;
+            alignment: center;
 
             if idx > 0 : Icon {
                 icon: Icons.chevron;
                 size: root.separator-size;
+                height: root.bar-height;
+                vertical-alignment: center;
                 tint: Palette.foreground.with-alpha(0.42);
             }
 
