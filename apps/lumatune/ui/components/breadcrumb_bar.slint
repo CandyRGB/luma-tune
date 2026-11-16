@@ -5,8 +5,8 @@
 // The last crumb is treated as the current location (emphasized, not clickable).
 //
 // Background matches the app's navigation rail by default: a solid
-// `Palette.background` with a 3% foreground tint. Clickable crumbs fade their
-// text on hover and fade further while pressed (pressed lighter than hover).
+// `Palette.background` with a 3% foreground tint. Text and separators share one
+// default blackness; clickable crumbs lighten on hover and further while pressed.
 
 import { Palette } from "std-widgets.slint";
 import { Icon, Icons } from "../icons.slint";
@@ -51,7 +51,7 @@ export component BreadcrumbBar inherits Rectangle {
                 size: root.separator-size;
                 height: root.bar-height;
                 vertical-alignment: center;
-                tint: Palette.foreground.with-alpha(0.42);
+                tint: Palette.foreground;
             }
 
             Rectangle {
@@ -71,13 +71,15 @@ export component BreadcrumbBar inherits Rectangle {
                         vertical-alignment: center;
                         // Current (last) crumb stays full strength; earlier crumbs are
                         // links that fade on hover and fade further while pressed.
+                        // Default blackness is the same for every crumb; only the
+                        // clickable ones lighten on hover and further while pressed.
                         color: idx == root.items.length - 1
                             ? Palette.foreground
                             : (crumb-hit.pressed
                                 ? Palette.foreground.with-alpha(0.40)
                                 : (crumb-hit.has-hover
                                     ? Palette.foreground.with-alpha(0.50)
-                                    : Palette.foreground.with-alpha(0.62)));
+                                    : Palette.foreground));
 
                         animate color { duration: 100ms; }
                     }
