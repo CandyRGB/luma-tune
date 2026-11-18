@@ -74,7 +74,7 @@ export component NavRail inherits Rectangle {
     // Entries rendered in order between the controls and the footer.
     in property <[NavEntry]> items;
     // Optional entry pinned near the bottom (e.g. settings). Hidden when show-footer is false.
-    in property <NavEntry> footer: { id: -1, icon: @image-url("../icons/settings_16_regular.svg"), label: "" };
+    in property <NavEntry> footer: { id: -1, icon: @image-url("../../icons/settings_16_regular.svg"), label: "" };
     // Id of the currently selected entry. Echoed back through `selected(id)` on click.
     in-out property <int> current: 0;
     in-out property <bool> compact: false;
@@ -120,7 +120,7 @@ export component NavRail inherits Rectangle {
                 height: 16px;
                 x: (parent.width - 16px) / 2;
                 y: (parent.height - 16px) / 2;
-                source: @image-url("../icons/arrow_left_16_regular.svg");
+                source: @image-url("../../icons/arrow_left_16_regular.svg");
                 colorize: root.can-go-back ? Palette.foreground : Palette.foreground.with-alpha(0.35);
             }
 
@@ -144,7 +144,7 @@ export component NavRail inherits Rectangle {
                 height: 16px;
                 x: (parent.width - 16px) / 2;
                 y: (parent.height - 16px) / 2;
-                source: @image-url("../icons/line_horizontal_3_16_regular.svg");
+                source: @image-url("../../icons/line_horizontal_3_16_regular.svg");
                 colorize: nav-toggle.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
 
                 animate colorize { duration: 100ms; }
