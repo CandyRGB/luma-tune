@@ -41,10 +41,10 @@ export component InfoBar inherits Rectangle {
         : #005FB8;
 
     private property <image> glyph:
-        root.severity == InfoSeverity.success ? @image-url("../../icons/checkmark_circle_16_regular.svg")
-        : root.severity == InfoSeverity.warning ? @image-url("../../icons/warning_16_regular.svg")
-        : root.severity == InfoSeverity.error ? @image-url("../../icons/error_circle_16_regular.svg")
-        : @image-url("../../icons/info_16_regular.svg");
+        root.severity == InfoSeverity.success ? @image-url("../../icons/checkmark_circle_16_filled.svg")
+        : root.severity == InfoSeverity.warning ? @image-url("../../icons/warning_16_filled.svg")
+        : root.severity == InfoSeverity.error ? @image-url("../../icons/error_circle_16_filled.svg")
+        : @image-url("../../icons/info_16_filled.svg");
 
     content := HorizontalLayout {
         padding-left: 16px;
@@ -53,11 +53,6 @@ export component InfoBar inherits Rectangle {
         padding-bottom: 12px;
         spacing: 12px;
         alignment: start;
-
-        Rectangle {
-            width: 4px;
-            background: root.accent;
-        }
 
         if root.is-icon-visible : Image {
             width: 16px;
