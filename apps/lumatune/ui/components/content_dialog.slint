@@ -1,0 +1,99 @@
+// ContentDialog — a modal dialog following WinUI 3's ContentDialog.
+//
+// Renders a full-bleed scrim with a centered card holding a title, an arbitrary
+// content area (the `@children` slot), and a right-aligned row of action buttons.
+// The caller controls visibility via `open`; `accepted`/`dismissed` report the
+// outcome. Set `close-on-overlay-click` to dismiss by tapping the scrim.
+//
+// App-agnostic. Uses the Slint `Palette` semantic colors. All lengths are even.
+
+import { Button, Palette } from "std-widgets.slint";
+
+export component ContentDialog inherits Rectangle {
+    in-out property <bool> open: false;
+    in property <string> title: "";
+    // Primary (default/affirmative) action; hidden when empty.
+    in property <string> primary-label: "确定";
+    // Close (dismissive) action; hidden when empty.
+    in property <string> close-label: "取消";
+    // Clicking the scrim dismisses the dialog when true.
+    in property <bool> close-on-overlay-click: true;
+
+    // Resolved when the primary action is triggered.
+    callback accepted();
+    // Resolved when the dialog is dismissed (close button or scrim click).
+    callback dismissed();
+
+    visible: root.open;
+    width: 100%;
+    height: 100%;
+
+    // Scrim.
+    scrim := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #000000.with-alpha(root.open ? 0.30 : 0.0);
+        animate background { duration: 120ms; }
+
+        hit := TouchArea {
+            clicked => {
+                if (root.close-on-overlay-click) {
+                    root.dismissed();
+                }
+            }
+        }
+    }
+
+    // Card, centered. Auto-sizes to its content.
+    card := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: min(parent.width - 48px, 440px);
+        height: layout.preferred-height;
+        border-radius: 8px;
+        background: Palette.background;
+        border-width: 1px;
+        border-color: Palette.foreground.with-alpha(0.10);
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #000000.with-alpha(0.28);
+        drop-shadow-offset-y: 8px;
+
+        // Swallow clicks on the card so they do not reach the scrim.
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+
+            Text {
+                text: root.title;
+                visible: root.title != "";
+                font-size: 20px;
+                font-weight: 600;
+                color: Palette.foreground;
+                wrap: word-wrap;
+            }
+
+            // Content slot: the host's child elements are laid out here.
+            @children
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+
+                Button {
+                    visible: root.close-label != "";
+                    text: root.close-label;
+                    clicked => { root.dismissed(); }
+                }
+
+                Button {
+                    visible: root.primary-label != "";
+                    text: root.primary-label;
+                    primary: true;
+                    clicked => { root.accepted(); }
+                }
+            }
+        }
+    }
+}
