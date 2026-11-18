@@ -1,0 +1,137 @@
+// InfoBar — a WinUI 3-style inline message bar.
+//
+// A severity-tinted bar with an optional icon, a title, a message, an optional
+// action button and an optional close button. Mirrors WinUI's InfoBar surface
+// (Title/Message/Severity/IsOpen/IsClosable/IsIconVisible/ActionButton).
+// App-agnostic; uses Slint `Palette` + severity accent colors. Even lengths.
+
+import { Palette } from "std-widgets.slint";
+
+export enum InfoSeverity {
+    informational,
+    success,
+    warning,
+    error,
+}
+
+export component InfoBar inherits Rectangle {
+    in-out property <bool> open: true;
+    in property <string> title: "";
+    in property <string> message: "";
+    in property <InfoSeverity> severity: InfoSeverity.informational;
+    in property <bool> is-icon-visible: true;
+    in property <bool> is-closable: true;
+    in property <string> action-label: "";
+
+    callback closed();
+    callback action();
+
+    visible: root.open;
+    vertical-stretch: 0;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: root.accent.with-alpha(0.36);
+    background: root.accent.with-alpha(0.08);
+    height: content.preferred-height;
+
+    private property <brush> accent:
+        root.severity == InfoSeverity.success ? #0F7B0F
+        : root.severity == InfoSeverity.warning ? #9D5D00
+        : root.severity == InfoSeverity.error ? #C42B1C
+        : #005FB8;
+
+    private property <image> glyph:
+        root.severity == InfoSeverity.success ? @image-url("../../icons/checkmark_circle_16_regular.svg")
+        : root.severity == InfoSeverity.warning ? @image-url("../../icons/warning_16_regular.svg")
+        : root.severity == InfoSeverity.error ? @image-url("../../icons/error_circle_16_regular.svg")
+        : @image-url("../../icons/info_16_regular.svg");
+
+    content := HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 12px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 12px;
+        alignment: start;
+
+        Rectangle {
+            width: 4px;
+            background: root.accent;
+        }
+
+        if root.is-icon-visible : Image {
+            width: 16px;
+            height: 16px;
+            vertical-stretch: 0;
+            source: root.glyph;
+            colorize: root.accent;
+        }
+
+        VerticalLayout {
+            vertical-stretch: 0;
+            spacing: 2px;
+
+            Text {
+                visible: root.title != "";
+                text: root.title;
+                font-size: 14px;
+                font-weight: 600;
+                color: Palette.foreground;
+                overflow: elide;
+            }
+
+            Text {
+                visible: root.message != "";
+                text: root.message;
+                font-size: 13px;
+                color: Palette.foreground.with-alpha(0.80);
+                overflow: elide;
+            }
+        }
+
+        Rectangle { }
+
+        if root.action-label != "" : Rectangle {
+            width: action-txt.preferred-width + 16px;
+            height: 32px;
+            vertical-stretch: 0;
+            border-radius: 4px;
+            background: act-hit.has-hover ? root.accent.with-alpha(0.10) : transparent;
+
+            action-txt := Text {
+                x: 8px;
+                y: (parent.height - self.height) / 2;
+                text: root.action-label;
+                font-size: 13px;
+                font-weight: 600;
+                color: root.accent;
+                vertical-alignment: center;
+            }
+
+            act-hit := TouchArea {
+                clicked => { root.action(); }
+            }
+        }
+
+        if root.is-closable : Rectangle {
+            width: 32px;
+            height: 32px;
+            vertical-stretch: 0;
+            border-radius: 4px;
+            background: close-hit.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
+
+            Image {
+                width: 12px;
+                height: 12px;
+                x: (parent.width - 12px) / 2;
+                y: (parent.height - 12px) / 2;
+                source: @image-url("../../icons/dismiss_16_regular.svg");
+                colorize: Palette.foreground.with-alpha(0.70);
+            }
+
+            close-hit := TouchArea {
+                clicked => { root.closed(); }
+            }
+        }
+    }
+}

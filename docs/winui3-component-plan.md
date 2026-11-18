@@ -10,6 +10,7 @@
 - 风格与现有组件一致：`export component`、属性/回调注入、Slint `Palette` 语义色。
 - **长度一律偶数**，计算结果取最近偶数（奇点为界取较大偶数，如 1→2、3→4、2.5→2）。
 - 图标用 SVG `@image-url(...)` + `colorize` 染色（`apps/lumatune/ui/icons/`）。
+- **容器组件避免多个重叠子元素**：`inherits Rectangle` 的自定义组件若有多个绝对重叠的子元素（如全高色条 + 内容布局），其 `preferred-height` 会算不出，放进 `VerticalLayout` 会被压扁。改为**单一布局子元素**（色条作为布局内的窄元素）可让高度由内容撑开。
 - 每个组件：编译无警告 + 截图目检 + 至少一处可运行示例验证后再提交。
 - 状态：⬜ 待做 / 🚧 进行中 / ✅ 完成 / ⏭️ 跳过。
 
@@ -99,7 +100,7 @@ components/
 ### Status & info
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| InfoBar（可关提示条） | 🔨 | 高价值 |
+| InfoBar（可关提示条） | ✅ | `components/status-info/info_bar.slint` |
 | InfoBadge（角标） | 🔨 | |
 | ProgressBar | 🟡 | `ProgressIndicator` |
 | ProgressRing（环形） | 🔨 | `Spinner` 非环形进度 |
@@ -150,7 +151,7 @@ components/
 ## 复刻优先级（实用 + Slint 缺）
 
 1. ✅ ContentDialog（`dialogs-flyouts/content_dialog.slint`）
-2. ⬜ InfoBar（status-info）
+2. ✅ InfoBar（status-info/info_bar.slint）
 3. ⬜ Expander（layout）
 4. ⬜ CommandBar（menus-toolbars）
 5. ⬜ NumberBox / AutoSuggestBox（text）
