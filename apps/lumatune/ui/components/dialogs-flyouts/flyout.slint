@@ -11,11 +11,14 @@ export component Flyout inherits Rectangle {
     in property <FlyoutPlacement> placement: FlyoutPlacement.top;
     in property <bool> dim-background: false;
     in property <length> content-padding: 16px;
+    in property <length> horizontal-content-padding: root.content-padding;
     in property <length> presenter-min-width: 96px;
     in property <length> presenter-min-height: 40px;
     in property <length> presenter-max-width: 456px;
     in property <length> presenter-max-height: 758px;
     in property <bool> allow-horizontal-scroll: true;
+    in property <bool> move-focus-on-scroll: true;
+    in property <{ y: length, height: length }> scroll-into-view;
     out property <bool> is-open: popup.is-open;
 
     callback opening();
@@ -111,6 +114,8 @@ export component Flyout inherits Rectangle {
                 TouchArea { }
 
                 ScrollView {
+                    private property <{ y: length, height: length }> scroll-target: root.scroll-into-view;
+
                     width: parent.width;
                     height: parent.height;
                     horizontal-scrollbar-policy: root.allow-horizontal-scroll ? as-needed : always-off;
@@ -118,7 +123,22 @@ export component Flyout inherits Rectangle {
                     content-height: max(self.visible-height, content.preferred-height);
                     // Slint drops keyboard focus when the focused control scrolls out of view.
                     // Keep the keyboard in the popup after pointer scrolling.
-                    scrolled => { fallback-focus.focus(); }
+                    scrolled => {
+                        if (root.move-focus-on-scroll) {
+                            fallback-focus.focus();
+                        }
+                    }
+
+                    changed scroll-target => {
+                        if (self.scroll-target.height > 0px) {
+                            let top = self.scroll-target.y;
+                            let bottom = top + self.scroll-target.height;
+                            let current-top = -self.content-y;
+                            let wanted-top = top < current-top ? top
+                                : bottom > current-top + self.visible-height ? bottom - self.visible-height : current-top;
+                            self.content-y = -max(0px, min(self.content-height - self.visible-height, wanted-top));
+                        }
+                    }
 
                     start-focus := FocusScope {
                         enabled: false;
@@ -128,6 +148,8 @@ export component Flyout inherits Rectangle {
 
                     content := VerticalLayout {
                         padding: root.content-padding;
+                        padding-left: root.horizontal-content-padding;
+                        padding-right: root.horizontal-content-padding;
                         @children
                     }
                 }

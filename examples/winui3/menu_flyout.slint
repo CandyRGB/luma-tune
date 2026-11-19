@@ -1,0 +1,54 @@
+import { Button, Palette } from "std-widgets.slint";
+import { MenuFlyout, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, FlyoutPlacement } from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
+
+export { MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind }
+
+export component MenuFlyoutExample inherits Window {
+    title: "MenuFlyout";
+    width: root.compact ? 200px : 520px;
+    height: root.compact ? 180px : 440px;
+    forward-focus: opener;
+
+    in property <bool> dark;
+    in property <bool> compact;
+    changed dark => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    private property <string> result: "No command selected";
+
+    opener := Button {
+        x: 16px;
+        y: 16px;
+        width: 128px;
+        height: 32px;
+        text: "Open menu";
+        clicked => { menu.show(); }
+    }
+
+    Text {
+        x: 16px;
+        y: parent.height - 42px;
+        text: root.result;
+    }
+
+    menu := MenuFlyout {
+        width: parent.width;
+        height: parent.height;
+        anchor: { x: opener.x, y: opener.y, width: opener.width, height: opener.height };
+        placement: FlyoutPlacement.bottom-edge-aligned-left;
+        items: [
+            { id: "copy", text: "Copy", icon: @image-url("../../apps/lumatune/ui/icons/copy_16_regular.svg"),
+                shortcut: @keys(Control + C), accelerator-text: "Ctrl+C" },
+            { kind: MenuFlyoutItemKind.separator },
+            { id: "paste", text: "Paste", disabled: true },
+            { kind: MenuFlyoutItemKind.separator },
+            { id: "lyrics", text: "Show lyrics", kind: MenuFlyoutItemKind.toggle, checked: true },
+            { id: "title", text: "Sort by title", kind: MenuFlyoutItemKind.radio, group: "sort", checked: true },
+            { id: "artist", text: "Sort by artist", kind: MenuFlyoutItemKind.radio, group: "sort" },
+        ];
+        invoked(item) => {
+            root.result = item.text + (item.checked ? " (checked)" : "");
+        }
+    }
+}

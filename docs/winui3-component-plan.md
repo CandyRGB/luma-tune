@@ -92,11 +92,13 @@ components/
 | --- | --- | --- |
 | ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、长正文滚动，以及可取消和延迟的关闭事件 |
 | Flyout | 🚧 | `components/dialogs-flyouts/flyout.slint`，支持对齐、贴边翻转、受限尺寸、双轴滚动、可取消关闭和焦点恢复。验收记录见下。 |
-| MenuFlyout | 🔨 | 菜单项导航、选中状态与级联子菜单待做，共用 Flyout 的关闭和锚点定位。 |
+| MenuFlyout | 🚧 | `components/menus-toolbars/menu_flyout.slint`，共用 Flyout 的定位与关闭，已实现命令、禁用项、分隔线、勾选项、单选组和菜单内快捷键。 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
 
 Flyout 对照微软的 [定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) 和 [呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)。运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击、与窗口边界交互的一致性及高对比度。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。
+
+MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/menus) 和 [呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/MenuFlyout_themeresources.xaml)。运行 `cargo run -p lumatune --example menu_flyout` 可试用菜单，附加 `-- --dark --compact` 可查看深色和受限窗口。浅色软件渲染和深色 FemtoVG 已验证方向键循环、跳过禁用项和分隔线、Enter 与 Space 激活、勾选和单选互斥、菜单内快捷键、鼠标、Escape 与焦点恢复。小窗口已验证 Home 和 End 滚到当前项。菜单使用 Slint 的列表、按钮和勾选类型提供可访问标签与状态，Windows 读屏行为仍待验收。剩余项包括级联子菜单、分裂菜单项、菜单外快捷键、上下文入口、多窗口边界、Acrylic 和高对比度。
 
 ### Layout
 | 控件 | 现状 | 备注 |

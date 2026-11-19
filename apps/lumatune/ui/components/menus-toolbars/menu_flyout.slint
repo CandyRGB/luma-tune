@@ -1,0 +1,267 @@
+import { Palette } from "std-widgets.slint";
+import { Flyout, FlyoutCloseReason, FlyoutPlacement, FlyoutRect } from "../dialogs-flyouts/flyout.slint";
+
+export { FlyoutCloseReason, FlyoutPlacement, FlyoutRect }
+
+export enum MenuFlyoutItemKind { command, separator, toggle, radio }
+
+export struct MenuFlyoutItem {
+    id: string,
+    kind: MenuFlyoutItemKind,
+    text: string,
+    icon: image,
+    shortcut: keys,
+    accelerator-text: string,
+    disabled: bool,
+    checked: bool,
+    group: string,
+}
+
+export global MenuFlyoutBehavior {
+    pure callback next-item([MenuFlyoutItem], int, bool) -> int;
+    pure callback has-icons([MenuFlyoutItem]) -> bool;
+    pure callback has-checks([MenuFlyoutItem]) -> bool;
+    callback update-checks([MenuFlyoutItem], int);
+}
+
+component MenuFlyoutRow inherits Rectangle {
+    in property <MenuFlyoutItem> item;
+    in property <bool> highlighted;
+    in property <bool> keyboard-focus;
+    in property <bool> show-icons;
+    in property <bool> show-checks;
+    in property <int> index;
+    callback invoked();
+    callback hovered();
+
+    private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    private property <bool> separator: root.item.kind == MenuFlyoutItemKind.separator;
+    private property <color> foreground: root.item.disabled ? Palette.foreground.with-alpha(0.36)
+        : interaction.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+
+    height: root.separator ? 4px : 36px;
+    preferred-width: root.separator ? 96px : content.preferred-width + 8px;
+
+    if root.separator : Rectangle {
+        x: 0px;
+        width: parent.width;
+        height: 1px;
+        y: 2px;
+        background: root.dark ? #ffffff14 : #0000000f;
+    }
+
+    Rectangle {
+        x: 4px;
+        y: 2px;
+        width: parent.width - 8px;
+        height: parent.height - 4px;
+        visible: !root.separator;
+        border-radius: 4px;
+        border-width: root.keyboard-focus ? 2px : 0px;
+        border-color: Palette.foreground;
+        background: root.item.disabled ? transparent
+            : interaction.pressed ? (root.dark ? #ffffff0a : #00000006)
+            : root.highlighted ? (root.dark ? #ffffff0f : #00000009) : transparent;
+
+        content := HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            spacing: 8px;
+
+            if root.show-checks : Rectangle {
+                width: 16px;
+                Image {
+                    x: 2px;
+                    width: 12px;
+                    height: 12px;
+                    y: (parent.height - self.height) / 2;
+                    source: @image-url("../../icons/checkmark_16_regular.svg");
+                    visible: root.item.checked;
+                    colorize: root.foreground;
+                    accessible-role: none;
+                }
+            }
+
+            if root.show-icons : Rectangle {
+                width: 16px;
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    y: (parent.height - self.height) / 2;
+                    source: root.item.icon;
+                    colorize: root.foreground;
+                    accessible-role: none;
+                }
+            }
+
+            Text {
+                text: root.item.text;
+                color: root.foreground;
+                font-size: 14px;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+                accessible-role: none;
+            }
+
+            if root.item.accelerator-text != "" : HorizontalLayout {
+                padding-left: 16px;
+                Text {
+                    text: root.item.accelerator-text;
+                    color: root.foreground;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    accessible-role: none;
+                }
+            }
+        }
+
+        interaction := TouchArea {
+            enabled: !root.item.disabled && !root.separator;
+            changed has-hover => {
+                if (self.has-hover) {
+                    root.hovered();
+                }
+            }
+            clicked => { root.invoked(); }
+        }
+    }
+
+    if !root.separator && root.item.kind == MenuFlyoutItemKind.command : Rectangle {
+        accessible-role: button;
+        accessible-item-index: root.index;
+        accessible-label: root.item.text;
+        accessible-enabled: !root.item.disabled;
+        accessible-action-default => { root.invoked(); }
+    }
+
+    if root.item.kind == MenuFlyoutItemKind.toggle : Rectangle {
+        accessible-role: checkbox;
+        accessible-item-index: root.index;
+        accessible-label: root.item.text;
+        accessible-enabled: !root.item.disabled;
+        accessible-checkable: true;
+        accessible-checked: root.item.checked;
+        accessible-action-default => { root.invoked(); }
+    }
+
+    if root.item.kind == MenuFlyoutItemKind.radio : Rectangle {
+        accessible-role: radio-button;
+        accessible-item-index: root.index;
+        accessible-label: root.item.text;
+        accessible-enabled: !root.item.disabled;
+        accessible-checkable: true;
+        accessible-checked: root.item.checked;
+        accessible-action-default => { root.invoked(); }
+    }
+}
+
+export component MenuFlyout inherits Rectangle {
+    // Check state is stored in the supplied mutable model.
+    in property <[MenuFlyoutItem]> items;
+    in property <FlyoutRect> anchor <=> flyout.anchor;
+    in property <FlyoutPlacement> placement <=> flyout.placement;
+    out property <bool> is-open: flyout.is-open;
+    callback opening();
+    callback opened <=> flyout.opened;
+    callback closing <=> flyout.closing;
+    callback closed <=> flyout.closed;
+    callback invoked(MenuFlyoutItem);
+
+    private property <int> highlighted: -1;
+    private property <bool> keyboard-highlight;
+
+    public function show() {
+        flyout.show();
+    }
+
+    public function hide() {
+        flyout.hide();
+    }
+
+    function invoke(index: int) {
+        if (index >= 0 && index < root.items.length && !root.items[index].disabled
+            && root.items[index].kind != MenuFlyoutItemKind.separator) {
+            MenuFlyoutBehavior.update-checks(root.items, index);
+            let item = root.items[index];
+            root.hide();
+            root.invoked(item);
+        }
+    }
+
+    flyout := Flyout {
+        width: parent.width;
+        height: parent.height;
+        content-padding: 2px;
+        horizontal-content-padding: 0px;
+        presenter-min-height: 32px;
+        allow-horizontal-scroll: false;
+        move-focus-on-scroll: false;
+        opening => {
+            root.opening();
+            root.highlighted = MenuFlyoutBehavior.next-item(root.items, -1, true);
+            root.keyboard-highlight = true;
+        }
+
+        FocusScope {
+            min-width: rows.min-width;
+            min-height: rows.min-height;
+            preferred-width: rows.preferred-width;
+            preferred-height: rows.preferred-height;
+            focus-on-click: false;
+            accessible-role: list;
+            accessible-item-count: root.items.length;
+            accessible-delegate-focus: root.highlighted;
+
+            key-pressed(event) => {
+                if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                    root.keyboard-highlight = true;
+                    root.highlighted = MenuFlyoutBehavior.next-item(root.items, root.highlighted, event.text == Key.DownArrow);
+                    return accept;
+                }
+                if (event.text == Key.Home || event.text == Key.End) {
+                    root.keyboard-highlight = true;
+                    root.highlighted = MenuFlyoutBehavior.next-item(root.items, -1, event.text == Key.Home);
+                    return accept;
+                }
+                if (event.text == Key.Return || event.text == Key.Space) {
+                    if (!event.repeat) {
+                        root.invoke(root.highlighted);
+                    }
+                    return accept;
+                }
+                return reject;
+            }
+
+            for item[index] in root.items : KeyBinding {
+                keys: item.shortcut;
+                enabled: !item.disabled && item.kind != MenuFlyoutItemKind.separator;
+                activated => { root.invoke(index); }
+            }
+
+            rows := VerticalLayout {
+                property <bool> show-icons: MenuFlyoutBehavior.has-icons(root.items);
+                property <bool> show-checks: MenuFlyoutBehavior.has-checks(root.items);
+
+                for item[index] in root.items : MenuFlyoutRow {
+                    item: item;
+                    index: index;
+                    highlighted: index == root.highlighted;
+                    keyboard-focus: self.highlighted && root.keyboard-highlight;
+                    show-icons: rows.show-icons;
+                    show-checks: rows.show-checks;
+                    changed keyboard-focus => {
+                        if (self.keyboard-focus) {
+                            flyout.scroll-into-view = { y: self.y + flyout.content-padding, height: self.height };
+                        }
+                    }
+                    hovered => {
+                        root.keyboard-highlight = false;
+                        root.highlighted = index;
+                    }
+                    invoked => { root.invoke(index); }
+                }
+            }
+        }
+    }
+}
