@@ -67,10 +67,13 @@ components/
 | Slider | ✅ | |
 | RadioButton | 🟡 | `RadioGroup` 有；便捷分组 `RadioButtons` 待封装 |
 | ToggleSwitch | 🟡 | `Switch` 有，样式不完全同 |
-| ToggleButton / DropDownButton / SplitButton / ToggleSplitButton | 🔨 | 皆无 |
+| ToggleButton | 🔨 | 待校对 Slint `Button.checkable` 与 WinUI 的视觉和交互态。 |
+| DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
 | HyperlinkButton | 🔨 | 无 |
 | RatingControl | 🔨 | |
 | ColorPicker | ⚠️ | 复杂，暂不做 |
+
+运行 `cargo run -p lumatune --example flyout_buttons` 可试用三个按钮，附加 `-- --dark` 切换至深色。已验证鼠标点击、Enter 与 Space、分裂按钮的 F4 与 Alt+↓、弹层关闭后的焦点恢复、禁用态，以及 ToggleSplitButton 用主区域切换状态、用箭头开菜单。Windows UI Automation 已实测展开、调用和切换。AccessKit 通过独立子节点提供分裂按钮的主命令。读屏、原生收起动作、图标动效、触屏及高对比度仍待验收。[DropDownButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/DropDownButton/DropDownButton.xaml) · [SplitButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.xaml) · [SplitButton 键盘实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.cpp)
 
 ### Collections
 | 控件 | 现状 | 备注 |
