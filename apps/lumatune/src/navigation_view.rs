@@ -1,16 +1,27 @@
 use std::collections::{HashMap, HashSet};
 
-use slint::{Model, ModelExt, ModelRc, SharedString, VecModel};
+use slint::platform::{Key, WindowEvent};
+use slint::{ComponentHandle, Model, ModelExt, ModelRc, SharedString, VecModel};
 
 use crate::{
     NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind, NavigationViewLeftLayout,
-    NavigationViewMeasurement, NavigationViewRow, NavigationViewTopLayout,
+    NavigationViewMeasurement, NavigationViewRow, NavigationViewTopContentWidths,
+    NavigationViewTopLayout,
 };
 
 const OVERFLOW_ID: &str = "$overflow";
 const TOP_OVERFLOW_WIDTH: f32 = 40.0;
 
-pub fn install(behavior: NavigationViewBehavior<'_>) {
+pub fn install<T: ComponentHandle + 'static>(behavior: NavigationViewBehavior<'_>, owner: &T) {
+    let owner = owner.as_weak();
+    behavior.on_traverse_focus(move |forward| {
+        if let Some(owner) = owner.upgrade() {
+            let key = if forward { Key::Tab } else { Key::Backtab };
+            owner
+                .window()
+                .dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        }
+    });
     behavior.on_measurements(|| ModelRc::new(VecModel::<NavigationViewMeasurement>::default()));
     behavior.on_measure(|model, id, width| {
         let Some(metrics) = model
@@ -287,7 +298,7 @@ fn top_rows(
     metrics: ModelRc<NavigationViewMeasurement>,
     selected: SharedString,
     available: f32,
-    search_width: f32,
+    content: NavigationViewTopContentWidths,
 ) -> NavigationViewTopLayout {
     let items = Items::new(&menu, &footer, settings);
     let available = (available.max(0.0) / 2.0).floor() * 2.0;
@@ -320,14 +331,13 @@ fn top_rows(
         .or_else(|| primary.iter().position(|row| is_item(&row.item)));
     let primary_width: f32 = primary.iter().map(|row| row.extent).sum();
     let trailing_width: f32 = trailing.iter().map(|row| row.extent).sum();
-    let overflow_needed = primary_width + trailing_width + search_width > available;
-    let mut remaining = available
-        - search_width
-        - if overflow_needed {
-            TOP_OVERFLOW_WIDTH
-        } else {
-            0.0
-        };
+    let navigation_width = (available - content.custom - content.search - content.footer).max(0.0);
+    let overflow_width = if primary_width + trailing_width > navigation_width {
+        TOP_OVERFLOW_WIDTH.min(navigation_width)
+    } else {
+        0.0
+    };
+    let mut remaining = navigation_width - overflow_width;
     let mut overflow = Vec::new();
     let mut rows = Vec::new();
     let mut top_footer = Vec::new();
@@ -373,12 +383,14 @@ fn top_rows(
                 ..Default::default()
             },
             offset,
-            extent: TOP_OVERFLOW_WIDTH.min(available),
+            extent: overflow_width,
             ..Default::default()
         });
+        offset += overflow_width;
     }
     let mut end_offset = available - top_footer.iter().map(|row| row.extent).sum::<f32>();
-    let search_offset = end_offset - search_width;
+    let footer_offset = end_offset - content.footer;
+    let search_offset = footer_offset - content.search;
     for mut row in top_footer {
         row.offset = end_offset;
         end_offset += row.extent;
@@ -388,7 +400,9 @@ fn top_rows(
     NavigationViewTopLayout {
         rows: model(rows),
         overflow: model(hidden_primary),
+        primary_end: offset,
         search_offset,
+        footer_offset,
     }
 }
 

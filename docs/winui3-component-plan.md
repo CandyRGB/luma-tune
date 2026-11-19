@@ -135,7 +135,9 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 
 顶部导航会在首项前显示窗格标题，并在计算溢出时预留标题宽度。附加 `-- --extended-title-bar` 可验证宿主传入的 32px 标题栏预留高度，及关闭自动预留后导航与内容同步上移。全屏或标准系统标题栏由宿主传入零高度。
 
-待补窗格标题、自定义内容、页脚和页面标题插槽。触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
+附加 `-- --slots --search` 可试用 `pane-header`、`pane-custom-content`、`pane-footer`、`page-header` 和 `content-overlay`。窗格的三个自定义区域在顶部与左侧模式间复用同一组控件，顶部溢出计算会为它们保留空间。页面标题区域可容纳可交互控件，`content-overlay` 位于顶部导航下方。浅色已验证插槽位置、窄窗口溢出、鼠标激活，以及覆盖窗格依次经过自定义控件的正反向 Tab 循环。命名插槽使用 Slint 1.18.1 的实验语法，Cargo 示例已启用。直接用 `slint-viewer` 检查示例时需设置 `SLINT_ENABLE_EXPERIMENTAL_FEATURES=1`。
+
+触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
 
 ### Status & info
 | 控件 | 现状 | 备注 |

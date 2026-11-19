@@ -5,18 +5,18 @@ slint::slint! {
     import {
         NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewExample, NavigationViewItem,
         NavigationViewItemKind, NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewPaneDisplayMode,
-        NavigationViewRow, NavigationViewTopLayout,
+        NavigationViewRow, NavigationViewTopContentWidths, NavigationViewTopLayout,
     } from "../../examples/winui3/navigation_view.slint";
     export {
         NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewExample, NavigationViewItem,
         NavigationViewItemKind, NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewPaneDisplayMode,
-        NavigationViewRow, NavigationViewTopLayout,
+        NavigationViewRow, NavigationViewTopContentWidths, NavigationViewTopLayout,
     }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
     let window = NavigationViewExample::new()?;
-    navigation_view::install(window.global::<NavigationViewBehavior>());
+    navigation_view::install(window.global::<NavigationViewBehavior>(), &window);
     if std::env::args().any(|argument| argument == "--top") {
         window.set_mode(NavigationViewPaneDisplayMode::Top);
     }
@@ -28,6 +28,9 @@ fn main() -> Result<(), slint::PlatformError> {
     }
     if std::env::args().any(|argument| argument == "--extended-title-bar") {
         window.set_title_bar_height(32.0);
+    }
+    if std::env::args().any(|argument| argument == "--slots") {
+        window.set_with_slots(true);
     }
     window.run()
 }

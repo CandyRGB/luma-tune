@@ -39,7 +39,15 @@ export struct NavigationViewLeftLayout {
 export struct NavigationViewTopLayout {
     rows: [NavigationViewRow],
     overflow: [NavigationViewRow],
+    primary-end: length,
     search-offset: length,
+    footer-offset: length,
+}
+
+export struct NavigationViewTopContentWidths {
+    custom: length,
+    search: length,
+    footer: length,
 }
 
 export struct NavigationViewMeasurement { id: string, width: length }
@@ -49,7 +57,8 @@ export global NavigationViewBehavior {
     pure callback measurements() -> [NavigationViewMeasurement];
     callback measure([NavigationViewMeasurement], string, length);
     pure callback left-rows([NavigationViewItem], [NavigationViewItem], NavigationViewItem, [string], string, length, bool) -> NavigationViewLeftLayout;
-    pure callback top-rows([NavigationViewItem], [NavigationViewItem], NavigationViewItem, [NavigationViewMeasurement], string, length, length) -> NavigationViewTopLayout;
+    pure callback top-rows([NavigationViewItem], [NavigationViewItem], NavigationViewItem, [NavigationViewMeasurement], string, length, NavigationViewTopContentWidths) -> NavigationViewTopLayout;
+    callback traverse-focus(bool);
     pure callback flyout-rows([NavigationViewItem], [NavigationViewItem], [NavigationViewRow], [string], string, string) -> [NavigationViewRow];
     pure callback next([NavigationViewRow], string, bool) -> int;
     pure callback find([NavigationViewRow], string) -> int;
@@ -392,6 +401,12 @@ component NavigationViewList inherits Rectangle {
 export enum NavigationViewCloseReason { programmatic, toggle, close-button, back, light-dismiss, item-invoked, resize }
 
 export component NavigationView inherits Rectangle {
+    slot pane-header;
+    slot pane-custom-content;
+    slot pane-footer;
+    slot page-header;
+    slot content-overlay;
+
     // Item IDs are unique across both lists and remain stable across model changes.
     // The default settings ID and the internal overflow ID are reserved.
     in property <[NavigationViewItem]> menu-items;
@@ -457,19 +472,29 @@ export component NavigationView inherits Rectangle {
     private property <bool> show-pane-header: root.is-pane-visible && !root.top-mode && (root.display-mode != NavigationViewDisplayMode.minimal || root.overlay);
     private property <bool> show-top-back: root.is-pane-visible && root.is-back-button-visible && (root.top-mode || root.display-mode == NavigationViewDisplayMode.minimal);
     private property <bool> show-top-toggle: root.is-pane-visible && root.is-pane-toggle-button-visible && root.display-mode == NavigationViewDisplayMode.minimal && !root.top-mode;
-    private property <bool> show-header: root.header != "" && (root.always-show-header || (!root.top-mode && root.display-mode == NavigationViewDisplayMode.minimal));
+    private property <bool> show-header: (root.header != "" || page-header-slot.preferred-height > 0px) && (root.always-show-header || (!root.top-mode && root.display-mode == NavigationViewDisplayMode.minimal));
     private property <length> top-controls-width: (root.show-top-back ? 48px : 0px) + (root.show-top-toggle ? 48px : 0px);
     private property <length> top-height: root.is-pane-visible && root.top-mode ? 48px : 0px;
     private property <length> title-bar-padding: root.is-title-bar-auto-padding-enabled ? clamp(root.title-bar-height, 0px, root.height) : 0px;
     private property <length> top-title-width: top-title.visible
         ? min(ceil(top-title.preferred-width / 2px) * 2px + 24px,
-            max(0px, floor((root.width - root.top-controls-width - 8px) / 6px) * 2px)) : 0px;
-    private property <length> header-height: root.show-header || (!root.top-mode && root.top-controls-width > 0px) ? 52px : 0px;
-    private property <NavigationViewLeftLayout> left-layout: pane.visible && NavigationViewBehavior.ready
+            root.top-slot-width-limit) : 0px;
+    private property <length> top-overlay-height: root.top-mode ? ceil(top-content-overlay.preferred-height / 2px) * 2px : 0px;
+    private property <length> page-top: root.title-bar-padding + root.top-height + root.top-overlay-height;
+    private property <length> header-height: root.show-header ? max(52px, ceil(page-header-slot.preferred-height / 2px) * 2px)
+        : !root.top-mode && root.top-controls-width > 0px ? 52px : 0px;
+    private property <length> top-slot-width-limit: max(0px, floor((root.width - root.top-controls-width - 8px) / 6px) * 2px);
+    private property <length> top-header-width: min(ceil(pane-header-slot.preferred-width / 2px) * 2px, max(0px, root.top-slot-width-limit - root.top-title-width));
+    private property <length> top-footer-width: min(ceil(pane-footer-slot.preferred-width / 2px) * 2px, floor(top-list.width / 8px) * 2px);
+    private property <length> top-custom-min-width: min(ceil(pane-custom-slot-layout.min-width / 2px) * 2px, floor(top-list.width / 12px) * 2px);
+    private property <bool> wrapping-focus;
+    private property <bool> wrap-forward;
+    private property <NavigationViewLeftLayout> left-layout: root.show-pane-header && NavigationViewBehavior.ready
         ? NavigationViewBehavior.left-rows(root.menu-items, root.footer-menu-items, root.settings-item,
-            root.expanded-items, root.selected-id, max(0px, pane.height - pane.controls-height - pane.search-height), !root.is-pane-open) : {};
+            root.expanded-items, root.selected-id, pane.items-height, !root.is-pane-open) : {};
     private property <NavigationViewTopLayout> top-layout: NavigationViewBehavior.ready ? NavigationViewBehavior.top-rows(root.menu-items,
-        root.footer-menu-items, root.settings-item, root.metrics, root.top-layout-selection, top-list.width, root.top-search-width) : {};
+        root.footer-menu-items, root.settings-item, root.metrics, root.top-layout-selection, top-list.width,
+        { custom: root.top-custom-min-width, search: root.top-search-width, footer: root.top-footer-width }) : {};
     private property <string> popup-owner;
     private property <string> overflow-layout-selection;
     private property <string> top-layout-selection: root.popup-owner == "$overflow" ? root.overflow-layout-selection : root.selected-id;
@@ -504,7 +529,7 @@ export component NavigationView inherits Rectangle {
             root.force-closed = false;
             root.pane-opening();
             root.is-pane-open = true;
-            if (root.overlay) { root.focus-pane-edge(true); }
+            if (root.overlay) { root.focus-pane-start(); }
             root.pane-opened();
         }
     }
@@ -531,39 +556,36 @@ export component NavigationView inherits Rectangle {
             if (root.opened-from-search && left-search-button.visible) { left-search-button.focus(); }
             else if (root.show-top-toggle) { top-toggle.focus(); }
             else if (left-toggle.visible && pane.visible) { left-toggle.focus(); }
-            else if (pane.visible) { root.focus-pane-edge(true); }
+            else if (left-list.can-focus) { left-list.restore-focus(root.selected-id); }
+            else if (footer-list.can-focus) { footer-list.restore-focus(root.selected-id); }
         }
         root.opened-from-search = false;
         root.pane-closed();
     }
-    function focus-pane-edge(first: bool) {
-        if (first && pane.back) { left-back.focus(); }
-        else if (first && pane.close-button) { left-dismiss.focus(); }
-        else if (first && left-toggle.visible) { left-toggle.focus(); }
-        else if (first && left-search.visible) { left-search.focus(); }
-        else if (!first && footer-list.can-focus) { footer-list.restore-focus(root.selected-id); }
-        else if (left-list.can-focus) { left-list.restore-focus(root.selected-id); }
-        else if (footer-list.can-focus) { footer-list.restore-focus(root.selected-id); }
-        else if (left-search.visible) { left-search.focus(); }
-        else if (left-toggle.visible) { left-toggle.focus(); }
-        else if (pane.back) { left-back.focus(); }
-        else if (pane.close-button) { left-dismiss.focus(); }
-        else { pane-key.focus(); }
+    function focus-pane-start() {
+        pane-start.focus();
+        root.schedule-pane-wrap(true);
     }
-    function cycle-pane-focus(forward: bool) {
-        if (forward) {
-            if ((left-back.has-focus || left-dismiss.has-focus) && left-toggle.visible) { left-toggle.focus(); }
-            else if ((left-back.has-focus || left-dismiss.has-focus || left-toggle.has-focus) && left-search.visible) { left-search.focus(); }
-            else if ((left-back.has-focus || left-dismiss.has-focus || left-toggle.has-focus || left-search.has-focus) && left-list.can-focus) { left-list.restore-focus(root.selected-id); }
-            else if (!footer-list.has-focus && footer-list.can-focus) { footer-list.restore-focus(root.selected-id); }
-            else { root.focus-pane-edge(true); }
-        } else {
-            if (footer-list.has-focus && left-list.can-focus) { left-list.restore-focus(root.selected-id); }
-            else if ((left-list.has-focus || footer-list.has-focus) && left-search.visible) { left-search.focus(); }
-            else if ((left-list.has-focus || footer-list.has-focus || left-search.has-focus) && left-toggle.visible) { left-toggle.focus(); }
-            else if ((left-list.has-focus || footer-list.has-focus || left-toggle.has-focus || left-search.has-focus) && pane.back) { left-back.focus(); }
-            else if ((left-list.has-focus || footer-list.has-focus || left-toggle.has-focus || left-search.has-focus) && pane.close-button) { left-dismiss.focus(); }
-            else { root.focus-pane-edge(false); }
+    function schedule-pane-wrap(forward: bool) {
+        if (!root.wrapping-focus) {
+            root.wrap-forward = forward;
+            pane-wrap.start();
+        }
+    }
+    // Let Slint traverse the actual controls in each host-provided slot. The two
+    // boundaries wrap before Tab can reach the page behind an overlay pane.
+    pane-wrap := Timer {
+        interval: 0ms;
+        running: false;
+        triggered => {
+            self.stop();
+            if (pane-key.enabled && (pane-start.has-focus || pane-end.has-focus)) {
+                root.wrapping-focus = true;
+                if (root.wrap-forward) { pane-start.focus(); }
+                else { pane-end.focus(); }
+                NavigationViewBehavior.traverse-focus(root.wrap-forward);
+                root.wrapping-focus = false;
+            }
         }
     }
     function close-popup(restore: bool, id: string) {
@@ -621,52 +643,6 @@ export component NavigationView inherits Rectangle {
     for item in (NavigationViewBehavior.ready ? root.footer-menu-items : []) : NavigationViewItemMeasure { item: item; metrics: root.metrics; }
     if NavigationViewBehavior.ready : NavigationViewItemMeasure { item: root.settings-item; metrics: root.metrics; }
 
-    top-title := Text {
-        visible: root.top-height > 0px && root.pane-title != "";
-        x: root.rtl ? root.width - root.top-controls-width - root.top-title-width + 8px : root.top-controls-width + 16px;
-        y: root.title-bar-padding + 4px;
-        width: max(0px, root.top-title-width - 24px);
-        height: 40px;
-        text: root.pane-title;
-        vertical-alignment: center;
-        horizontal-alignment: root.rtl ? right : left;
-        font-size: 14px;
-        font-weight: 600;
-        overflow: elide;
-        color: Palette.foreground;
-    }
-    top-list := NavigationViewList {
-        visible: root.top-height > 0px;
-        enabled: root.popup-owner == "";
-        x: root.rtl ? 4px : root.top-controls-width + root.top-title-width + 4px;
-        y: root.title-bar-padding + 4px;
-        width: max(0px, root.width - root.top-controls-width - root.top-title-width - 8px);
-        height: 40px;
-        rows: self.visible ? root.top-layout.rows : [];
-        label: "Navigation";
-        rtl: root.rtl;
-        horizontal: true;
-        selected-id: root.selected-id;
-        popup-owner: root.popup-owner;
-        activated(row, chevron, anchor) => { root.activate-row(row, chevron, anchor, false); }
-        focused(row) => { root.focus-item(row); }
-    }
-    top-search := AutoSuggestBox {
-        visible: root.top-height > 0px && root.is-search-visible;
-        enabled: self.visible && root.popup-owner == "";
-        x: top-list.x + (root.rtl ? top-list.width - root.top-layout.search-offset - root.top-search-width : root.top-layout.search-offset) + 4px;
-        y: root.title-bar-padding + 8px;
-        width: max(0px, root.top-search-width - 8px);
-        height: 32px;
-        text <=> root.search-text;
-        placeholder-text: root.search-placeholder;
-        suggestions: root.search-suggestions;
-        query-icon: @image-url("../../icons/search_16_regular.svg");
-        popup-viewport: { width: root.width, height: root.height };
-        text-changed(text, reason) => { if (self.visible) { root.search-text-changed(text, reason); } }
-        suggestion-chosen(item) => { root.search-suggestion-chosen(item); }
-        query-submitted(text, has-suggestion, item) => { root.search-submitted(text, has-suggestion, item); }
-    }
     NavigationViewButton {
         visible: root.show-top-back && !root.overlay;
         x: root.rtl ? root.width - 44px : 4px;
@@ -686,33 +662,8 @@ export component NavigationView inherits Rectangle {
         invoked => { root.show-pane(); }
     }
 
-    content := Rectangle {
-        x: root.rtl ? 0px : root.dock-width;
-        y: root.title-bar-padding + root.top-height + root.header-height;
-        width: max(0px, root.width - root.dock-width);
-        height: max(0px, root.height - self.y);
-        border-top-left-radius: root.dock-width > 0px && !root.rtl ? 8px : 0px;
-        border-top-right-radius: root.dock-width > 0px && root.rtl ? 8px : 0px;
-        border-width: 1px;
-        border-color: Palette.foreground.with-alpha(0.06);
-        background: Palette.background;
-        clip: true;
-        @children
-    }
-    if root.show-header : Text {
-        x: root.rtl ? 24px + (root.top-mode ? 0px : root.top-controls-width) : root.dock-width + (root.top-mode ? 0px : root.top-controls-width) + 24px;
-        y: root.title-bar-padding + root.top-height;
-        width: max(0px, root.width - root.dock-width - (root.top-mode ? 0px : root.top-controls-width) - 48px);
-        height: root.header-height;
-        text: root.header;
-        vertical-alignment: center;
-        horizontal-alignment: root.rtl ? right : left;
-        font-size: 28px;
-        font-weight: 600;
-        overflow: elide;
-        color: Palette.foreground;
-    }
     if root.overlay : Rectangle {
+        z: 1;
         y: root.title-bar-padding;
         height: max(0px, root.height - self.y);
         background: #0003;
@@ -720,20 +671,30 @@ export component NavigationView inherits Rectangle {
     }
 
     pane := Rectangle {
-        visible: root.show-pane-header;
-        x: root.rtl ? root.width - root.pane-width : 0px;
+        z: root.overlay ? 2 : 0;
+        visible: root.top-mode ? root.top-height > 0px : root.show-pane-header;
+        x: !root.top-mode && root.rtl ? root.width - root.pane-width : 0px;
         y: root.title-bar-padding;
-        width: root.pane-width;
-        height: max(0px, root.height - self.y);
-        clip: true;
+        width: root.top-mode ? root.width : root.pane-width;
+        height: root.top-mode ? root.top-height : max(0px, root.height - self.y);
+        clip: !root.top-mode;
         background: root.overlay ? Palette.background : transparent;
-        private property <bool> back: root.is-back-button-visible && root.display-mode != NavigationViewDisplayMode.minimal;
+        private property <bool> back: !root.top-mode && root.is-back-button-visible && root.display-mode != NavigationViewDisplayMode.minimal;
         private property <bool> close-button: root.overlay && root.display-mode == NavigationViewDisplayMode.minimal && root.is-back-button-visible;
         private property <length> toggle-y: pane.back ? 46px : 6px;
         private property <length> toggle-start: pane.close-button ? 44px : 4px;
         private property <length> search-height: root.is-search-visible ? 44px : 0px;
-        private property <length> controls-height: pane.back && (root.is-pane-toggle-button-visible || root.pane-title != "") ? 88px
-            : pane.back || pane.close-button || root.is-pane-toggle-button-visible || root.pane-title != "" ? 48px : 0px;
+        private property <length> heading-start: self.toggle-start + (root.is-pane-toggle-button-visible ? 40px : 0px);
+        private property <length> heading-width: max(0px, self.width - self.heading-start - 12px);
+        private property <length> heading-height: root.is-pane-toggle-button-visible || root.pane-title != "" || pane-header-slot.visible
+            ? max(48px, pane-header-slot.visible ? ceil(pane-header-slot.preferred-height / 2px) * 2px : 0px) : 0px;
+        private property <length> controls-height: self.back ? (self.heading-height > 0px ? 40px + self.heading-height : 48px)
+            : max(self.heading-height, self.close-button ? 48px : 0px);
+        private property <length> custom-height: pane-custom-slot.visible
+            ? clamp(ceil(pane-custom-slot.preferred-height / 2px) * 2px, 0px, max(0px, self.height - self.controls-height - self.search-height)) : 0px;
+        private property <length> footer-height: pane-footer-slot.visible
+            ? clamp(ceil(pane-footer-slot.preferred-height / 2px) * 2px + 4px, 0px, max(0px, self.height - self.controls-height - self.search-height - self.custom-height)) : 0px;
+        private property <length> items-height: max(0px, self.height - self.controls-height - self.search-height - self.custom-height - self.footer-height);
 
         if root.overlay : Rectangle {
             x: root.rtl ? 0px : parent.width - 1px;
@@ -743,17 +704,18 @@ export component NavigationView inherits Rectangle {
         pane-key := FocusScope {
             enabled: root.overlay && root.popup-owner == "";
             focus-on-click: false;
+            focus-on-tab-navigation: false;
             key-pressed(event) => {
-                if (!self.enabled) { return reject; }
-                if (event.text == Key.Escape) {
+                if (self.enabled && event.text == Key.Escape) {
                     root.close-pane(NavigationViewCloseReason.light-dismiss);
                     return accept;
                 }
-                if (event.text == Key.Tab || event.text == Key.Backtab) {
-                    root.cycle-pane-focus(event.text == Key.Tab && !event.modifiers.shift);
-                    return accept;
-                }
                 return reject;
+            }
+            pane-start := FocusScope {
+                enabled: pane-key.enabled;
+                focus-on-click: false;
+                focus-gained(reason) => { if (reason == FocusReason.tab-navigation) { root.schedule-pane-wrap(false); } }
             }
             left-back := NavigationViewButton {
                 visible: pane.back;
@@ -767,16 +729,6 @@ export component NavigationView inherits Rectangle {
                     else { root.back-requested(); }
                 }
             }
-            left-toggle := NavigationViewButton {
-                visible: root.is-pane-toggle-button-visible;
-                x: root.rtl ? parent.width - pane.toggle-start - self.width : pane.toggle-start;
-                y: pane.toggle-y;
-                icon: @image-url("../../icons/navigation_16_regular.svg");
-                label: root.is-pane-open ? "Close navigation" : "Open navigation";
-                expandable: true;
-                expanded: root.is-pane-open;
-                invoked => { root.toggle-pane(); }
-            }
             left-dismiss := NavigationViewButton {
                 visible: pane.close-button;
                 x: root.rtl ? parent.width - 44px : 4px;
@@ -785,11 +737,35 @@ export component NavigationView inherits Rectangle {
                 label: "Dismiss pane";
                 invoked => { root.close-pane(NavigationViewCloseReason.close-button); }
             }
-            if root.is-pane-open && root.pane-title != "" : Text {
-                private property <length> start: pane.toggle-start + 8px + (root.is-pane-toggle-button-visible ? 40px : 0px);
-                private property <length> end: 12px;
-                x: root.rtl ? end : start;
-                width: max(0px, parent.width - start - end);
+            top-title := Text {
+                visible: root.top-height > 0px && root.pane-title != "";
+                x: root.rtl ? root.width - root.top-controls-width - root.top-title-width + 8px : root.top-controls-width + 16px;
+                y: 4px;
+                width: max(0px, root.top-title-width - 24px);
+                height: 40px;
+                text: root.pane-title;
+                vertical-alignment: center;
+                horizontal-alignment: root.rtl ? right : left;
+                font-size: 14px;
+                font-weight: 600;
+                overflow: elide;
+                color: Palette.foreground;
+            }
+            left-toggle := NavigationViewButton {
+                visible: !root.top-mode && root.is-pane-toggle-button-visible;
+                x: root.rtl ? parent.width - pane.toggle-start - self.width : pane.toggle-start;
+                y: pane.toggle-y;
+                icon: @image-url("../../icons/navigation_16_regular.svg");
+                label: root.is-pane-open ? "Close navigation" : "Open navigation";
+                expandable: true;
+                expanded: root.is-pane-open;
+                invoked => { root.toggle-pane(); }
+            }
+            left-title := Text {
+                visible: !root.top-mode && root.is-pane-open && root.pane-title != "";
+                private property <length> extent: self.visible ? min(ceil(self.preferred-width / 2px) * 2px + 8px, pane.heading-width) : 0px;
+                x: root.rtl ? parent.width - pane.heading-start - self.extent : pane.heading-start + 8px;
+                width: max(0px, self.extent - 8px);
                 y: pane.toggle-y;
                 height: 36px;
                 text: root.pane-title;
@@ -800,8 +776,36 @@ export component NavigationView inherits Rectangle {
                 overflow: elide;
                 color: Palette.foreground;
             }
+            pane-header-slot := Rectangle {
+                clip: true;
+                preferred-width: pane-header-slot-layout.preferred-width;
+                preferred-height: pane-header-slot-layout.preferred-height;
+                visible: self.preferred-height > 0px && (root.top-mode || root.is-pane-open);
+                private property <length> start: root.top-mode ? root.top-controls-width + root.top-title-width + 4px : pane.heading-start + left-title.extent;
+                x: root.rtl ? parent.width - self.start - self.width : self.start;
+                y: root.top-mode ? 4px : pane.toggle-y;
+                width: root.top-mode ? root.top-header-width : max(0px, pane.heading-width - left-title.extent);
+                height: root.top-mode ? 40px : max(0px, pane.heading-height - 8px);
+                pane-header-slot-layout := HorizontalLayout { pane-header { } }
+            }
+            top-list := NavigationViewList {
+                visible: root.top-height > 0px;
+                enabled: root.popup-owner == "";
+                x: root.rtl ? 4px : root.top-controls-width + root.top-title-width + root.top-header-width + 4px;
+                y: 4px;
+                width: max(0px, root.width - root.top-controls-width - root.top-title-width - root.top-header-width - 8px);
+                height: 40px;
+                rows: self.visible ? root.top-layout.rows : [];
+                label: "Navigation";
+                rtl: root.rtl;
+                horizontal: true;
+                selected-id: root.selected-id;
+                popup-owner: root.popup-owner;
+                activated(row, chevron, anchor) => { root.activate-row(row, chevron, anchor, false); }
+                focused(row) => { root.focus-item(row); }
+            }
             left-search-button := NavigationViewButton {
-                visible: pane.visible && root.is-search-visible && !root.is-pane-open;
+                visible: root.show-pane-header && root.is-search-visible && !root.is-pane-open;
                 enabled: root.popup-owner == "";
                 x: round((parent.width - self.width) / 4px) * 2px;
                 y: pane.controls-height + 4px;
@@ -814,7 +818,7 @@ export component NavigationView inherits Rectangle {
                 }
             }
             left-search := AutoSuggestBox {
-                visible: pane.visible && root.is-search-visible && root.is-pane-open;
+                visible: root.show-pane-header && root.is-search-visible && root.is-pane-open;
                 enabled: self.visible && root.popup-owner == "";
                 x: 12px;
                 y: pane.controls-height + 4px;
@@ -829,9 +833,38 @@ export component NavigationView inherits Rectangle {
                 suggestion-chosen(item) => { root.search-suggestion-chosen(item); }
                 query-submitted(text, has-suggestion, item) => { root.search-submitted(text, has-suggestion, item); }
             }
+            pane-custom-slot := Rectangle {
+                clip: true;
+                preferred-width: pane-custom-slot-layout.preferred-width;
+                preferred-height: pane-custom-slot-layout.preferred-height;
+                visible: self.preferred-height > 0px;
+                x: root.top-mode ? top-list.x + (root.rtl ? top-list.width - root.top-layout.search-offset : root.top-layout.primary-end)
+                    : root.rtl ? parent.width - self.width : 0px;
+                y: root.top-mode ? 4px : pane.controls-height + pane.search-height;
+                width: root.top-mode ? max(0px, root.top-layout.search-offset - root.top-layout.primary-end)
+                    : root.is-pane-open ? parent.width : min(parent.width, self.preferred-width);
+                height: root.top-mode ? 40px : pane.custom-height;
+                pane-custom-slot-layout := HorizontalLayout { pane-custom-content { } }
+            }
+            top-search := AutoSuggestBox {
+                visible: root.top-height > 0px && root.is-search-visible;
+                enabled: self.visible && root.popup-owner == "";
+                x: top-list.x + (root.rtl ? top-list.width - root.top-layout.search-offset - root.top-search-width : root.top-layout.search-offset) + 4px;
+                y: 8px;
+                width: max(0px, root.top-search-width - 8px);
+                height: 32px;
+                text <=> root.search-text;
+                placeholder-text: root.search-placeholder;
+                suggestions: root.search-suggestions;
+                query-icon: @image-url("../../icons/search_16_regular.svg");
+                popup-viewport: { width: root.width, height: root.height };
+                text-changed(text, reason) => { if (self.visible) { root.search-text-changed(text, reason); } }
+                suggestion-chosen(item) => { root.search-suggestion-chosen(item); }
+                query-submitted(text, has-suggestion, item) => { root.search-submitted(text, has-suggestion, item); }
+            }
             left-list := NavigationViewList {
-                enabled: pane.visible && root.popup-owner == "";
-                y: pane.controls-height + pane.search-height;
+                enabled: root.show-pane-header && root.popup-owner == "";
+                y: pane.controls-height + pane.search-height + pane.custom-height;
                 width: parent.width;
                 height: root.left-layout.menu-height;
                 rows: root.left-layout.menu;
@@ -849,13 +882,25 @@ export component NavigationView inherits Rectangle {
             }
             if root.left-layout.separator : Rectangle {
                 x: 8px;
-                y: footer-list.y - 2px;
+                y: footer-list.y - pane.footer-height - 2px;
                 width: max(0px, parent.width - 16px);
                 height: 1px;
                 background: Palette.foreground.with-alpha(0.08);
             }
+            pane-footer-slot := Rectangle {
+                clip: true;
+                preferred-width: pane-footer-slot-layout.preferred-width;
+                preferred-height: pane-footer-slot-layout.preferred-height;
+                visible: self.preferred-height > 0px;
+                x: root.top-mode ? top-list.x + (root.rtl ? top-list.width - root.top-layout.footer-offset - self.width : root.top-layout.footer-offset)
+                    : root.rtl ? parent.width - self.width : 0px;
+                y: root.top-mode ? 4px : footer-list.y - pane.footer-height;
+                width: root.top-mode ? root.top-footer-width : root.is-pane-open ? parent.width : min(parent.width, self.preferred-width);
+                height: root.top-mode ? 40px : max(0px, pane.footer-height - 4px);
+                pane-footer-slot-layout := HorizontalLayout { pane-footer { } }
+            }
             footer-list := NavigationViewList {
-                enabled: pane.visible && root.popup-owner == "";
+                enabled: root.show-pane-header && root.popup-owner == "";
                 y: parent.height - self.height;
                 width: parent.width;
                 height: root.left-layout.footer-height;
@@ -872,15 +917,70 @@ export component NavigationView inherits Rectangle {
                     return false;
                 }
             }
+            pane-end := FocusScope {
+                enabled: pane-key.enabled;
+                focus-on-click: false;
+                focus-gained(reason) => { if (reason == FocusReason.tab-navigation) { root.schedule-pane-wrap(true); } }
+            }
         }
     }
+    top-content-overlay := Rectangle {
+    clip: true;
+    preferred-width: top-content-overlay-layout.preferred-width;
+    preferred-height: top-content-overlay-layout.preferred-height;
+        visible: root.top-overlay-height > 0px;
+        x: 0px;
+        y: root.title-bar-padding + root.top-height;
+        width: root.width;
+        height: root.top-overlay-height;
+        top-content-overlay-layout := HorizontalLayout { content-overlay { } }
+    }
 
+    content := Rectangle {
+        x: root.rtl ? 0px : root.dock-width;
+        y: root.page-top + root.header-height;
+        width: max(0px, root.width - root.dock-width);
+        height: max(0px, root.height - self.y);
+        border-top-left-radius: root.dock-width > 0px && !root.rtl ? 8px : 0px;
+        border-top-right-radius: root.dock-width > 0px && root.rtl ? 8px : 0px;
+        border-width: 1px;
+        border-color: Palette.foreground.with-alpha(0.06);
+        background: Palette.background;
+        clip: true;
+        @children
+    }
+    page-header-slot := Rectangle {
+    clip: true;
+    preferred-width: page-header-slot-layout.preferred-width;
+    preferred-height: page-header-slot-layout.preferred-height;
+        visible: root.show-header && self.preferred-height > 0px;
+        x: root.rtl ? 24px + (root.top-mode ? 0px : root.top-controls-width) : root.dock-width + (root.top-mode ? 0px : root.top-controls-width) + 24px;
+        y: root.page-top;
+        width: max(0px, root.width - root.dock-width - (root.top-mode ? 0px : root.top-controls-width) - 48px);
+        height: root.header-height;
+        page-header-slot-layout := HorizontalLayout { page-header { } }
+    }
+    if root.show-header && !page-header-slot.visible : Text {
+        x: root.rtl ? 24px + (root.top-mode ? 0px : root.top-controls-width) : root.dock-width + (root.top-mode ? 0px : root.top-controls-width) + 24px;
+        y: root.page-top;
+        width: max(0px, root.width - root.dock-width - (root.top-mode ? 0px : root.top-controls-width) - 48px);
+        height: root.header-height;
+        text: root.header;
+        vertical-alignment: center;
+        horizontal-alignment: root.rtl ? right : left;
+        font-size: 28px;
+        font-weight: 600;
+        overflow: elide;
+        color: Palette.foreground;
+    }
     TouchArea {
+        z: 3;
         enabled: root.popup-owner != "";
         visible: self.enabled;
         clicked => { root.close-popup(true, ""); }
     }
     popup := Rectangle {
+        z: 4;
         visible: root.popup-owner != "";
         x: root.popup-placement.x;
         y: root.popup-placement.y;

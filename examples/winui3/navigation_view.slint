@@ -1,11 +1,11 @@
 import { Button, Palette } from "std-widgets.slint";
 import {
     NavigationView, NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewItem,
-    NavigationViewItemKind, NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopLayout,
+    NavigationViewItemKind, NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopContentWidths, NavigationViewTopLayout,
 } from "../../apps/lumatune/ui/components/navigation/navigation_view.slint";
 
 export { NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewItem, NavigationViewItemKind, NavigationViewLeftLayout,
-    NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopLayout }
+    NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopContentWidths, NavigationViewTopLayout }
 
 export component NavigationViewExample inherits Window {
     title: "LumaTune - NavigationView";
@@ -22,6 +22,8 @@ export component NavigationViewExample inherits Window {
     in-out property <bool> selection-follows-focus;
     in property <bool> deep-menu;
     in property <bool> with-search;
+    in property <bool> with-slots;
+    out property <int> slot-activations;
     in property <length> title-bar-height;
     private property <bool> title-bar-padding: true;
     in-out property <string> query;
@@ -77,6 +79,54 @@ export component NavigationViewExample inherits Window {
         }
         back-requested => { if (root.previous != "") { self.selected-id = root.previous; } }
 
+        pane-header << HorizontalLayout {
+            alignment: start;
+            if root.with-slots : Button {
+                text: "Profile";
+                clicked => { root.slot-activations += 1; }
+            }
+        }
+        pane-custom-content << HorizontalLayout {
+            alignment: start;
+            spacing: 4px;
+            if root.with-slots : Button {
+                text: "Sort";
+                clicked => { root.slot-activations += 1; }
+            }
+            if root.with-slots : Button {
+                text: "Filter";
+                clicked => { root.slot-activations += 1; }
+            }
+        }
+        pane-footer << HorizontalLayout {
+            alignment: start;
+            if root.with-slots : Button {
+                text: "Help";
+                clicked => { root.slot-activations += 1; }
+            }
+        }
+        page-header << HorizontalLayout {
+            alignment: start;
+            spacing: 8px;
+            if root.with-slots : Text {
+                text: "Library overview";
+                vertical-alignment: center;
+                font-size: 28px;
+                font-weight: 600;
+                color: Palette.foreground;
+            }
+            if root.with-slots : Button { text: "Page action"; }
+        }
+        content-overlay << HorizontalLayout {
+            if root.with-slots : Text {
+                text: "Library updated";
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                min-height: 32px;
+                color: Palette.foreground;
+            }
+        }
+
         VerticalLayout {
             padding: 24px;
             spacing: 12px;
@@ -95,6 +145,7 @@ export component NavigationViewExample inherits Window {
                 clicked => { root.title-bar-padding = !root.title-bar-padding; }
             }
             if root.with-search : Text { text: "Submitted: " + root.submitted; font-size: 14px; color: Palette.foreground; }
+            if root.with-slots : Text { text: "Slot activations: \{root.slot-activations}"; color: Palette.foreground; }
             Text { text: "Selection: " + root.selected-id; font-size: 14px; color: Palette.foreground; }
             Button { text: "Toggle selection follows focus"; clicked => { root.selection-follows-focus = !root.selection-follows-focus; } }
         }
