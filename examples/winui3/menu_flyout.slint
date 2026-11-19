@@ -1,7 +1,7 @@
 import { Button, Palette } from "std-widgets.slint";
-import { MenuFlyout, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, FlyoutPlacement } from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
+import { MenuFlyout, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel, FlyoutPlacement } from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
 
-export { MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind }
+export { MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel }
 
 export component MenuFlyoutExample inherits Window {
     title: "MenuFlyout";
@@ -11,6 +11,7 @@ export component MenuFlyoutExample inherits Window {
 
     in property <bool> dark;
     in property <bool> compact;
+    in property <bool> edge;
     changed dark => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
     }
@@ -18,7 +19,7 @@ export component MenuFlyoutExample inherits Window {
     private property <string> result: "No command selected";
 
     opener := Button {
-        x: 16px;
+        x: root.edge ? parent.width - self.width - 16px : 16px;
         y: 16px;
         width: 128px;
         height: 32px;
@@ -44,8 +45,12 @@ export component MenuFlyoutExample inherits Window {
             { id: "paste", text: "Paste", disabled: true },
             { kind: MenuFlyoutItemKind.separator },
             { id: "lyrics", text: "Show lyrics", kind: MenuFlyoutItemKind.toggle, checked: true },
+            { id: "options", text: "More options", kind: MenuFlyoutItemKind.submenu },
             { id: "title", text: "Sort by title", kind: MenuFlyoutItemKind.radio, group: "sort", checked: true },
             { id: "artist", text: "Sort by artist", kind: MenuFlyoutItemKind.radio, group: "sort" },
+            { id: "pin", parent-id: "options", text: "Pin to top", kind: MenuFlyoutItemKind.toggle },
+            { id: "export", parent-id: "options", text: "Export", kind: MenuFlyoutItemKind.submenu },
+            { id: "playlist", parent-id: "export", text: "Playlist file" },
         ];
         invoked(item) => {
             root.result = item.text + (item.checked ? " (checked)" : "");

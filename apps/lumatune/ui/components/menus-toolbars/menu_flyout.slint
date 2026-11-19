@@ -1,12 +1,13 @@
 import { Palette } from "std-widgets.slint";
-import { Flyout, FlyoutCloseReason, FlyoutPlacement, FlyoutRect } from "../dialogs-flyouts/flyout.slint";
+import { FlyoutOverlay, FlyoutPresenter, FlyoutCloseReason, FlyoutPlacement, FlyoutRect } from "../dialogs-flyouts/flyout.slint";
 
 export { FlyoutCloseReason, FlyoutPlacement, FlyoutRect }
 
-export enum MenuFlyoutItemKind { command, separator, toggle, radio }
+export enum MenuFlyoutItemKind { command, separator, toggle, radio, submenu }
 
 export struct MenuFlyoutItem {
     id: string,
+    parent-id: string,
     kind: MenuFlyoutItemKind,
     text: string,
     icon: image,
@@ -17,7 +18,14 @@ export struct MenuFlyoutItem {
     group: string,
 }
 
+export struct MenuFlyoutLevel {
+    owner: string,
+    anchor: FlyoutRect,
+}
+
 export global MenuFlyoutBehavior {
+    pure callback items-for([MenuFlyoutItem], string) -> [MenuFlyoutItem];
+    callback trim-levels([MenuFlyoutLevel], int);
     pure callback next-item([MenuFlyoutItem], int, bool) -> int;
     pure callback has-icons([MenuFlyoutItem]) -> bool;
     pure callback has-checks([MenuFlyoutItem]) -> bool;
@@ -31,11 +39,14 @@ component MenuFlyoutRow inherits Rectangle {
     in property <bool> show-icons;
     in property <bool> show-checks;
     in property <int> index;
+    in property <bool> expanded;
     callback invoked();
     callback hovered();
+    callback dwell();
 
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <bool> separator: root.item.kind == MenuFlyoutItemKind.separator;
+    private property <bool> submenu: root.item.kind == MenuFlyoutItemKind.submenu;
     private property <color> foreground: root.item.disabled ? Palette.foreground.with-alpha(0.36)
         : interaction.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
 
@@ -61,7 +72,7 @@ component MenuFlyoutRow inherits Rectangle {
         border-color: Palette.foreground;
         background: root.item.disabled ? transparent
             : interaction.pressed ? (root.dark ? #ffffff0a : #00000006)
-            : root.highlighted ? (root.dark ? #ffffff0f : #00000009) : transparent;
+            : root.highlighted || root.expanded ? (root.dark ? #ffffff0f : #00000009) : transparent;
 
         content := HorizontalLayout {
             padding-left: 12px;
@@ -114,6 +125,19 @@ component MenuFlyoutRow inherits Rectangle {
                     accessible-role: none;
                 }
             }
+
+            if root.submenu : Rectangle {
+                width: 12px;
+
+                Image {
+                    width: 12px;
+                    height: 12px;
+                    y: (parent.height - self.height) / 2;
+                    source: @image-url("../../icons/chevron_right_16_regular.svg");
+                    colorize: root.foreground;
+                    accessible-role: none;
+                }
+            }
         }
 
         interaction := TouchArea {
@@ -121,9 +145,21 @@ component MenuFlyoutRow inherits Rectangle {
             changed has-hover => {
                 if (self.has-hover) {
                     root.hovered();
+                    hover-delay.start();
+                } else {
+                    hover-delay.stop();
                 }
             }
             clicked => { root.invoked(); }
+        }
+    }
+
+    hover-delay := Timer {
+        interval: 400ms;
+        running: false;
+        triggered => {
+            self.stop();
+            root.dwell();
         }
     }
 
@@ -132,6 +168,16 @@ component MenuFlyoutRow inherits Rectangle {
         accessible-item-index: root.index;
         accessible-label: root.item.text;
         accessible-enabled: !root.item.disabled;
+        accessible-action-default => { root.invoked(); }
+    }
+
+    if root.submenu : Rectangle {
+        accessible-role: button;
+        accessible-item-index: root.index;
+        accessible-label: root.item.text;
+        accessible-enabled: !root.item.disabled;
+        accessible-expandable: true;
+        accessible-expanded: root.expanded;
         accessible-action-default => { root.invoked(); }
     }
 
@@ -156,112 +202,213 @@ component MenuFlyoutRow inherits Rectangle {
     }
 }
 
+component MenuFlyoutPanel inherits FlyoutPresenter {
+    in property <[MenuFlyoutItem]> items;
+    in property <bool> active;
+    in property <string> expanded-owner;
+
+    callback invoked(MenuFlyoutItem);
+    callback open-child(string, FlyoutRect);
+    callback move-child(FlyoutRect);
+    callback close-children();
+    callback back();
+
+    private property <int> highlighted: MenuFlyoutBehavior.next-item(root.items, -1, true);
+    private property <bool> keyboard-highlight: true;
+    private property <FlyoutRect> highlighted-anchor;
+
+    content-padding: 2px;
+    horizontal-content-padding: 0px;
+    presenter-min-height: 32px;
+    allow-horizontal-scroll: false;
+    move-focus-on-scroll: false;
+
+    changed active => {
+        if (root.active) {
+            panel-focus.focus();
+        }
+    }
+
+    scrolled => { root.close-children(); }
+
+    function activate(index: int, anchor: FlyoutRect) {
+        if (index >= 0 && index < root.items.length && !root.items[index].disabled
+            && root.items[index].kind != MenuFlyoutItemKind.separator) {
+            let item = root.items[index];
+            root.highlighted = index;
+            if (item.kind == MenuFlyoutItemKind.submenu) {
+                root.open-child(item.id, anchor);
+            } else {
+                MenuFlyoutBehavior.update-checks(root.items, index);
+                root.invoked(root.items[index]);
+            }
+        }
+    }
+
+    panel-focus := FocusScope {
+        min-width: rows.min-width;
+        min-height: rows.min-height;
+        preferred-width: rows.preferred-width;
+        preferred-height: rows.preferred-height;
+        focus-on-click: false;
+        focus-on-tab-navigation: root.active;
+        accessible-role: list;
+        accessible-item-count: root.items.length;
+        accessible-delegate-focus: root.highlighted;
+
+        init => {
+            if (root.active && root.cascading) {
+                self.focus();
+            }
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                root.keyboard-highlight = true;
+                root.highlighted = MenuFlyoutBehavior.next-item(root.items, root.highlighted, event.text == Key.DownArrow);
+                return accept;
+            }
+            if (event.text == Key.Home || event.text == Key.End) {
+                root.keyboard-highlight = true;
+                root.highlighted = MenuFlyoutBehavior.next-item(root.items, -1, event.text == Key.Home);
+                return accept;
+            }
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.RightArrow) {
+                if (!event.repeat && (event.text != Key.RightArrow
+                    || (root.highlighted >= 0 && root.items[root.highlighted].kind == MenuFlyoutItemKind.submenu))) {
+                    root.activate(root.highlighted, root.highlighted-anchor);
+                }
+                return accept;
+            }
+            if (root.cascading && (event.text == Key.LeftArrow || event.text == Key.Escape)) {
+                root.back();
+                return accept;
+            }
+            return reject;
+        }
+
+        for item[index] in root.items : KeyBinding {
+            keys: item.shortcut;
+            enabled: !item.disabled && item.kind != MenuFlyoutItemKind.separator
+                && item.kind != MenuFlyoutItemKind.submenu;
+            activated => { root.activate(index, {}); }
+        }
+
+        rows := VerticalLayout {
+            property <bool> show-icons: MenuFlyoutBehavior.has-icons(root.items);
+            property <bool> show-checks: MenuFlyoutBehavior.has-checks(root.items);
+
+            for item[index] in root.items : MenuFlyoutRow {
+                private property <FlyoutRect> anchor-rect: {
+                    x: self.absolute-position.x, y: self.absolute-position.y,
+                    width: self.width, height: self.height,
+                };
+                private property <FlyoutRect> keyboard-anchor: self.highlighted ? self.anchor-rect : {};
+                private property <FlyoutRect> child-anchor: self.expanded ? self.anchor-rect : {};
+
+                item: item;
+                index: index;
+                highlighted: index == root.highlighted;
+                keyboard-focus: self.highlighted && root.keyboard-highlight && root.active;
+                expanded: self.item.id != "" && self.item.id == root.expanded-owner;
+                show-icons: rows.show-icons;
+                show-checks: rows.show-checks;
+
+                changed keyboard-anchor => {
+                    if (self.highlighted) {
+                        root.highlighted-anchor = self.keyboard-anchor;
+                    }
+                }
+                changed child-anchor => {
+                    if (self.expanded) {
+                        root.move-child(self.child-anchor);
+                    }
+                }
+                changed keyboard-focus => {
+                    if (self.keyboard-focus) {
+                        root.scroll-into-view = { y: self.y + root.content-padding, height: self.height };
+                    }
+                }
+                hovered => {
+                    root.keyboard-highlight = false;
+                    root.highlighted = index;
+                }
+                dwell => {
+                    if (!root.keyboard-highlight && index == root.highlighted) {
+                        if (self.item.kind == MenuFlyoutItemKind.submenu) {
+                            root.open-child(self.item.id, self.anchor-rect);
+                        } else {
+                            root.close-children();
+                        }
+                    }
+                }
+                invoked => { root.activate(index, self.anchor-rect); }
+            }
+        }
+    }
+}
+
 export component MenuFlyout inherits Rectangle {
+    // Entries use unique submenu IDs. A missing parent ID identifies a root entry.
     // Check state is stored in the supplied mutable model.
     in property <[MenuFlyoutItem]> items;
-    in property <FlyoutRect> anchor <=> flyout.anchor;
-    in property <FlyoutPlacement> placement <=> flyout.placement;
-    out property <bool> is-open: flyout.is-open;
+    in property <FlyoutRect> anchor;
+    in property <FlyoutPlacement> placement: FlyoutPlacement.top;
+    out property <bool> is-open: overlay.is-open;
     callback opening();
-    callback opened <=> flyout.opened;
-    callback closing <=> flyout.closing;
-    callback closed <=> flyout.closed;
+    callback opened <=> overlay.opened;
+    callback closing <=> overlay.closing;
+    callback closed <=> overlay.closed;
     callback invoked(MenuFlyoutItem);
 
-    private property <int> highlighted: -1;
-    private property <bool> keyboard-highlight;
+    private property <[MenuFlyoutLevel]> levels;
 
     public function show() {
-        flyout.show();
+        overlay.show();
     }
 
     public function hide() {
-        flyout.hide();
+        overlay.hide();
     }
 
-    function invoke(index: int) {
-        if (index >= 0 && index < root.items.length && !root.items[index].disabled
-            && root.items[index].kind != MenuFlyoutItemKind.separator) {
-            MenuFlyoutBehavior.update-checks(root.items, index);
-            let item = root.items[index];
-            root.hide();
-            root.invoked(item);
+    function submit(item: MenuFlyoutItem) {
+        root.invoked(item);
+        root.hide();
+    }
+
+    function open-child(level: int, owner: string, anchor: FlyoutRect) {
+        if (owner == "" || MenuFlyoutBehavior.items-for(root.items, owner).length == 0
+            || (level + 1 < root.levels.length && root.levels[level + 1].owner == owner)) {
+            return;
         }
+        MenuFlyoutBehavior.trim-levels(root.levels, level + 1);
+        root.levels.push({ owner: owner, anchor: anchor });
     }
 
-    flyout := Flyout {
+    overlay := FlyoutOverlay {
         width: parent.width;
         height: parent.height;
-        content-padding: 2px;
-        horizontal-content-padding: 0px;
-        presenter-min-height: 32px;
-        allow-horizontal-scroll: false;
-        move-focus-on-scroll: false;
         opening => {
             root.opening();
-            root.highlighted = MenuFlyoutBehavior.next-item(root.items, -1, true);
-            root.keyboard-highlight = true;
+            root.levels = [{}];
         }
-
-        FocusScope {
-            min-width: rows.min-width;
-            min-height: rows.min-height;
-            preferred-width: rows.preferred-width;
-            preferred-height: rows.preferred-height;
-            focus-on-click: false;
-            accessible-role: list;
-            accessible-item-count: root.items.length;
-            accessible-delegate-focus: root.highlighted;
-
-            key-pressed(event) => {
-                if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
-                    root.keyboard-highlight = true;
-                    root.highlighted = MenuFlyoutBehavior.next-item(root.items, root.highlighted, event.text == Key.DownArrow);
-                    return accept;
-                }
-                if (event.text == Key.Home || event.text == Key.End) {
-                    root.keyboard-highlight = true;
-                    root.highlighted = MenuFlyoutBehavior.next-item(root.items, -1, event.text == Key.Home);
-                    return accept;
-                }
-                if (event.text == Key.Return || event.text == Key.Space) {
-                    if (!event.repeat) {
-                        root.invoke(root.highlighted);
-                    }
-                    return accept;
-                }
-                return reject;
-            }
-
-            for item[index] in root.items : KeyBinding {
-                keys: item.shortcut;
-                enabled: !item.disabled && item.kind != MenuFlyoutItemKind.separator;
-                activated => { root.invoke(index); }
-            }
-
-            rows := VerticalLayout {
-                property <bool> show-icons: MenuFlyoutBehavior.has-icons(root.items);
-                property <bool> show-checks: MenuFlyoutBehavior.has-checks(root.items);
-
-                for item[index] in root.items : MenuFlyoutRow {
-                    item: item;
-                    index: index;
-                    highlighted: index == root.highlighted;
-                    keyboard-focus: self.highlighted && root.keyboard-highlight;
-                    show-icons: rows.show-icons;
-                    show-checks: rows.show-checks;
-                    changed keyboard-focus => {
-                        if (self.keyboard-focus) {
-                            flyout.scroll-into-view = { y: self.y + flyout.content-padding, height: self.height };
-                        }
-                    }
-                    hovered => {
-                        root.keyboard-highlight = false;
-                        root.highlighted = index;
-                    }
-                    invoked => { root.invoke(index); }
+        for level[index] in root.levels : MenuFlyoutPanel {
+            available-size: { width: root.width, height: root.height };
+            placement: root.placement;
+            anchor: self.cascading ? level.anchor : root.anchor;
+            cascading: index > 0;
+            active: index + 1 == root.levels.length;
+            expanded-owner: self.active ? "" : root.levels[index + 1].owner;
+            items: MenuFlyoutBehavior.items-for(root.items, level.owner);
+            open-child(owner, anchor) => { root.open-child(index, owner, anchor); }
+            move-child(anchor) => {
+                if (index + 1 < root.levels.length) {
+                    root.levels[index + 1].anchor = anchor;
                 }
             }
+            close-children => { MenuFlyoutBehavior.trim-levels(root.levels, index + 1); }
+            back => { MenuFlyoutBehavior.trim-levels(root.levels, index); }
+            invoked(item) => { root.submit(item); }
         }
     }
 }

@@ -1,7 +1,9 @@
-use crate::{MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind};
-use slint::{Model, ModelExt, ModelRc};
+use crate::{MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel};
+use slint::{FilterModel, Model, ModelExt, ModelRc, SharedString};
 
 pub fn install(behavior: MenuFlyoutBehavior<'_>) {
+    behavior.on_items_for(items_for);
+    behavior.on_trim_levels(trim_levels);
     behavior.on_next_item(next_item);
     behavior.on_has_icons(|items| any_row(items, |item| item.icon.size().width > 0));
     behavior.on_has_checks(|items| {
@@ -13,6 +15,19 @@ pub fn install(behavior: MenuFlyoutBehavior<'_>) {
         })
     });
     behavior.on_update_checks(update_checks);
+}
+
+fn items_for(items: ModelRc<MenuFlyoutItem>, owner: SharedString) -> ModelRc<MenuFlyoutItem> {
+    ModelRc::new(FilterModel::new(items, move |item| item.parent_id == owner))
+}
+
+fn trim_levels(levels: ModelRc<MenuFlyoutLevel>, keep: i32) {
+    let keep = usize::try_from(keep).unwrap_or(0);
+    for index in (keep..levels.row_count()).rev() {
+        levels
+            .remove_row(index)
+            .expect("the menu owns a mutable level model");
+    }
 }
 
 fn any_row(items: ModelRc<MenuFlyoutItem>, predicate: impl Fn(MenuFlyoutItem) -> bool) -> bool {
@@ -71,7 +86,9 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
                 }
             }
         }
-        MenuFlyoutItemKind::Command | MenuFlyoutItemKind::Separator => {}
+        MenuFlyoutItemKind::Command
+        | MenuFlyoutItemKind::Separator
+        | MenuFlyoutItemKind::Submenu => {}
     }
 }
 
@@ -79,6 +96,40 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
 mod tests {
     use super::*;
     use slint::VecModel;
+
+    #[test]
+    fn updates_nested_items_without_copying_check_state() {
+        let items = ModelRc::new(VecModel::from(vec![
+            MenuFlyoutItem::default(),
+            MenuFlyoutItem {
+                parent_id: "nested".into(),
+                kind: MenuFlyoutItemKind::Toggle,
+                ..Default::default()
+            },
+        ]));
+        let nested = items_for(items.clone(), "nested".into());
+        assert_eq!(nested.row_count(), 1);
+        update_checks(nested, 0);
+        assert!(items.row_data(1).unwrap().checked);
+    }
+
+    #[test]
+    fn trimming_a_branch_keeps_its_ancestors() {
+        let levels = ModelRc::new(VecModel::from(vec![
+            MenuFlyoutLevel::default(),
+            MenuFlyoutLevel {
+                owner: "first".into(),
+                ..Default::default()
+            },
+            MenuFlyoutLevel {
+                owner: "second".into(),
+                ..Default::default()
+            },
+        ]));
+        trim_levels(levels.clone(), 1);
+        assert_eq!(levels.row_count(), 1);
+        assert!(levels.row_data(0).unwrap().owner.is_empty());
+    }
 
     #[test]
     fn skips_disabled_and_separator_rows_in_both_directions() {

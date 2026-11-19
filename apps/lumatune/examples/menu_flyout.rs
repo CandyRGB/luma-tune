@@ -2,9 +2,9 @@
 mod menu_flyout;
 
 slint::slint! {
-    import { MenuFlyoutExample, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind }
+    import { MenuFlyoutExample, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel }
         from "../../examples/winui3/menu_flyout.slint";
-    export { MenuFlyoutExample, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind }
+    export { MenuFlyoutExample, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -13,5 +13,6 @@ fn main() -> Result<(), slint::PlatformError> {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
     window.set_dark(arguments.iter().any(|arg| arg == "--dark"));
     window.set_compact(arguments.iter().any(|arg| arg == "--compact"));
+    window.set_edge(arguments.iter().any(|arg| arg == "--edge"));
     window.run()
 }
