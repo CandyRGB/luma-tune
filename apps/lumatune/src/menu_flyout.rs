@@ -4,6 +4,7 @@ use slint::{FilterModel, Model, ModelExt, ModelRc, SharedString};
 pub fn install(behavior: MenuFlyoutBehavior<'_>) {
     behavior.on_items_for(items_for);
     behavior.on_has_children(|items, owner| any_row(items, |item| item.parent_id == owner));
+    behavior.on_can_invoke_shortcut(can_invoke_shortcut);
     behavior.on_accessible_index(accessible_index);
     behavior.on_trim_levels(trim_levels);
     behavior.on_next_item(next_item);
@@ -21,6 +22,47 @@ pub fn install(behavior: MenuFlyoutBehavior<'_>) {
 
 fn items_for(items: ModelRc<MenuFlyoutItem>, owner: SharedString) -> ModelRc<MenuFlyoutItem> {
     ModelRc::new(FilterModel::new(items, move |item| item.parent_id == owner))
+}
+
+fn can_invoke_shortcut(items: ModelRc<MenuFlyoutItem>, index: i32) -> bool {
+    items.model_tracker().track_row_count_changes();
+    let count = items.row_count();
+    let Some(mut item) = usize::try_from(index)
+        .ok()
+        .filter(|index| *index < count)
+        .and_then(|index| items.row_data_tracked(index))
+    else {
+        return false;
+    };
+    if item.disabled
+        || matches!(
+            item.kind,
+            MenuFlyoutItemKind::Separator | MenuFlyoutItemKind::Submenu
+        )
+    {
+        return false;
+    }
+
+    // A valid parent chain is shorter than the model. The bound also handles cycles.
+    for _ in 0..count {
+        if item.parent_id.is_empty() {
+            return true;
+        }
+        let owner = (0..count)
+            .filter_map(|row| items.row_data_tracked(row))
+            .find(|parent| parent.id == item.parent_id);
+        let Some(owner) = owner.filter(|parent| {
+            !parent.disabled
+                && matches!(
+                    parent.kind,
+                    MenuFlyoutItemKind::Submenu | MenuFlyoutItemKind::Split
+                )
+        }) else {
+            return false;
+        };
+        item = owner;
+    }
+    false
 }
 
 fn trim_levels(levels: ModelRc<MenuFlyoutLevel>, keep: i32) {
@@ -91,7 +133,10 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
         }
         MenuFlyoutItemKind::Radio => {
             for (row, mut peer) in items.iter().enumerate() {
-                if peer.kind == MenuFlyoutItemKind::Radio && peer.group == item.group {
+                if peer.kind == MenuFlyoutItemKind::Radio
+                    && peer.group == item.group
+                    && peer.parent_id == item.parent_id
+                {
                     let checked = row == index;
                     if peer.checked != checked {
                         peer.checked = checked;
@@ -111,6 +156,54 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
 mod tests {
     use super::*;
     use slint::VecModel;
+
+    #[test]
+    fn accelerator_checks_the_entire_parent_chain() {
+        let item = |id: &str, parent_id: &str, kind| MenuFlyoutItem {
+            id: id.into(),
+            parent_id: parent_id.into(),
+            kind,
+            ..Default::default()
+        };
+        let items = ModelRc::new(VecModel::from(vec![
+            item("root", "", MenuFlyoutItemKind::Submenu),
+            item("nested", "root", MenuFlyoutItemKind::Split),
+            item("command", "nested", MenuFlyoutItemKind::Command),
+            item("orphan", "missing", MenuFlyoutItemKind::Command),
+        ]));
+
+        assert!(can_invoke_shortcut(items.clone(), 2));
+        assert!(!can_invoke_shortcut(items.clone(), 3));
+        let mut owner = items.row_data(0).unwrap();
+        owner.disabled = true;
+        items.set_row_data(0, owner.clone());
+        assert!(!can_invoke_shortcut(items.clone(), 2));
+        owner.disabled = false;
+        owner.parent_id = "nested".into();
+        items.set_row_data(0, owner);
+        assert!(!can_invoke_shortcut(items, 2));
+    }
+
+    #[test]
+    fn radio_accelerator_keeps_groups_in_other_levels() {
+        let radio = |parent: &str, checked| MenuFlyoutItem {
+            kind: MenuFlyoutItemKind::Radio,
+            parent_id: parent.into(),
+            group: "sort".into(),
+            checked,
+            ..Default::default()
+        };
+        let items = ModelRc::new(VecModel::from(vec![
+            radio("", true),
+            radio("nested", true),
+            radio("nested", false),
+        ]));
+
+        update_checks(items.clone(), 2);
+
+        let checked: Vec<_> = items.iter().map(|item| item.checked).collect();
+        assert_eq!(checked, [true, false, true]);
+    }
 
     #[test]
     fn accessible_focus_counts_both_split_parts_and_skips_separators() {

@@ -1,5 +1,6 @@
 import { Button, Palette } from "std-widgets.slint";
-import { MenuFlyout, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel, FlyoutPlacement } from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
+import { ContextFlyoutArea } from "../../apps/lumatune/ui/components/dialogs-flyouts/context_flyout_area.slint";
+import { MenuFlyout, MenuFlyoutAccelerators, MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel, FlyoutPlacement } from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
 
 export { MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel }
 
@@ -12,25 +13,67 @@ export component MenuFlyoutExample inherits Window {
     in property <bool> dark;
     in property <bool> compact;
     in property <bool> edge;
+    in property <bool> scoped-shortcuts;
     changed dark => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
     }
 
     private property <string> result: "No command selected";
 
-    opener := Button {
-        x: root.edge ? parent.width - self.width - 16px : 16px;
-        y: 16px;
-        width: 128px;
-        height: 32px;
-        text: "Open menu";
-        clicked => { menu.show(); }
-    }
+    MenuFlyoutAccelerators {
+        width: parent.width;
+        height: parent.height;
+        items: menu.items;
+        accelerators-enabled: !menu.is-open && !root.scoped-shortcuts;
+        invoked(index) => { menu.invoke-accelerator(index); }
 
-    Text {
-        x: 16px;
-        y: parent.height - 42px;
-        text: root.result;
+        opener := Button {
+            x: root.edge ? parent.width - self.width - 16px : 16px;
+            y: 16px;
+            width: 128px;
+            height: 32px;
+            text: "Open menu";
+            clicked => { menu.show(); }
+        }
+
+        MenuFlyoutAccelerators {
+            x: root.edge ? parent.width - self.width - 16px : 16px;
+            y: parent.height - 106px;
+            width: 128px;
+            height: 48px;
+            items: menu.items;
+            accelerators-enabled: !menu.is-open && root.scoped-shortcuts;
+            invoked(index) => { menu.invoke-accelerator(index); }
+
+            context := ContextFlyoutArea {
+                width: parent.width;
+                height: parent.height;
+                accessible-role: groupbox;
+                accessible-label: "Context target";
+                context-requested(anchor) => { menu.show-for(anchor); }
+                context-requested-at(position) => { menu.show-at(position); }
+
+                Rectangle {
+                    background: Palette.alternate-background;
+                    border-radius: 4px;
+                    border-width: context.has-focus ? 2px : 0px;
+                    border-color: Palette.foreground;
+                    Text {
+                        text: "Context target";
+                        color: Palette.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        accessible-role: none;
+                    }
+                }
+            }
+        }
+
+        Text {
+            x: 16px;
+            y: parent.height - 42px;
+            text: root.result;
+        }
     }
 
     menu := MenuFlyout {
@@ -42,7 +85,7 @@ export component MenuFlyoutExample inherits Window {
             { id: "copy", text: "Copy", icon: @image-url("../../apps/lumatune/ui/icons/copy_16_regular.svg"),
                 shortcut: @keys(Control + C), accelerator-text: "Ctrl+C" },
             { kind: MenuFlyoutItemKind.separator },
-            { id: "paste", text: "Paste", disabled: true },
+            { id: "paste", text: "Paste", disabled: true, shortcut: @keys(Control + V) },
             { kind: MenuFlyoutItemKind.separator },
             { id: "lyrics", text: "Show lyrics", kind: MenuFlyoutItemKind.toggle, checked: true },
             { id: "options", text: "More options", kind: MenuFlyoutItemKind.submenu },
@@ -56,7 +99,7 @@ export component MenuFlyoutExample inherits Window {
             { id: "export", parent-id: "options", text: "Export", kind: MenuFlyoutItemKind.submenu },
             { id: "playlist", parent-id: "export", text: "Playlist file" },
             { id: "copy-link", parent-id: "share", text: "Copy link" },
-            { id: "send-link", parent-id: "share", text: "Send link" },
+            { id: "send-link", parent-id: "share", text: "Send link", shortcut: @keys(Control + Shift + L) },
         ];
         invoked(item) => {
             root.result = item.text + (item.checked ? " (checked)" : "");

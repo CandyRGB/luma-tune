@@ -4,6 +4,7 @@ import { FlyoutOverlay, FlyoutPresenter, FlyoutCloseReason, FlyoutPlacement, Fly
 export { FlyoutCloseReason, FlyoutPlacement, FlyoutRect }
 
 export enum MenuFlyoutItemKind { command, separator, toggle, radio, submenu, split }
+enum MenuFlyoutPositionMode { attachment, target, point }
 
 export struct MenuFlyoutItem {
     id: string,
@@ -27,12 +28,31 @@ export struct MenuFlyoutLevel {
 export global MenuFlyoutBehavior {
     pure callback items-for([MenuFlyoutItem], string) -> [MenuFlyoutItem];
     pure callback has-children([MenuFlyoutItem], string) -> bool;
+    pure callback can-invoke-shortcut([MenuFlyoutItem], int) -> bool;
     pure callback accessible-index([MenuFlyoutItem], int) -> int;
     callback trim-levels([MenuFlyoutLevel], int);
     pure callback next-item([MenuFlyoutItem], int, bool) -> int;
     pure callback has-icons([MenuFlyoutItem]) -> bool;
     pure callback has-checks([MenuFlyoutItem]) -> bool;
     callback update-checks([MenuFlyoutItem], int);
+}
+
+// Put this scope around a window's content or around the control owning a scoped shortcut.
+export component MenuFlyoutAccelerators inherits FocusScope {
+    in property <[MenuFlyoutItem]> items;
+    in property <bool> accelerators-enabled: true;
+    callback invoked(int);
+
+    enabled: false;
+
+    for item[index] in root.items : KeyBinding {
+        keys: item.shortcut;
+        enabled: root.accelerators-enabled && item.shortcut.to-string() != ""
+            && MenuFlyoutBehavior.can-invoke-shortcut(root.items, index);
+        activated => { root.invoked(index); }
+    }
+
+    @children
 }
 
 component MenuFlyoutRow inherits Rectangle {
@@ -59,6 +79,8 @@ component MenuFlyoutRow inherits Rectangle {
     private property <color> divider-color: root.dark ? #ffffff14 : #0000000f;
     private property <color> foreground: root.item.disabled ? Palette.foreground.with-alpha(0.36)
         : interaction.pressed ? Palette.foreground.with-alpha(0.72) : Palette.foreground;
+    private property <string> accelerator: root.item.accelerator-text != ""
+        ? root.item.accelerator-text : root.item.shortcut.to-string();
 
     height: root.separator ? 4px : 36px;
     preferred-width: root.separator ? 96px : content.preferred-width + 8px + root.secondary-width;
@@ -130,10 +152,10 @@ component MenuFlyoutRow inherits Rectangle {
                 accessible-role: none;
             }
 
-            if root.item.accelerator-text != "" : HorizontalLayout {
+            if root.accelerator != "" : HorizontalLayout {
                 padding-left: 16px;
                 Text {
-                    text: root.item.accelerator-text;
+                    text: root.accelerator;
                     color: root.foreground;
                     font-size: 12px;
                     vertical-alignment: center;
@@ -412,13 +434,6 @@ component MenuFlyoutPanel inherits FlyoutPresenter {
             return reject;
         }
 
-        for item[index] in root.items : KeyBinding {
-            keys: item.shortcut;
-            enabled: !item.disabled && item.kind != MenuFlyoutItemKind.separator
-                && item.kind != MenuFlyoutItemKind.submenu;
-            activated => { root.activate(index, {}, false); }
-        }
-
         rows := VerticalLayout {
             property <bool> show-icons: MenuFlyoutBehavior.has-icons(root.items);
             property <bool> show-checks: MenuFlyoutBehavior.has-checks(root.items);
@@ -489,13 +504,38 @@ export component MenuFlyout inherits Rectangle {
     callback invoked(MenuFlyoutItem);
 
     private property <[MenuFlyoutLevel]> levels;
+    private property <MenuFlyoutPositionMode> position-mode;
+    private property <FlyoutRect> override-anchor;
 
     public function show() {
-        overlay.show();
+        root.show-positioned(MenuFlyoutPositionMode.attachment, {});
+    }
+
+    public function show-for(anchor: FlyoutRect) {
+        root.show-positioned(MenuFlyoutPositionMode.target, anchor);
+    }
+
+    public function show-at(position: Point) {
+        root.show-positioned(MenuFlyoutPositionMode.point, { x: position.x, y: position.y });
     }
 
     public function hide() {
         overlay.hide();
+    }
+
+    public function invoke-accelerator(index: int) {
+        if (MenuFlyoutBehavior.can-invoke-shortcut(root.items, index)) {
+            MenuFlyoutBehavior.update-checks(root.items, index);
+            root.submit(root.items[index]);
+        }
+    }
+
+    function show-positioned(mode: MenuFlyoutPositionMode, anchor: FlyoutRect) {
+        if (!root.is-open) {
+            root.position-mode = mode;
+            root.override-anchor = anchor;
+            overlay.show();
+        }
     }
 
     function submit(item: MenuFlyoutItem) {
@@ -519,24 +559,33 @@ export component MenuFlyout inherits Rectangle {
             root.opening();
             root.levels = [{}];
         }
-        for level[index] in root.levels : MenuFlyoutPanel {
-            available-size: { width: root.width, height: root.height };
-            placement: root.placement;
-            anchor: self.cascading ? level.anchor : root.anchor;
-            cascading: index > 0;
-            active: index + 1 == root.levels.length;
-            expanded-owner: self.active ? "" : root.levels[index + 1].owner;
-            items: MenuFlyoutBehavior.items-for(root.items, level.owner);
-            all-items: root.items;
-            open-child(owner, anchor) => { root.open-child(index, owner, anchor); }
-            move-child(anchor) => {
-                if (index + 1 < root.levels.length) {
-                    root.levels[index + 1].anchor = anchor;
+        MenuFlyoutAccelerators {
+            width: root.width;
+            height: root.height;
+            items: root.items;
+            invoked(index) => { root.invoke-accelerator(index); }
+
+            for level[index] in root.levels : MenuFlyoutPanel {
+                available-size: { width: root.width, height: root.height };
+                placement: root.placement;
+                anchor: self.cascading ? level.anchor
+                    : root.position-mode == MenuFlyoutPositionMode.attachment ? root.anchor : root.override-anchor;
+                positioned-at-point: index == 0 && root.position-mode == MenuFlyoutPositionMode.point;
+                cascading: index > 0;
+                active: index + 1 == root.levels.length;
+                expanded-owner: self.active ? "" : root.levels[index + 1].owner;
+                items: MenuFlyoutBehavior.items-for(root.items, level.owner);
+                all-items: root.items;
+                open-child(owner, anchor) => { root.open-child(index, owner, anchor); }
+                move-child(anchor) => {
+                    if (index + 1 < root.levels.length) {
+                        root.levels[index + 1].anchor = anchor;
+                    }
                 }
+                close-children => { MenuFlyoutBehavior.trim-levels(root.levels, index + 1); }
+                back => { MenuFlyoutBehavior.trim-levels(root.levels, index); }
+                invoked(item) => { root.submit(item); }
             }
-            close-children => { MenuFlyoutBehavior.trim-levels(root.levels, index + 1); }
-            back => { MenuFlyoutBehavior.trim-levels(root.levels, index); }
-            invoked(item) => { root.submit(item); }
         }
     }
 }

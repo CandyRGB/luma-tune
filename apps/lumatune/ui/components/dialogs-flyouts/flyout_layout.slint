@@ -27,6 +27,19 @@ enum FlyoutSide { top, bottom, left, right }
 export global FlyoutLayout {
     private property <length> gap: 4px;
 
+    public pure function place-at-point(point: Point, bounds: FlyoutRect, size: Size) -> FlyoutRect {
+        let width = min(size.width, self.even-limit(bounds.width));
+        let height = min(size.height, self.even-limit(bounds.height));
+        let x = min(bounds.x + bounds.width, max(bounds.x, point.x));
+        let y = min(bounds.y + bounds.height, max(bounds.y, point.y));
+        return {
+            x: self.align(x + width > bounds.x + bounds.width ? x - width : x, bounds.x, bounds.width - width),
+            y: self.align(y + height > bounds.y + bounds.height ? y - height : y, bounds.y, bounds.height - height),
+            width: width,
+            height: height,
+        };
+    }
+
     public pure function place-submenu(target: FlyoutRect, bounds: FlyoutRect, size: Size) -> FlyoutRect {
         let width = min(size.width, self.even-limit(bounds.width));
         let height = min(size.height, self.even-limit(bounds.height));

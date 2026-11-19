@@ -14,5 +14,6 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_dark(arguments.iter().any(|arg| arg == "--dark"));
     window.set_compact(arguments.iter().any(|arg| arg == "--compact"));
     window.set_edge(arguments.iter().any(|arg| arg == "--edge"));
+    window.set_scoped_shortcuts(arguments.iter().any(|arg| arg == "--scoped-shortcuts"));
     window.run()
 }
