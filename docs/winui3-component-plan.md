@@ -25,6 +25,7 @@
 - 图标用 SVG `@image-url(...)` + `colorize` 染色（`apps/lumatune/ui/icons/`）。
 - **容器组件避免多个重叠子元素**：`inherits Rectangle` 的自定义组件若有多个绝对重叠的子元素（如全高色条 + 内容布局），其 `preferred-height` 会算不出，放进 `VerticalLayout` 会被压扁。改为**单一布局子元素**（色条作为布局内的窄元素）可让高度由内容撑开。
 - 每个组件：编译无警告 + 截图目检 + 至少一处可运行示例验证后再提交。
+- 可以省略会触发 Slint 布局重算的过渡动画。起止状态的布局和交互仍需对齐 WinUI 3。
 - 状态：⬜ 待做 / 🚧 进行中 / ✅ 完成 / ⏭️ 跳过。
 
 ## 目录结构
@@ -88,7 +89,7 @@ components/
 ### Dialogs & flyouts
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，需补模态焦点、键盘关闭与次要操作 |
+| ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、三种操作和长正文滚动 |
 | Flyout / MenuFlyout | 🔨 | 任意锚点浮层 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
@@ -163,7 +164,7 @@ components/
 
 ## 复刻优先级（实用 + Slint 缺）
 
-1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，待复验模态焦点、键盘和按钮状态）
+1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态和鼠标键盘已验证，待补关闭生命周期、按钮高对比度以及原生视觉和读屏对照）
 2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补自定义操作按钮）
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补可组合标题、内容禁用传递）
 4. ⬜ CommandBar（menus-toolbars）
