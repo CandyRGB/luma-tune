@@ -26,5 +26,8 @@ fn main() -> Result<(), slint::PlatformError> {
     if std::env::args().any(|argument| argument == "--search") {
         window.set_with_search(true);
     }
+    if std::env::args().any(|argument| argument == "--extended-title-bar") {
+        window.set_title_bar_height(32.0);
+    }
     window.run()
 }

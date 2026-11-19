@@ -22,6 +22,8 @@ export component NavigationViewExample inherits Window {
     in-out property <bool> selection-follows-focus;
     in property <bool> deep-menu;
     in property <bool> with-search;
+    in property <length> title-bar-height;
+    private property <bool> title-bar-padding: true;
     in-out property <string> query;
     out property <string> submitted;
     private property <string> previous;
@@ -31,7 +33,9 @@ export component NavigationViewExample inherits Window {
         height: parent.height;
         width: parent.width;
         pane-display-mode: root.mode;
-        pane-title: "Library";
+        pane-title: "LumaTune";
+        title-bar-height: root.title-bar-height;
+        is-title-bar-auto-padding-enabled: root.title-bar-padding;
         selection-follows-focus: root.selection-follows-focus;
         is-search-visible: root.with-search;
         search-text <=> root.query;
@@ -85,6 +89,10 @@ export component NavigationViewExample inherits Window {
                 Button { text: "Compact"; clicked => { root.mode = NavigationViewPaneDisplayMode.left-compact; } }
                 Button { text: "Minimal"; clicked => { root.mode = NavigationViewPaneDisplayMode.left-minimal; } }
                 Button { text: "Top"; clicked => { root.mode = NavigationViewPaneDisplayMode.top; } }
+            }
+            if root.title-bar-height > 0px : Button {
+                text: "Toggle title bar padding";
+                clicked => { root.title-bar-padding = !root.title-bar-padding; }
             }
             if root.with-search : Text { text: "Submitted: " + root.submitted; font-size: 14px; color: Palette.foreground; }
             Text { text: "Selection: " + root.selected-id; font-size: 14px; color: Palette.foreground; }

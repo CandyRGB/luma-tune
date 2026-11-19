@@ -133,7 +133,9 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 
 覆盖窗格已验证 Tab 和 Shift+Tab 循环、Escape 后返回触发按钮，以及短窗口滚动菜单时页脚保持可见。紧凑项显示提示。附加 `-- --search` 可验证紧凑搜索打开后直接进入输入框、键盘提交建议，以及切换到顶部模式后保留查询。附加 `-- --top --deep-menu` 可验证选中溢出父项后仍能操作子项，选中叶子时再将整组移回顶部。
 
-待补窗格标题、自定义内容、页脚和页面标题插槽，以及标题栏区域的布局接入。触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
+顶部导航会在首项前显示窗格标题，并在计算溢出时预留标题宽度。附加 `-- --extended-title-bar` 可验证宿主传入的 32px 标题栏预留高度，及关闭自动预留后导航与内容同步上移。全屏或标准系统标题栏由宿主传入零高度。
+
+待补窗格标题、自定义内容、页脚和页面标题插槽。触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
 
 ### Status & info
 | 控件 | 现状 | 备注 |

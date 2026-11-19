@@ -427,6 +427,9 @@ export component NavigationView inherits Rectangle {
     in property <string> pane-title;
     in property <string> header;
     in property <bool> always-show-header: true;
+    in property <bool> is-title-bar-auto-padding-enabled: true;
+    // An extended window supplies its title bar height; standard window chrome uses zero.
+    in property <length> title-bar-height;
     callback item-invoked(string);
     callback selection-changed(string);
     callback back-requested();
@@ -457,6 +460,10 @@ export component NavigationView inherits Rectangle {
     private property <bool> show-header: root.header != "" && (root.always-show-header || (!root.top-mode && root.display-mode == NavigationViewDisplayMode.minimal));
     private property <length> top-controls-width: (root.show-top-back ? 48px : 0px) + (root.show-top-toggle ? 48px : 0px);
     private property <length> top-height: root.is-pane-visible && root.top-mode ? 48px : 0px;
+    private property <length> title-bar-padding: root.is-title-bar-auto-padding-enabled ? clamp(root.title-bar-height, 0px, root.height) : 0px;
+    private property <length> top-title-width: top-title.visible
+        ? min(ceil(top-title.preferred-width / 2px) * 2px + 24px,
+            max(0px, floor((root.width - root.top-controls-width - 8px) / 6px) * 2px)) : 0px;
     private property <length> header-height: root.show-header || (!root.top-mode && root.top-controls-width > 0px) ? 52px : 0px;
     private property <NavigationViewLeftLayout> left-layout: pane.visible && NavigationViewBehavior.ready
         ? NavigationViewBehavior.left-rows(root.menu-items, root.footer-menu-items, root.settings-item,
@@ -614,12 +621,26 @@ export component NavigationView inherits Rectangle {
     for item in (NavigationViewBehavior.ready ? root.footer-menu-items : []) : NavigationViewItemMeasure { item: item; metrics: root.metrics; }
     if NavigationViewBehavior.ready : NavigationViewItemMeasure { item: root.settings-item; metrics: root.metrics; }
 
+    top-title := Text {
+        visible: root.top-height > 0px && root.pane-title != "";
+        x: root.rtl ? root.width - root.top-controls-width - root.top-title-width + 8px : root.top-controls-width + 16px;
+        y: root.title-bar-padding + 4px;
+        width: max(0px, root.top-title-width - 24px);
+        height: 40px;
+        text: root.pane-title;
+        vertical-alignment: center;
+        horizontal-alignment: root.rtl ? right : left;
+        font-size: 14px;
+        font-weight: 600;
+        overflow: elide;
+        color: Palette.foreground;
+    }
     top-list := NavigationViewList {
         visible: root.top-height > 0px;
         enabled: root.popup-owner == "";
-        x: root.rtl ? 4px : root.top-controls-width + 4px;
-        y: 4px;
-        width: max(0px, root.width - root.top-controls-width - 8px);
+        x: root.rtl ? 4px : root.top-controls-width + root.top-title-width + 4px;
+        y: root.title-bar-padding + 4px;
+        width: max(0px, root.width - root.top-controls-width - root.top-title-width - 8px);
         height: 40px;
         rows: self.visible ? root.top-layout.rows : [];
         label: "Navigation";
@@ -634,7 +655,7 @@ export component NavigationView inherits Rectangle {
         visible: root.top-height > 0px && root.is-search-visible;
         enabled: self.visible && root.popup-owner == "";
         x: top-list.x + (root.rtl ? top-list.width - root.top-layout.search-offset - root.top-search-width : root.top-layout.search-offset) + 4px;
-        y: 8px;
+        y: root.title-bar-padding + 8px;
         width: max(0px, root.top-search-width - 8px);
         height: 32px;
         text <=> root.search-text;
@@ -649,7 +670,7 @@ export component NavigationView inherits Rectangle {
     NavigationViewButton {
         visible: root.show-top-back && !root.overlay;
         x: root.rtl ? root.width - 44px : 4px;
-        y: 6px;
+        y: root.title-bar-padding + 6px;
         icon: root.rtl ? @image-url("../../icons/arrow_right_16_regular.svg") : @image-url("../../icons/arrow_left_16_regular.svg");
         label: "Back";
         enabled: root.is-back-enabled && root.popup-owner == "";
@@ -658,7 +679,7 @@ export component NavigationView inherits Rectangle {
     top-toggle := NavigationViewButton {
         visible: root.show-top-toggle && !root.overlay;
         x: root.rtl ? root.width - root.top-controls-width + 4px : root.top-controls-width - 44px;
-        y: 6px;
+        y: root.title-bar-padding + 6px;
         icon: @image-url("../../icons/navigation_16_regular.svg");
         label: "Open navigation";
         expandable: true;
@@ -667,7 +688,7 @@ export component NavigationView inherits Rectangle {
 
     content := Rectangle {
         x: root.rtl ? 0px : root.dock-width;
-        y: root.top-height + root.header-height;
+        y: root.title-bar-padding + root.top-height + root.header-height;
         width: max(0px, root.width - root.dock-width);
         height: max(0px, root.height - self.y);
         border-top-left-radius: root.dock-width > 0px && !root.rtl ? 8px : 0px;
@@ -680,7 +701,7 @@ export component NavigationView inherits Rectangle {
     }
     if root.show-header : Text {
         x: root.rtl ? 24px + (root.top-mode ? 0px : root.top-controls-width) : root.dock-width + (root.top-mode ? 0px : root.top-controls-width) + 24px;
-        y: root.top-height;
+        y: root.title-bar-padding + root.top-height;
         width: max(0px, root.width - root.dock-width - (root.top-mode ? 0px : root.top-controls-width) - 48px);
         height: root.header-height;
         text: root.header;
@@ -692,6 +713,8 @@ export component NavigationView inherits Rectangle {
         color: Palette.foreground;
     }
     if root.overlay : Rectangle {
+        y: root.title-bar-padding;
+        height: max(0px, root.height - self.y);
         background: #0003;
         TouchArea { clicked => { root.close-pane(NavigationViewCloseReason.light-dismiss); } }
     }
@@ -699,8 +722,9 @@ export component NavigationView inherits Rectangle {
     pane := Rectangle {
         visible: root.show-pane-header;
         x: root.rtl ? root.width - root.pane-width : 0px;
+        y: root.title-bar-padding;
         width: root.pane-width;
-        height: root.height;
+        height: max(0px, root.height - self.y);
         clip: true;
         background: root.overlay ? Palette.background : transparent;
         private property <bool> back: root.is-back-button-visible && root.display-mode != NavigationViewDisplayMode.minimal;
