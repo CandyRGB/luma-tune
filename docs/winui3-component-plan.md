@@ -12,10 +12,11 @@
 
 ## 实施顺序
 
-1. 补齐已开始的 InfoBar、Expander 和 ContentDialog。InfoBar 与 Expander 共用 Windows 高对比度色板，各自验收内容与交互差异。
+1. 补齐已开始的 InfoBar、Expander 和 ContentDialog，先验收内容、浅色与深色视觉和交互。
 2. 实现 Flyout 和 MenuFlyout，验证定位、键盘操作、焦点恢复和关闭行为，再复用到 CommandBar、分裂按钮等控件。
 3. 实现 NumberBox、AutoSuggestBox、导航、分页、集合与其他待做控件。按下方优先级推进独立组件，并先满足各自的依赖。
-4. 补齐现有清单与 Gallery 目录的缺项，覆盖日期、媒体、滚动与布局等类别，最后逐项复验原生控件与 Slint 实现。
+4. 补齐现有清单与 Gallery 目录的缺项，覆盖日期、媒体、滚动与布局等类别。
+5. 最后统一制作和验收 Windows 高对比度主题，再逐项复验原生控件与 Slint 实现。
 
 ## 约定
 
@@ -89,7 +90,7 @@ components/
 ### Dialogs & flyouts
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、三种操作和长正文滚动 |
+| ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、长正文滚动，以及可取消和延迟的关闭事件 |
 | Flyout / MenuFlyout | 🔨 | 任意锚点浮层 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
@@ -114,7 +115,7 @@ components/
 ### Status & info
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、四种严重性与自定义内容 |
+| InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、自定义内容和可区分来源的可取消关闭 |
 | InfoBadge（角标） | 🔨 | |
 | ProgressBar | 🟡 | `ProgressIndicator` |
 | ProgressRing（环形） | 🔨 | `Spinner` 非环形进度 |
@@ -164,9 +165,9 @@ components/
 
 ## 复刻优先级（实用 + Slint 缺）
 
-1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态和鼠标键盘已验证，待补关闭生命周期、按钮高对比度以及原生视觉和读屏对照）
-2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补自定义操作按钮）
-3. 🚧 Expander（`layout/expander.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补可组合标题、内容禁用传递）
+1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态、鼠标键盘、关闭生命周期已验证，待完成原生视觉和读屏对照）
+2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互及关闭事件，待补自定义操作按钮）
+3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
 4. ⬜ CommandBar（menus-toolbars）
 5. ⬜ NumberBox / AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）

@@ -8,6 +8,11 @@ export enum InfoSeverity {
     error,
 }
 
+export enum InfoBarCloseReason {
+    close-button,
+    programmatic,
+}
+
 component InfoBarText inherits Text {
     color: ContrastTheme.colors.active ? ContrastTheme.colors.window-text : Palette.foreground;
     font-size: 14px;
@@ -85,9 +90,14 @@ export component InfoBar inherits Rectangle {
     in property <image> icon-source;
     in property <string> action-label;
 
-    callback closed();
+    callback close-button-clicked();
+    // Return true to cancel the close and leave the bar visible.
+    callback closing(InfoBarCloseReason) -> bool;
+    callback closed(InfoBarCloseReason);
     callback action();
 
+    private property <bool> displayed;
+    private property <bool> handling-close;
     private property <SystemContrastColors> contrast: ContrastTheme.colors;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <brush> icon-color:
@@ -110,12 +120,12 @@ export component InfoBar inherits Rectangle {
     private property <length> header-height: root.stacked ? max(48px, stacked-content.preferred-height) : 48px;
     private property <bool> has-custom-icon: root.icon-source.width > 0 && root.icon-source.height > 0;
 
-    // In a spaced layout, use `if` at the call site to reclaim the gap on dismissal too.
-    visible: root.open;
+    // In a spaced layout, remove the bar from the closed callback to reclaim the gap.
+    visible: root.displayed;
     min-width: root.content-left + 16px + (root.is-closable ? 48px : 0px);
     horizontal-stretch: 1;
     vertical-stretch: 0;
-    height: root.open ? root.header-height + custom-content.preferred-height : 0px;
+    height: root.displayed ? root.header-height + custom-content.preferred-height : 0px;
     border-radius: 4px;
     border-width: root.contrast.active ? 2px : 1px;
     border-color: root.contrast.active ? root.contrast.button-text : root.dark ? #0000001a : #0000000f;
@@ -125,6 +135,33 @@ export component InfoBar inherits Rectangle {
         : root.severity == InfoSeverity.warning ? (root.dark ? #433519 : #fff4ce)
         : root.severity == InfoSeverity.error ? (root.dark ? #442726 : #fde7e9)
         : root.dark ? #ffffff08 : #f6f6f680;
+
+    init => { root.displayed = root.open; }
+    changed open => {
+        if (root.open) {
+            root.displayed = true;
+        } else {
+            root.request-close(InfoBarCloseReason.programmatic);
+        }
+    }
+
+    function request-close(reason: InfoBarCloseReason) {
+        if (root.displayed && !root.handling-close) {
+            root.handling-close = true;
+            if (reason == InfoBarCloseReason.close-button) {
+                root.close-button-clicked();
+            }
+            root.open = false;
+            if (root.closing(reason)) {
+                root.open = true;
+            } else {
+                root.displayed = false;
+                root.closed(reason);
+            }
+            root.displayed = root.open;
+            root.handling-close = false;
+        }
+    }
 
     if root.is-icon-visible : Rectangle {
         x: 16px;
@@ -248,10 +285,7 @@ export component InfoBar inherits Rectangle {
         }
 
         close-touch := TouchArea {
-            clicked => {
-                root.open = false;
-                root.closed();
-            }
+            clicked => { root.request-close(InfoBarCloseReason.close-button); }
         }
 
         close-focus := FocusScope {

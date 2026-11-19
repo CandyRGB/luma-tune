@@ -8,6 +8,18 @@ export enum ContentDialogButton {
     close,
 }
 
+export enum ContentDialogResult {
+    none,
+    primary,
+    secondary,
+}
+
+export enum ContentDialogDecision {
+    proceed,
+    cancel,
+    defer,
+}
+
 // Place this component over the window's content. Bind any form state that
 // should survive closing and reopening to properties owned by the caller.
 export component ContentDialog inherits Rectangle {
@@ -24,7 +36,23 @@ export component ContentDialog inherits Rectangle {
     callback accepted();
     callback secondary-accepted();
     callback dismissed();
+    callback opened();
+    callback button-clicked(ContentDialogButton, int) -> ContentDialogDecision;
+    callback closing(ContentDialogResult, int) -> ContentDialogDecision;
+    callback closed(ContentDialogResult);
 
+    button-clicked(button, request-id) => { return ContentDialogDecision.proceed; }
+    closing(result, request-id) => { return ContentDialogDecision.proceed; }
+
+    private property <int> last-request-id;
+    private property <int> button-request-id;
+    private property <int> closing-request-id;
+    private property <ContentDialogButton> pending-button: ContentDialogButton.none;
+    private property <ContentDialogButton> closing-button: ContentDialogButton.none;
+    private property <ContentDialogResult> closing-result:
+        root.closing-button == ContentDialogButton.primary ? ContentDialogResult.primary
+        : root.closing-button == ContentDialogButton.secondary ? ContentDialogResult.secondary
+        : ContentDialogResult.none;
     private property <SystemContrastColors> contrast: ContrastTheme.colors;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <bool> has-primary: root.primary-label != "";
@@ -44,25 +72,98 @@ export component ContentDialog inherits Rectangle {
     changed open => { root.sync-popup(); }
 
     function sync-popup() {
-        if (root.open && !popup.is-open) {
-            popup.show();
-        } else if (!root.open && popup.is-open) {
-            popup.close();
+        if (root.open) {
+            root.show-if-requested();
+        } else if (popup.is-open) {
+            root.open = true;
+            root.hide();
         }
     }
 
+    function show-if-requested() {
+        if (root.open && !popup.is-open) {
+            popup.show();
+            root.opened();
+        }
+    }
+
+    public function hide() {
+        root.begin-close(ContentDialogButton.none);
+    }
+
+    // Complete the request ID supplied to button-clicked or closing after returning defer.
+    // IDs from completed events or an earlier showing are ignored.
+    public function complete-deferral(request-id: int, cancel: bool) {
+        if (request-id != 0 && request-id == root.button-request-id) {
+            let button = root.pending-button;
+            root.button-request-id = 0;
+            if (!cancel) {
+                root.begin-close(button);
+            }
+        } else {
+            root.complete-closing(request-id, cancel);
+        }
+    }
+
+    function next-request-id() -> int {
+        root.last-request-id += 1;
+        return root.last-request-id;
+    }
+
     function respond(button: ContentDialogButton) {
-        if (root.open) {
-            root.open = false;
-            popup.close();
-            if (button == ContentDialogButton.primary) {
-                root.accepted();
-            } else if (button == ContentDialogButton.secondary) {
-                root.secondary-accepted();
+        if (popup.is-open && root.button-request-id == 0 && root.closing-request-id == 0) {
+            if (button == ContentDialogButton.close && !root.has-close) {
+                root.begin-close(button);
             } else {
-                root.dismissed();
+                let request-id = root.next-request-id();
+                root.button-request-id = request-id;
+                root.pending-button = button;
+                let decision = root.button-clicked(button, request-id);
+                if (decision != ContentDialogDecision.defer) {
+                    root.complete-deferral(request-id, decision == ContentDialogDecision.cancel);
+                }
             }
         }
+    }
+
+    function begin-close(button: ContentDialogButton) {
+        if (popup.is-open && root.closing-request-id == 0) {
+            let request-id = root.next-request-id();
+            root.closing-request-id = request-id;
+            root.closing-button = button;
+            let decision = root.closing(root.closing-result, request-id);
+            if (decision != ContentDialogDecision.defer) {
+                root.complete-closing(request-id, decision == ContentDialogDecision.cancel);
+            }
+        }
+    }
+
+    function complete-closing(request-id: int, cancel: bool) {
+        if (request-id != 0 && request-id == root.closing-request-id) {
+            if (cancel) {
+                root.closing-request-id = 0;
+            } else {
+                root.finish-close();
+            }
+        }
+    }
+
+    function finish-close() {
+        let button = root.closing-button;
+        let result = root.closing-result;
+        root.button-request-id = 0;
+        popup.close();
+        root.open = false;
+        root.closing-request-id = 0;
+        root.closed(result);
+        if (button == ContentDialogButton.primary) {
+            root.accepted();
+        } else if (button == ContentDialogButton.secondary) {
+            root.secondary-accepted();
+        } else if (button == ContentDialogButton.close) {
+            root.dismissed();
+        }
+        root.show-if-requested();
     }
 
     popup := PopupWindow {
