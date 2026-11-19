@@ -124,7 +124,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | --- | --- | --- |
 | BreadcrumbBar | 🚧 | 支持宽度折叠、隐藏路径弹层、键盘导航和 RTL，已接入主窗口页眉 |
 | NavigationView | 🚧 | 独立 `components/navigation/navigation_view.slint`，支持自适应窗格、目录层级和顶部溢出 |
-| TabView（可增删/关闭） | 🟡 | `TabWidget` 静态标签，无关闭/新建 |
+| TabView（可增删/关闭） | 🚧 | 独立 `components/navigation/tab_view.slint`，支持可组合页签内容、三种宽度、滚动、关闭和排序 |
 | Pivot | 🔨 | 可用 `TabWidget` 近似 |
 | SelectorBar | 🔨 | |
 
@@ -143,6 +143,14 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 附加 `-- --slots --search` 可试用 `pane-header`、`pane-custom-content`、`pane-footer`、`page-header` 和 `content-overlay`。窗格的三个自定义区域在顶部与左侧模式间复用同一组控件，顶部溢出计算会为它们保留空间。页面标题区域可容纳可交互控件，`content-overlay` 位于顶部导航下方。浅色已验证插槽位置、窄窗口溢出、鼠标激活，以及覆盖窗格依次经过自定义控件的正反向 Tab 循环。命名插槽使用 Slint 1.18.1 的实验语法，Cargo 示例已启用。直接用 `slint-viewer` 检查示例时需设置 `SLINT_ENABLE_EXPERIMENTAL_FEATURES=1`。
 
 触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口使用 `NavigationView` 的自适应窗格，并在 `page-header` 插槽中显示路径。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
+
+### TabView
+
+运行 `cargo run -p lumatune --example tab_view` 可切换 Equal、Size to content 和 Compact。附加 `-- --narrow` 可直接查看溢出，附加 `-- --slots` 可试用页签条两端的自定义内容。宿主为各页签分配唯一的稳定 ID，初始化 `TabViewBehavior`，根据 `selected-id` 组织内容，并在新增、关闭或重排请求后更新模型。示例为每个 ID 保存单独的编辑内容。
+
+Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬停关闭、中键关闭、选中项关闭后的回退、鼠标和 Alt+Shift+方向键重排、拖出页签条的回调、方向键跳过禁用项、Ctrl+Tab / Ctrl+Shift+Tab、Ctrl+F4、首尾插槽和 RTL。Windows UI Automation 已确认页签和按钮类型、选中状态和禁用状态。
+
+待补齐原生跨窗口拖放和撕出、页签头模板、标签和关闭提示、触控与手柄。内容面使用纯色回退。悬停关闭模式为隐藏的关闭按钮保留布局空间，Equal 模式关闭后会立即重排。对照文件存放在 `.refs/WinUI/microsoft-ui-xaml/controls/dev/TabView/` 和 `.refs/WinUI/WinUI-Gallery/WinUIGallery/Samples/TabView/`。
 
 ### Status & info
 | 控件 | 现状 | 备注 |
@@ -224,7 +232,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 4. 🚧 CommandBar（menus-toolbars，已验证主次命令、动态溢出和独立 AppBar 元素）
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
-7. ⬜ TabView（navigation，在 TabWidget 上补关闭/新建）
+7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. ⬜ InfoBadge / PipsPager / PersonPicture（status-info / scrolling / media）
 9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
 10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
