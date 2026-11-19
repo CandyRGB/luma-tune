@@ -1,0 +1,698 @@
+import { Palette, ScrollView } from "std-widgets.slint";
+import { FlyoutPlacement, FlyoutRect, FlyoutLayout } from "../dialogs-flyouts/flyout_layout.slint";
+
+export enum NavigationViewPaneDisplayMode { auto, left, left-compact, left-minimal, top }
+export enum NavigationViewDisplayMode { minimal, compact, expanded }
+export enum NavigationViewItemKind { item, header, separator }
+
+export struct NavigationViewItem {
+    id: string,
+    parent-id: string,
+    label: string,
+    icon: image,
+    kind: NavigationViewItemKind,
+    disabled: bool,
+    suppress-selection: bool,
+}
+
+export struct NavigationViewRow {
+    item: NavigationViewItem,
+    depth: int,
+    selected: bool,
+    shows-indicator: bool,
+    has-children: bool,
+    expanded: bool,
+    offset: length,
+    extent: length,
+    accessible-index: int,
+}
+
+export struct NavigationViewTopLayout {
+    rows: [NavigationViewRow],
+    overflow: [NavigationViewRow],
+}
+
+export struct NavigationViewMeasurement { id: string, width: length }
+
+export global NavigationViewBehavior {
+    in-out property <bool> ready;
+    pure callback measurements() -> [NavigationViewMeasurement];
+    callback measure([NavigationViewMeasurement], string, length);
+    pure callback left-rows([NavigationViewItem], [NavigationViewItem], NavigationViewItem, [string], string, length, bool) -> [NavigationViewRow];
+    pure callback top-rows([NavigationViewItem], [NavigationViewItem], NavigationViewItem, [NavigationViewMeasurement], string, length) -> NavigationViewTopLayout;
+    pure callback flyout-rows([NavigationViewItem], [NavigationViewItem], [NavigationViewRow], [string], string, string) -> [NavigationViewRow];
+    pure callback next([NavigationViewRow], string, bool) -> int;
+    pure callback find([NavigationViewRow], string) -> int;
+    pure callback index([NavigationViewRow], string) -> int;
+    pure callback last([NavigationViewRow]) -> length;
+    pure callback toggle([string], string) -> [string];
+}
+
+component NavigationViewItemMeasure inherits Text {
+    in property <NavigationViewItem> item;
+    in property <[NavigationViewMeasurement]> metrics;
+    text: item.label;
+    font-size: 14px;
+    font-weight: item.kind == NavigationViewItemKind.header ? 600 : 400;
+    visible: false;
+    private property <length> measured-width: ceil((self.preferred-width + 24px + (item.icon.width > 0 ? 24px : 0px)) / 2px) * 2px;
+    init => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
+    changed measured-width => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
+    changed item => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
+}
+
+component NavigationViewButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <bool> expandable;
+    in property <bool> expanded;
+    callback invoked();
+
+    width: 40px;
+    height: 36px;
+    border-radius: 4px;
+    border-width: key.has-focus ? 2px : 0px;
+    border-color: Palette.foreground;
+    background: !root.enabled ? transparent : hit.pressed ? Palette.foreground.with-alpha(0.025)
+        : hit.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-expandable: root.expandable;
+    accessible-expanded: root.expanded;
+    accessible-action-default => { if (root.enabled) { root.invoked(); } }
+    accessible-action-expand => { if (root.enabled && root.expandable && !root.expanded) { root.invoked(); } }
+    forward-focus: key;
+
+    Image {
+        width: 16px;
+        height: 16px;
+        x: round((parent.width - self.width) / 4px) * 2px;
+        y: round((parent.height - self.height) / 4px) * 2px;
+        source: root.icon;
+        colorize: Palette.foreground.with-alpha(!root.enabled ? 0.36 : hit.pressed ? 0.62 : 1);
+    }
+    hit := TouchArea {
+        enabled: root.enabled;
+        clicked => { key.focus(); root.invoked(); }
+    }
+    key := FocusScope {
+        enabled: root.enabled && root.visible;
+        focus-on-click: false;
+        private property <string> pressed;
+        changed has-focus => { self.pressed = ""; }
+        key-pressed(event) => {
+            if (event.text == Key.Return || (event.text == Key.Space && !event.modifiers.alt)) {
+                if (!event.repeat) { self.pressed = event.text; }
+                return accept;
+            }
+            return reject;
+        }
+        key-released(event) => {
+            if (self.pressed != "" && event.text == self.pressed) {
+                self.pressed = "";
+                root.invoked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+component NavigationViewItemPresenter inherits Rectangle {
+    in property <NavigationViewRow> entry;
+    in property <bool> horizontal;
+    in property <bool> icon-only;
+    in property <bool> rtl;
+    in property <bool> focused;
+    in property <bool> popup-open;
+    out property <FlyoutRect> anchor: { x: self.absolute-position.x, y: self.absolute-position.y,
+        width: self.width, height: self.height };
+    callback activated(bool);
+
+    private property <bool> more: entry.item.id == "$overflow";
+    private property <bool> actionable: entry.item.kind == NavigationViewItemKind.item;
+    private property <bool> expanded: entry.expanded || root.popup-open;
+    private property <bool> enabled: root.actionable && !entry.item.disabled;
+    private property <bool> icon: entry.item.icon.width > 0 || root.more;
+    private property <bool> show-label: !root.icon-only || (!root.icon && root.actionable);
+    private property <bool> has-chevron: entry.has-children && (!root.icon-only || root.horizontal);
+    private property <length> indent: root.icon-only ? 0px : 16px * entry.depth;
+    private property <length> label-start: horizontal ? (root.icon ? 36px : 12px)
+        : entry.item.kind == NavigationViewItemKind.header ? 12px + indent : (root.icon ? 40px : 12px) + indent;
+    private property <length> label-end: root.has-chevron ? 32px : 12px;
+    private property <color> foreground: Palette.foreground.with-alpha(!root.enabled && root.actionable ? 0.36 : hit.pressed ? 0.62 : 1);
+
+    border-radius: 4px;
+    border-width: root.focused ? 2px : 0px;
+    border-color: Palette.foreground;
+    background: !root.actionable ? transparent : hit.pressed || chevron.pressed ? Palette.foreground.with-alpha(0.025)
+        : hit.has-hover || chevron.has-hover || (entry.shows-indicator && !root.horizontal) ? Palette.foreground.with-alpha(0.06) : transparent;
+    if root.more : Rectangle {
+        accessible-role: button;
+        accessible-label: root.entry.item.label;
+        accessible-id: root.entry.item.id;
+        accessible-item-index: root.entry.accessible-index;
+        accessible-expandable: true;
+        accessible-expanded: root.popup-open;
+        accessible-action-default => { root.activated(false); }
+        accessible-action-expand => { if (!root.popup-open) { root.activated(true); } }
+    }
+    if root.actionable && !root.more : Rectangle {
+        accessible-role: list-item;
+        accessible-label: root.entry.item.label;
+        accessible-id: root.entry.item.id;
+        accessible-enabled: root.enabled;
+        accessible-item-index: root.entry.accessible-index;
+        accessible-item-selectable: root.actionable && !root.entry.item.suppress-selection;
+        accessible-item-selected: root.entry.selected;
+        accessible-expandable: root.entry.has-children;
+        accessible-expanded: root.expanded;
+        accessible-action-default => { if (root.enabled) { root.activated(false); } }
+        accessible-action-expand => { if (root.enabled && self.accessible-expandable && !root.expanded) { root.activated(true); } }
+    }
+
+    if entry.item.kind == NavigationViewItemKind.separator : Rectangle {
+        x: root.horizontal ? round((parent.width - self.width) / 4px) * 2px : 0px;
+        y: round((parent.height - self.height) / 4px) * 2px;
+        width: root.horizontal ? 1px : parent.width;
+        height: root.horizontal ? 24px : 1px;
+        background: Palette.foreground.with-alpha(0.08);
+    }
+    if root.icon && root.actionable : Image {
+        x: root.icon-only ? round((parent.width - self.width) / 4px) * 2px
+            : root.rtl ? parent.width - root.indent - 28px : root.indent + 12px;
+        y: round((parent.height - 16px) / 4px) * 2px;
+        width: 16px;
+        height: 16px;
+        source: root.more ? @image-url("../../icons/more_horizontal_16_regular.svg") : entry.item.icon;
+        colorize: root.foreground;
+    }
+    if root.show-label && entry.item.kind != NavigationViewItemKind.separator : Text {
+        x: root.icon-only ? 2px : root.rtl ? root.label-end : root.label-start;
+        width: max(0px, root.icon-only ? parent.width - 4px : parent.width - root.label-start - root.label-end);
+        height: parent.height;
+        horizontal-alignment: root.icon-only ? center : root.rtl ? right : left;
+        vertical-alignment: center;
+        text: entry.item.label;
+        font-size: 14px;
+        font-weight: entry.item.kind == NavigationViewItemKind.header ? 600 : 400;
+        overflow: elide;
+        color: root.foreground;
+    }
+    if entry.shows-indicator : Rectangle {
+        width: root.horizontal ? 16px : 4px;
+        height: root.horizontal ? 4px : 16px;
+        x: root.horizontal ? round((parent.width - self.width) / 4px) * 2px : root.rtl ? parent.width - self.width : 0px;
+        y: root.horizontal ? parent.height - self.height - 4px : round((parent.height - self.height) / 4px) * 2px;
+        border-radius: 2px;
+        background: Palette.accent-background;
+    }
+    hit := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.activated(false); }
+    }
+    if root.has-chevron : Image {
+        width: 8px;
+        height: 8px;
+        x: root.rtl ? 12px : parent.width - 20px;
+        y: round((parent.height - self.height) / 4px) * 2px;
+        source: root.expanded ? @image-url("../../icons/chevron_up_16_regular.svg")
+            : @image-url("../../icons/chevron_down_16_regular.svg");
+        colorize: root.foreground;
+    }
+    chevron := TouchArea {
+        enabled: root.enabled && root.has-chevron;
+        x: root.rtl ? 0px : parent.width - self.width;
+        width: 32px;
+        height: parent.height;
+        clicked => { root.activated(true); }
+    }
+}
+
+component NavigationViewList inherits Rectangle {
+    in property <[NavigationViewRow]> rows;
+    in property <string> selected-id;
+    in property <string> popup-owner;
+    in property <bool> trap-tab;
+    in property <bool> horizontal;
+    in property <bool> icon-only;
+    in property <bool> rtl;
+    in property <bool> enabled: true;
+    in property <string> label;
+    in property <length> content-height: NavigationViewBehavior.last(root.rows);
+    callback activated(NavigationViewRow, bool, FlyoutRect);
+    callback focused(NavigationViewRow);
+    callback escape();
+
+    private property <string> active-id;
+    private property <string> pressed-id;
+    private property <int> index: NavigationViewBehavior.find(root.rows, root.active-id);
+    forward-focus: key;
+    accessible-role: list;
+    accessible-label: root.label;
+    accessible-delegate-focus: key.has-focus ? NavigationViewBehavior.index(root.rows, root.active-id) : -1;
+
+    public function restore-focus(id: string) {
+        if (!root.enabled) { return; }
+        let index = NavigationViewBehavior.find(root.rows, id);
+        if (index >= 0) { root.set-focus(index); }
+        key.focus();
+    }
+
+    function set-focus(index: int) {
+        root.active-id = root.rows[index].item.id;
+        if (!root.horizontal) {
+            let top = root.rows[index].offset;
+            let bottom = top + root.rows[index].extent;
+            if (top < -scroller.content-y) { scroller.content-y = -top; }
+            else if (bottom > -scroller.content-y + scroller.visible-height) {
+                scroller.content-y = -max(0px, bottom - scroller.visible-height);
+            }
+        }
+    }
+
+    scroller := ScrollView {
+        width: parent.width;
+        height: parent.height;
+        content-height: root.horizontal ? self.visible-height : max(self.visible-height, root.content-height);
+        content-width: self.visible-width;
+        for row in root.rows : NavigationViewItemPresenter {
+            x: root.horizontal ? (root.rtl ? scroller.content-width - row.offset - row.extent : row.offset) : 4px;
+            y: root.horizontal ? 0px : row.offset;
+            width: root.horizontal ? row.extent : max(0px, scroller.content-width - 8px);
+            height: root.horizontal ? 40px : row.extent;
+            horizontal: root.horizontal;
+            icon-only: root.icon-only || (root.horizontal && (row.item.id == "$overflow" || row.item.id == "$settings"));
+            rtl: root.rtl;
+            focused: key.has-focus && row.item.id == root.active-id;
+            popup-open: root.popup-owner == row.item.id;
+            entry: row;
+            activated(chevron) => {
+                if (root.enabled) {
+                    root.active-id = row.item.id;
+                    key.focus();
+                    root.activated(row, chevron, self.anchor);
+                }
+            }
+        }
+    }
+
+    key := FocusScope {
+        enabled: root.enabled && root.visible && NavigationViewBehavior.next(root.rows, "", true) >= 0;
+        focus-on-click: false;
+        changed has-focus => {
+            root.pressed-id = "";
+            if (self.has-focus) {
+                let selected = NavigationViewBehavior.find(root.rows, root.selected-id);
+                let first = root.index >= 0 ? root.index : selected >= 0 ? selected : NavigationViewBehavior.next(root.rows, "", true);
+                if (first >= 0) { root.set-focus(first); }
+            }
+        }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.escape(); return accept; }
+            if (root.trap-tab && (event.text == Key.Tab || event.text == Key.Backtab)) { return accept; }
+            if (event.text == Key.Return || (event.text == Key.Space && !event.modifiers.alt)) {
+                if (!event.repeat && root.index >= 0) { root.pressed-id = root.active-id; }
+                return accept;
+            }
+            let forward = root.horizontal ? (root.rtl ? event.text == Key.LeftArrow : event.text == Key.RightArrow) : event.text == Key.DownArrow;
+            let backward = root.horizontal ? (root.rtl ? event.text == Key.RightArrow : event.text == Key.LeftArrow) : event.text == Key.UpArrow;
+            let edge = event.text == Key.Home || event.text == Key.End;
+            if (forward || backward || edge) {
+                let index = NavigationViewBehavior.next(root.rows, edge ? "" : root.active-id, event.text == Key.Home || forward);
+                if (index >= 0) { root.set-focus(index); root.focused(root.rows[index]); }
+                return accept;
+            }
+            return reject;
+        }
+        key-released(event) => {
+            if (event.text == Key.Return || (event.text == Key.Space && !event.modifiers.alt)) {
+                let id = root.pressed-id;
+                root.pressed-id = "";
+                if (root.index >= 0 && id == root.active-id && id != "") {
+                    let row = root.rows[root.index];
+                    let x = root.horizontal ? (root.rtl ? scroller.content-width - row.offset - row.extent : row.offset) : 4px;
+                    let y = root.horizontal ? 0px : row.offset + scroller.content-y;
+                    root.activated(row, false, {
+                        x: scroller.absolute-position.x + x,
+                        y: scroller.absolute-position.y + y,
+                        width: root.horizontal ? row.extent : scroller.content-width - 8px,
+                        height: root.horizontal ? 40px : row.extent,
+                    });
+                }
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+export enum NavigationViewCloseReason { programmatic, toggle, close-button, back, light-dismiss, item-invoked, resize }
+
+export component NavigationView inherits Rectangle {
+    // Item IDs are unique across both lists and remain stable across model changes.
+    // The default settings ID and the internal overflow ID are reserved.
+    in property <[NavigationViewItem]> menu-items;
+    in property <[NavigationViewItem]> footer-menu-items;
+    in property <bool> is-settings-visible: true;
+    in property <NavigationViewItem> settings: { id: "$settings", label: "Settings", icon: @image-url("../../icons/settings_16_regular.svg") };
+    in-out property <string> selected-id;
+    in property <NavigationViewPaneDisplayMode> pane-display-mode: NavigationViewPaneDisplayMode.auto;
+    out property <NavigationViewDisplayMode> display-mode: root.pane-display-mode == NavigationViewPaneDisplayMode.left
+        ? NavigationViewDisplayMode.expanded : root.pane-display-mode == NavigationViewPaneDisplayMode.left-compact
+        ? NavigationViewDisplayMode.compact : root.pane-display-mode == NavigationViewPaneDisplayMode.auto
+        ? (root.width >= root.expanded-mode-threshold-width ? NavigationViewDisplayMode.expanded
+            : root.width >= root.compact-mode-threshold-width ? NavigationViewDisplayMode.compact : NavigationViewDisplayMode.minimal)
+        : NavigationViewDisplayMode.minimal;
+    out property <bool> is-pane-open;
+    in property <bool> is-pane-visible: true;
+    in property <bool> is-pane-toggle-button-visible: true;
+    in property <bool> is-back-button-visible: true;
+    in property <bool> is-back-enabled;
+    in property <bool> selection-follows-focus;
+    in property <bool> rtl;
+    in property <length> compact-mode-threshold-width: 641px;
+    in property <length> expanded-mode-threshold-width: 1008px;
+    in property <length> compact-pane-length: 48px;
+    in property <length> open-pane-length: 320px;
+    in property <string> pane-title;
+    in property <string> header;
+    in property <bool> always-show-header: true;
+    callback item-invoked(string);
+    callback selection-changed(string);
+    callback back-requested();
+    callback display-mode-changed(NavigationViewDisplayMode);
+    callback pane-opening();
+    callback pane-opened();
+    // Return true to cancel a requested close. A display mode change can force the pane closed.
+    callback pane-closing(NavigationViewCloseReason) -> bool;
+    callback pane-closed();
+    callback item-expanding(string);
+    callback item-collapsed(string);
+
+    private property <bool> initialized;
+    private property <bool> top-mode: root.pane-display-mode == NavigationViewPaneDisplayMode.top;
+    private property <bool> overlay: root.is-pane-visible && !root.top-mode && root.is-pane-open && root.display-mode != NavigationViewDisplayMode.expanded;
+    private property <bool> force-closed;
+    private property <[string]> expanded-items;
+    private property <[NavigationViewMeasurement]> metrics: NavigationViewBehavior.ready ? NavigationViewBehavior.measurements() : [];
+    private property <NavigationViewItem> settings-item: root.is-settings-visible ? root.settings : {};
+    private property <length> pane-width: min(root.width, root.is-pane-open ? root.open-pane-length : root.compact-pane-length);
+    private property <length> dock-width: !root.is-pane-visible || root.top-mode || root.display-mode == NavigationViewDisplayMode.minimal ? 0px
+        : root.overlay ? min(root.compact-pane-length, root.width) : root.pane-width;
+    private property <bool> show-pane-header: root.is-pane-visible && !root.top-mode && (root.display-mode != NavigationViewDisplayMode.minimal || root.overlay);
+    private property <bool> show-top-back: root.is-pane-visible && root.is-back-button-visible && (root.top-mode || root.display-mode == NavigationViewDisplayMode.minimal);
+    private property <bool> show-top-toggle: root.is-pane-visible && root.is-pane-toggle-button-visible && root.display-mode == NavigationViewDisplayMode.minimal && !root.top-mode;
+    private property <bool> show-header: root.header != "" && (root.always-show-header || (!root.top-mode && root.display-mode == NavigationViewDisplayMode.minimal));
+    private property <length> top-controls-width: (root.show-top-back ? 48px : 0px) + (root.show-top-toggle ? 48px : 0px);
+    private property <length> top-height: root.is-pane-visible && root.top-mode ? 48px : 0px;
+    private property <length> header-height: root.show-header || (!root.top-mode && root.top-controls-width > 0px) ? 52px : 0px;
+    private property <NavigationViewTopLayout> top-layout: NavigationViewBehavior.ready ? NavigationViewBehavior.top-rows(root.menu-items,
+        root.footer-menu-items, root.settings-item, root.metrics, root.selected-id, top-list.width) : {};
+    private property <string> popup-owner;
+    private property <FlyoutRect> popup-target;
+    private property <[NavigationViewRow]> popup-rows: NavigationViewBehavior.flyout-rows(root.menu-items, root.footer-menu-items,
+        root.top-layout.overflow, root.expanded-items, root.popup-owner, root.selected-id);
+    private property <FlyoutRect> popup-bounds: { x: 0px, y: 0px, width: root.width, height: root.height };
+    private property <Size> popup-size: { width: 224px, height: NavigationViewBehavior.last(root.popup-rows) + 4px };
+    private property <FlyoutRect> popup-placement: FlyoutLayout.place(root.top-mode
+        ? (root.rtl ? FlyoutPlacement.bottom-edge-aligned-left : FlyoutPlacement.bottom-edge-aligned-right)
+        : (root.rtl ? FlyoutPlacement.left-edge-aligned-top : FlyoutPlacement.right-edge-aligned-top),
+        root.popup-target, root.popup-bounds, root.popup-size, { width: 112px, height: 44px });
+
+    init => {
+        root.is-pane-open = root.is-pane-visible && root.display-mode == NavigationViewDisplayMode.expanded;
+        root.initialized = true;
+    }
+    changed pane-display-mode => { root.force-closed = false; root.update-pane(); }
+    changed display-mode => {
+        if (root.initialized) {
+            root.update-pane();
+            root.display-mode-changed(root.display-mode);
+        }
+    }
+    changed is-pane-visible => { root.update-pane(); }
+    changed selected-id => { if (root.initialized) { root.selection-changed(root.selected-id); } }
+    changed width => { if (root.popup-owner != "") { root.close-popup(true, ""); } }
+    changed height => { if (root.popup-owner != "") { root.close-popup(true, ""); } }
+
+    public function show-pane() {
+        if (!root.is-pane-open && root.is-pane-visible && !root.top-mode) {
+            root.force-closed = false;
+            root.pane-opening();
+            root.is-pane-open = true;
+            if (root.overlay) { left-list.restore-focus(root.selected-id); }
+            root.pane-opened();
+        }
+    }
+    public function hide-pane() { root.close-pane(NavigationViewCloseReason.programmatic); }
+    public function toggle-pane() {
+        if (root.is-pane-open) { root.close-pane(NavigationViewCloseReason.toggle); }
+        else { root.show-pane(); }
+    }
+
+    function update-pane() {
+        root.close-popup(false, "");
+        if (!root.is-pane-visible || root.top-mode || root.display-mode != NavigationViewDisplayMode.expanded) {
+            root.close-pane(NavigationViewCloseReason.resize);
+        } else if (!root.force-closed) { root.show-pane(); }
+    }
+    function close-pane(reason: NavigationViewCloseReason) {
+        if (!root.is-pane-open) { return; }
+        if (root.pane-closing(reason) && reason != NavigationViewCloseReason.resize) { return; }
+        let was-overlay = root.overlay;
+        root.close-popup(false, "");
+        root.force-closed = root.force-closed || (root.display-mode == NavigationViewDisplayMode.expanded && reason != NavigationViewCloseReason.resize);
+        root.is-pane-open = false;
+        if (was-overlay && root.is-pane-toggle-button-visible) {
+            if (root.show-top-toggle) { top-toggle.focus(); }
+            else { left-toggle.focus(); }
+        }
+        root.pane-closed();
+    }
+    function close-popup(restore: bool, id: string) {
+        if (root.popup-owner == "") { return; }
+        let owner = root.popup-owner;
+        root.popup-owner = "";
+        if (restore) {
+            if (root.top-mode) { top-list.restore-focus(id == "" || NavigationViewBehavior.find(root.top-layout.rows, id) < 0 ? owner : id); }
+            else { left-list.restore-focus(owner); }
+        }
+    }
+    function activate-row(row: NavigationViewRow, chevron: bool, anchor: FlyoutRect, in-popup: bool) {
+        if (row.item.id == "$overflow" || (row.has-children && !in-popup && (root.top-mode || !root.is-pane-open))) {
+            if (root.popup-owner == row.item.id) { root.close-popup(true, ""); return; }
+            if (row.item.id != "$overflow" && !chevron) { root.invoke-item(row); }
+            root.popup-target = { x: anchor.x - root.absolute-position.x, y: anchor.y - root.absolute-position.y,
+                width: anchor.width, height: anchor.height };
+            root.popup-owner = row.item.id;
+            popup-list.restore-focus("");
+            return;
+        }
+        if (!chevron) { root.invoke-item(row); }
+        if (row.has-children) {
+            if (!row.expanded) { root.item-expanding(row.item.id); }
+            root.expanded-items = NavigationViewBehavior.toggle(root.expanded-items, row.item.id);
+            if (row.expanded) { root.item-collapsed(row.item.id); }
+        } else {
+            root.close-popup(true, row.item.suppress-selection ? "" : row.item.id);
+            if (root.overlay) { root.close-pane(NavigationViewCloseReason.item-invoked); }
+        }
+    }
+    function invoke-item(row: NavigationViewRow) {
+        root.item-invoked(row.item.id);
+        if (!row.item.suppress-selection) { root.selected-id = row.item.id; }
+    }
+    function focus-item(row: NavigationViewRow) {
+        if (root.selection-follows-focus && !row.item.suppress-selection) { root.selected-id = row.item.id; }
+    }
+
+    background: Palette.foreground.with-alpha(0.04);
+    for item in (NavigationViewBehavior.ready ? root.menu-items : []) : NavigationViewItemMeasure { item: item; metrics: root.metrics; }
+    for item in (NavigationViewBehavior.ready ? root.footer-menu-items : []) : NavigationViewItemMeasure { item: item; metrics: root.metrics; }
+    if NavigationViewBehavior.ready : NavigationViewItemMeasure { item: root.settings-item; metrics: root.metrics; }
+
+    top-list := NavigationViewList {
+        visible: root.top-height > 0px;
+        enabled: root.popup-owner == "";
+        x: root.rtl ? 4px : root.top-controls-width + 4px;
+        y: 4px;
+        width: max(0px, root.width - root.top-controls-width - 8px);
+        height: 40px;
+        rows: self.visible ? root.top-layout.rows : [];
+        label: "Navigation";
+        rtl: root.rtl;
+        horizontal: true;
+        selected-id: root.selected-id;
+        popup-owner: root.popup-owner;
+        activated(row, chevron, anchor) => { root.activate-row(row, chevron, anchor, false); }
+        focused(row) => { root.focus-item(row); }
+    }
+    NavigationViewButton {
+        visible: root.show-top-back && !root.overlay;
+        x: root.rtl ? root.width - 44px : 4px;
+        y: 6px;
+        icon: root.rtl ? @image-url("../../icons/arrow_right_16_regular.svg") : @image-url("../../icons/arrow_left_16_regular.svg");
+        label: "Back";
+        enabled: root.is-back-enabled && root.popup-owner == "";
+        invoked => { root.back-requested(); }
+    }
+    top-toggle := NavigationViewButton {
+        visible: root.show-top-toggle && !root.overlay;
+        x: root.rtl ? root.width - root.top-controls-width + 4px : root.top-controls-width - 44px;
+        y: 6px;
+        icon: @image-url("../../icons/navigation_16_regular.svg");
+        label: "Open navigation";
+        expandable: true;
+        invoked => { root.show-pane(); }
+    }
+
+    content := Rectangle {
+        x: root.rtl ? 0px : root.dock-width;
+        y: root.top-height + root.header-height;
+        width: max(0px, root.width - root.dock-width);
+        height: max(0px, root.height - self.y);
+        border-top-left-radius: root.dock-width > 0px && !root.rtl ? 8px : 0px;
+        border-top-right-radius: root.dock-width > 0px && root.rtl ? 8px : 0px;
+        border-width: 1px;
+        border-color: Palette.foreground.with-alpha(0.06);
+        background: Palette.background;
+        clip: true;
+        @children
+    }
+    if root.show-header : Text {
+        x: root.rtl ? 24px + (root.top-mode ? 0px : root.top-controls-width) : root.dock-width + (root.top-mode ? 0px : root.top-controls-width) + 24px;
+        y: root.top-height;
+        width: max(0px, root.width - root.dock-width - (root.top-mode ? 0px : root.top-controls-width) - 48px);
+        height: root.header-height;
+        text: root.header;
+        vertical-alignment: center;
+        horizontal-alignment: root.rtl ? right : left;
+        font-size: 28px;
+        font-weight: 600;
+        overflow: elide;
+        color: Palette.foreground;
+    }
+    if root.overlay : Rectangle {
+        background: #0003;
+        TouchArea { clicked => { root.close-pane(NavigationViewCloseReason.light-dismiss); } }
+    }
+
+    pane := Rectangle {
+        visible: root.show-pane-header;
+        x: root.rtl ? root.width - root.pane-width : 0px;
+        width: root.pane-width;
+        height: root.height;
+        clip: true;
+        background: root.overlay ? Palette.background : transparent;
+        private property <bool> back: root.is-back-button-visible && root.display-mode != NavigationViewDisplayMode.minimal;
+        private property <bool> close-button: root.overlay && root.display-mode == NavigationViewDisplayMode.minimal && root.is-back-button-visible;
+        private property <length> toggle-y: pane.back ? 46px : 6px;
+        private property <length> toggle-start: pane.close-button ? 44px : 4px;
+        private property <length> controls-height: pane.back && (root.is-pane-toggle-button-visible || root.pane-title != "") ? 88px
+            : pane.back || pane.close-button || root.is-pane-toggle-button-visible || root.pane-title != "" ? 48px : 0px;
+
+        if root.overlay : Rectangle {
+            x: root.rtl ? 0px : parent.width - 1px;
+            width: 1px;
+            background: Palette.foreground.with-alpha(0.10);
+        }
+        NavigationViewButton {
+            visible: pane.back;
+            x: root.rtl ? parent.width - 44px : 4px;
+            y: 6px;
+            icon: root.rtl ? @image-url("../../icons/arrow_right_16_regular.svg") : @image-url("../../icons/arrow_left_16_regular.svg");
+            label: "Back";
+            enabled: root.overlay || root.is-back-enabled;
+            invoked => {
+                if (root.overlay) { root.close-pane(NavigationViewCloseReason.back); }
+                else { root.back-requested(); }
+            }
+        }
+        left-toggle := NavigationViewButton {
+            visible: root.is-pane-toggle-button-visible;
+            x: root.rtl ? parent.width - pane.toggle-start - self.width : pane.toggle-start;
+            y: pane.toggle-y;
+            icon: @image-url("../../icons/navigation_16_regular.svg");
+            label: root.is-pane-open ? "Close navigation" : "Open navigation";
+            expandable: true;
+            expanded: root.is-pane-open;
+            invoked => { root.toggle-pane(); }
+        }
+        if pane.close-button : NavigationViewButton {
+            x: root.rtl ? parent.width - 44px : 4px;
+            y: 6px;
+            icon: @image-url("../../icons/dismiss_16_regular.svg");
+            label: "Dismiss pane";
+            invoked => { root.close-pane(NavigationViewCloseReason.close-button); }
+        }
+        if root.is-pane-open && root.pane-title != "" : Text {
+            private property <length> start: pane.toggle-start + 8px + (root.is-pane-toggle-button-visible ? 40px : 0px);
+            private property <length> end: 12px;
+            x: root.rtl ? end : start;
+            width: max(0px, parent.width - start - end);
+            y: pane.toggle-y;
+            height: 36px;
+            text: root.pane-title;
+            vertical-alignment: center;
+            horizontal-alignment: root.rtl ? right : left;
+            font-size: 14px;
+            font-weight: 600;
+            overflow: elide;
+            color: Palette.foreground;
+        }
+        left-list := NavigationViewList {
+            enabled: pane.visible && root.popup-owner == "";
+            y: pane.controls-height;
+            width: parent.width;
+            height: max(0px, parent.height - self.y);
+            rows: pane.visible && NavigationViewBehavior.ready ? NavigationViewBehavior.left-rows(root.menu-items, root.footer-menu-items,
+                root.settings-item, root.expanded-items, root.selected-id, self.height, !root.is-pane-open) : [];
+            label: "Navigation";
+            selected-id: root.selected-id;
+            rtl: root.rtl;
+            popup-owner: root.popup-owner;
+            icon-only: !root.is-pane-open;
+            activated(row, chevron, anchor) => { root.activate-row(row, chevron, anchor, false); }
+            focused(row) => { root.focus-item(row); }
+            escape => { if (root.overlay) { root.close-pane(NavigationViewCloseReason.light-dismiss); } }
+        }
+    }
+
+    TouchArea {
+        enabled: root.popup-owner != "";
+        visible: self.enabled;
+        clicked => { root.close-popup(true, ""); }
+    }
+    popup := Rectangle {
+        visible: root.popup-owner != "";
+        x: root.popup-placement.x;
+        y: root.popup-placement.y;
+        width: root.popup-placement.width;
+        height: root.popup-placement.height;
+        background: Palette.background;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: Palette.foreground.with-alpha(0.12);
+        drop-shadow-blur: 16px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: #0003;
+        TouchArea { }
+        popup-list := NavigationViewList {
+            y: 4px;
+            width: parent.width;
+            height: max(0px, parent.height - 8px);
+            enabled: popup.visible;
+            trap-tab: true;
+            rows: root.popup-rows;
+            label: root.popup-owner == "$overflow" ? "More navigation items" : "Child navigation items";
+            rtl: root.rtl;
+            selected-id: root.selected-id;
+            activated(row, chevron, anchor) => { root.activate-row(row, chevron, anchor, true); }
+            focused(row) => { root.focus-item(row); }
+            escape => { root.close-popup(true, ""); }
+        }
+    }
+}

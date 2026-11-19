@@ -122,10 +122,16 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | BreadcrumbBar | ✅ | `components/navigation/breadcrumb_bar.slint` |
-| NavigationView | 🔨 | 项目自研 `NavRail` 覆盖部分 |
+| NavigationView | 🚧 | 独立 `components/navigation/navigation_view.slint`，支持自适应窗格、目录层级和顶部溢出 |
 | TabView（可增删/关闭） | 🟡 | `TabWidget` 静态标签，无关闭/新建 |
 | Pivot | 🔨 | 可用 `TabWidget` 近似 |
 | SelectorBar | 🔨 | |
+
+### NavigationView
+
+运行 `cargo run -p lumatune --example navigation_view` 可切换 Auto、Left、LeftCompact、LeftMinimal 和 Top。已在浅色窗口核对展开窗格、两种覆盖窗格、顶部导航及溢出菜单；用实际窗口宽度验证 640/641 与 1007/1008 两组断点。已验证鼠标选中、方向键和空格、父项展开、子项选择、返回请求、Escape 收起、仅触发命令的项目，以及选中溢出项后将其移回顶部。Windows UI Automation 可读到列表项的选中、禁用和展开状态，Expand 动作可展开父项。
+
+待补搜索框、窗格自定义内容、标题和页脚插槽、紧凑项提示、层级弹层和覆盖窗格的完整焦点循环，以及 UI Automation 的 Collapse 和条目激活差异。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
 
 ### Status & info
 | 控件 | 现状 | 备注 |
@@ -206,7 +212,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
 4. 🚧 CommandBar（menus-toolbars，已验证主次命令、动态溢出和独立 AppBar 元素）
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
-6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）
+6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
 7. ⬜ TabView（navigation，在 TabWidget 上补关闭/新建）
 8. ⬜ InfoBadge / PipsPager / PersonPicture（status-info / scrolling / media）
 9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
