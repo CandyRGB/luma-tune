@@ -1,3 +1,4 @@
+pub mod contrast;
 pub mod display;
 pub mod foreground;
 pub mod presets;

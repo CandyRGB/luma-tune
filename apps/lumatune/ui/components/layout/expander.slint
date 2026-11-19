@@ -1,4 +1,5 @@
 import { Palette } from "std-widgets.slint";
+import { ContrastTheme, SystemContrastColors } from "../contrast_theme.slint";
 
 export enum ExpandDirection { down, up }
 
@@ -13,6 +14,7 @@ export component Expander inherits Rectangle {
     callback collapsed();
 
     private property <bool> opens-up: root.expand-direction == ExpandDirection.up;
+    private property <SystemContrastColors> contrast: ContrastTheme.colors;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <brush> stroke: root.dark ? #0000001a : #0000000f;
     private property <length> content-height: max(48px, content-layout.preferred-height);
@@ -48,13 +50,13 @@ export component Expander inherits Rectangle {
         y: root.opens-up ? root.reveal-height : 0px;
         width: parent.width;
         height: max(48px, header-layout.preferred-height);
-        border-width: 1px;
-        border-color: root.stroke;
+        border-width: root.contrast.active ? 2px : 1px;
+        border-color: root.contrast.active ? header-button.contrast-foreground : root.stroke;
         border-top-left-radius: root.show-content && root.opens-up ? 0px : root.corner-radius;
         border-top-right-radius: self.border-top-left-radius;
         border-bottom-left-radius: root.show-content && !root.opens-up ? 0px : root.corner-radius;
         border-bottom-right-radius: self.border-bottom-left-radius;
-        background: Palette.control-background;
+        background: root.contrast.active ? root.contrast.button-face : Palette.control-background;
 
         accessible-role: button;
         accessible-label: root.header;
@@ -68,7 +70,11 @@ export component Expander inherits Rectangle {
             }
         }
 
-        private property <brush> foreground: root.enabled ? Palette.foreground : Palette.foreground.with-alpha(0.36);
+        private property <color> contrast-foreground: !root.enabled ? root.contrast.disabled-text
+            : header-touch.has-hover || header-touch.pressed ? root.contrast.highlight
+            : root.contrast.button-text;
+        private property <brush> foreground: root.contrast.active ? self.contrast-foreground
+            : root.enabled ? Palette.foreground : Palette.foreground.with-alpha(0.36);
 
         header-layout := HorizontalLayout {
             padding-left: 16px;
@@ -90,7 +96,10 @@ export component Expander inherits Rectangle {
                 width: 32px;
                 height: 32px;
                 border-radius: 4px;
-                background: !root.enabled ? transparent
+                border-width: root.contrast.active ? 2px : 0px;
+                border-color: header-button.contrast-foreground;
+                background: root.contrast.active ? root.contrast.button-face
+                    : !root.enabled ? transparent
                     : header-touch.pressed ? Palette.foreground.with-alpha(root.dark ? 0.04 : 0.024)
                     : header-touch.has-hover ? Palette.foreground.with-alpha(root.dark ? 0.06 : 0.04)
                     : transparent;
@@ -142,7 +151,7 @@ export component Expander inherits Rectangle {
 
         if header-focus.has-focus && root.enabled : Rectangle {
             border-width: 2px;
-            border-color: Palette.foreground;
+            border-color: root.contrast.active ? root.contrast.window-text : Palette.foreground;
             border-radius: root.corner-radius;
             Rectangle {
                 x: 2px;
@@ -150,7 +159,7 @@ export component Expander inherits Rectangle {
                 width: parent.width - 4px;
                 height: parent.height - 4px;
                 border-width: 1px;
-                border-color: Palette.background;
+                border-color: root.contrast.active ? root.contrast.button-face : Palette.background;
                 border-radius: 2px;
             }
         }
@@ -172,12 +181,12 @@ export component Expander inherits Rectangle {
             height: root.content-height + 1px;
             // Clip the hairline at the join so only the header draws the seam.
             border-width: 1px;
-            border-color: root.stroke;
+            border-color: root.contrast.active ? root.contrast.window-text : root.stroke;
             border-top-left-radius: root.opens-up ? root.corner-radius : 0px;
             border-top-right-radius: self.border-top-left-radius;
             border-bottom-left-radius: root.opens-up ? 0px : root.corner-radius;
             border-bottom-right-radius: self.border-bottom-left-radius;
-            background: root.dark ? #ffffff08 : #f6f6f680;
+            background: root.contrast.active ? root.contrast.window : root.dark ? #ffffff08 : #f6f6f680;
 
             content-layout := VerticalLayout {
                 padding: 16px;

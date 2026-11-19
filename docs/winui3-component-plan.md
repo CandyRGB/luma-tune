@@ -1,8 +1,21 @@
-# WinUI 3 组件复刻目标
+# WinUI 3 组件复刻完成计划
 
 复刻范围：**WinUI 3 本体（Microsoft.UI.Xaml）自带控件**。不含 CommunityToolkit 扩展（`DataGrid`、`SettingsCard`、`SettingsExpander` 等属 Toolkit，非本体）。
 
 分类以 **WinUI Gallery 官方分组**为准（`WinUI-Gallery/WinUIGallery/SampleSupport/Data/ControlInfoData.json` 的 `Groups`）。
+
+## 完成条件
+
+- 按 [WinUI Gallery 控件目录](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/SampleSupport/Data/ControlInfoData.json) 逐项核对范围。补记本体控件缺项，并记录示例页、宿主 API 和外部库控件的归属。
+- 对可直接复用的 Slint 控件也执行验收。每项记录对应的实现、原生对照、运行验证和已知差异。现有表格中的「可直接用」仍需核对 WinUI 3 一致性。
+- 核对浅色、深色和适用的 Windows 高对比度，检查鼠标、键盘、焦点与可访问状态。实测可运行示例后再标记完成，所有范围内条目通过后结束复刻。
+
+## 实施顺序
+
+1. 补齐已开始的 InfoBar、Expander 和 ContentDialog。InfoBar 与 Expander 共用 Windows 高对比度色板，各自验收内容与交互差异。
+2. 实现 Flyout 和 MenuFlyout，验证定位、键盘操作、焦点恢复和关闭行为，再复用到 CommandBar、分裂按钮等控件。
+3. 实现 NumberBox、AutoSuggestBox、导航、分页、集合与其他待做控件。按下方优先级推进独立组件，并先满足各自的依赖。
+4. 补齐现有清单与 Gallery 目录的缺项，覆盖日期、媒体、滚动与布局等类别，最后逐项复验原生控件与 Slint 实现。
 
 ## 约定
 
@@ -21,7 +34,7 @@ components/
   basic-input/      RadioButtons, RatingControl, ToggleButton, DropDownButton, SplitButton ...
   collections/      TreeView, GridView 增强 ...
   date-time/        CalendarDatePicker, DatePicker, TimePicker ...
-  dialogs-flyouts/  ContentDialog(✅), Flyout, TeachingTip ...
+  dialogs-flyouts/  ContentDialog(🚧), Flyout, TeachingTip ...
   layout/           Expander(🚧), SplitView ...
   media/            PersonPicture, AnimatedVisualPlayer ...
   menus-toolbars/   CommandBar, MenuFlyout, AppBarButton ...
@@ -75,7 +88,7 @@ components/
 ### Dialogs & flyouts
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ContentDialog | ✅ | `components/dialogs-flyouts/content_dialog.slint` |
+| ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，需补模态焦点、键盘关闭与次要操作 |
 | Flyout / MenuFlyout | 🔨 | 任意锚点浮层 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
@@ -150,9 +163,9 @@ components/
 
 ## 复刻优先级（实用 + Slint 缺）
 
-1. ✅ ContentDialog（`dialogs-flyouts/content_dialog.slint`）
-2. 🚧 InfoBar（`status-info/info_bar.slint`，常用样式和交互已验证，待补高对比度和自定义操作按钮）
-3. 🚧 Expander（`layout/expander.slint`，常用样式和交互已验证，待补高对比度、可组合标题和禁用向内容控件传递）
+1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，待复验模态焦点、键盘和按钮状态）
+2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补自定义操作按钮）
+3. 🚧 Expander（`layout/expander.slint`，已验证常用交互和注入高对比度色板，待验收系统对比度主题切换并补可组合标题、内容禁用传递）
 4. ⬜ CommandBar（menus-toolbars）
 5. ⬜ NumberBox / AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）
