@@ -159,9 +159,13 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | TextBlock | ✅ | `Text` |
 | TextBox / LineEdit | 🟡 | `LineEdit`；password 需掩码封装 |
 | PasswordBox | 🔨 | 掩码封装 |
-| NumberBox（± 步进） | 🔨 | 高价值；`SpinBox` 可包装 |
+| NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🔨 | 高价值 |
 | RichTextBlock / RichEditBox | ⚠️ | 富文本支持弱 |
+
+运行 `cargo run -p lumatune --example number_box` 可试用 NumberBox，附加 `-- --dark` 切换至深色。已验证 Enter 与失焦提交、Esc 恢复、上下键和 PageUp/PageDown、焦点内滚轮、内联与紧凑步进、长按连续步进、环绕、两种验证模式、范围限制、长输入光标和程序设值。Windows UI Automation 已实测 Spinner 类型、范围属性和设值。[Microsoft NumberBox 规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/number-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.xaml)
+
+当前公开数值使用 Slint 的 32 位浮点，空值由 `has-value` 表示。十进制分隔符跟随 Slint 区域设置，支持自定义解析和格式化回调。仍需补齐 WinUI `Double` 的精度和地区格式、编辑器右键菜单、紧凑步进面板跨窗口绘制、读屏播报及高对比度。
 
 ### Media
 | 控件 | 现状 | 备注 |
@@ -184,7 +188,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互及关闭事件，待补自定义操作按钮）
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
 4. ⬜ CommandBar（menus-toolbars）
-5. ⬜ NumberBox / AutoSuggestBox（text）
+5. 🚧 NumberBox（text） / ⬜ AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）
 7. ⬜ TabView（navigation，在 TabWidget 上补关闭/新建）
 8. ⬜ InfoBadge / PipsPager / PersonPicture（status-info / scrolling / media）
