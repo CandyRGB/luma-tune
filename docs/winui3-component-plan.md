@@ -169,10 +169,14 @@ Windows 浅色已验证六组样式、零值与最大 32 位整数、计数优�
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | ScrollView / ScrollViewer | ✅ | `ScrollView` |
-| PipsPager | 🔨 | 分页点 |
+| PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
 | AnnotatedScrollBar | 🔨 | |
 | PagerControl | 🔨 | |
 | SemanticZoom | 🔨 | |
+
+运行 `cargo run -p lumatune --example pips_pager` 可切换横向、纵向、RTL、有限或无限页数，以及始终显示、悬停或键盘聚焦时显示、折叠三种箭头策略。有限页数可循环翻页。当前页会在可见范围内居中，靠近首尾时对齐边缘。方向键移动焦点，Enter、空格与鼠标点击提交选择。超出范围的有限页索引会归入可用范围。
+
+Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标、键盘、循环、无限分页、减少页数时的回退、空页和禁用。UI Automation 已读到分页点的名称和选中态。Slint 使用列表和可选择条目表达分页状态，WinUI 使用 Menu 自动化角色与选择提供程序。WinUI 样式模板替换、读屏播报和手柄仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPager.idl) · [自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPagerAutomationPeer.cpp)
 
 ### Menus & toolbars
 | 控件 | 现状 | 备注 |
@@ -237,7 +241,7 @@ Windows 浅色已验证六组样式、零值与最大 32 位整数、计数优�
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
-8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / ⬜ PipsPager / ⬜ PersonPicture
+8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / ⬜ PersonPicture
 9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
 10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
 
