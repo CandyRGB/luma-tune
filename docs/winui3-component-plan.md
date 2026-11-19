@@ -149,9 +149,13 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | MenuBar / MenuBarItem | 🟡 | 公开有 `MenuBar` |
-| CommandBar / AppBarButton / AppBarToggleButton / AppBarSeparator | 🔨 | 高价值（含 overflow …） |
+| CommandBar / AppBarButton / AppBarToggleButton / AppBarSeparator | 🚧 | `components/menus-toolbars/command_bar.slint` 与 `app_bar_button.slint`，支持主次命令、动态溢出、自定义内容和附属菜单。 |
 | CommandBarFlyout | 🔨 | |
 | SwipeControl | 🔨 | |
+
+运行 `cargo run -p lumatune --example command_bar` 可试用命令栏。附加 `-- --narrow --bottom` 可查看窄窗口和向上展开，`-- --narrow --ordered` 可查看指定顺序的成组迁移，`-- --app-bar-buttons` 可单独试用三种 AppBar 元素。已验证浅色下的紧凑与最小状态、向上和向下展开、方向键、Esc、外部点击关闭、快捷键、溢出区内滚动和附属菜单。实际调整窗口大小时，切换命令迁入和移出溢出区后保留选中状态。Windows UI Automation 已实测展开、调用和切换。[Microsoft CommandBar 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar) · [WinUI 溢出与键盘源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/CommandBar_Partial.cpp) · [命令栏模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/CommandBar_themeresources.xaml) · [按钮模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/AppBarButton_themeresources.xaml)
+
+展开状态使用 Acrylic 的纯色回退，溢出区在窗口内绘制。长标签换行、`AppBarElementContainer` 和分裂命令、跨窗口弹层、触屏和手柄、RTL 目检及读屏播报仍待补齐或验收。
 
 ### Text
 | 控件 | 现状 | 备注 |
@@ -191,7 +195,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态、鼠标键盘、关闭生命周期已验证，待完成原生视觉和读屏对照）
 2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互及关闭事件，待补自定义操作按钮）
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
-4. ⬜ CommandBar（menus-toolbars）
+4. 🚧 CommandBar（menus-toolbars，已验证主次命令、动态溢出和独立 AppBar 元素）
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）
 7. ⬜ TabView（navigation，在 TabWidget 上补关闭/新建）
