@@ -3,6 +3,8 @@ use slint::{FilterModel, Model, ModelExt, ModelRc, SharedString};
 
 pub fn install(behavior: MenuFlyoutBehavior<'_>) {
     behavior.on_items_for(items_for);
+    behavior.on_has_children(|items, owner| any_row(items, |item| item.parent_id == owner));
+    behavior.on_accessible_index(accessible_index);
     behavior.on_trim_levels(trim_levels);
     behavior.on_next_item(next_item);
     behavior.on_has_icons(|items| any_row(items, |item| item.icon.size().width > 0));
@@ -33,6 +35,18 @@ fn trim_levels(levels: ModelRc<MenuFlyoutLevel>, keep: i32) {
 fn any_row(items: ModelRc<MenuFlyoutItem>, predicate: impl Fn(MenuFlyoutItem) -> bool) -> bool {
     items.model_tracker().track_row_count_changes();
     (0..items.row_count()).any(|index| items.row_data_tracked(index).is_some_and(&predicate))
+}
+
+fn accessible_index(items: ModelRc<MenuFlyoutItem>, row: i32) -> i32 {
+    let before = usize::try_from(row).unwrap_or(0).min(items.row_count());
+    (0..before)
+        .filter_map(|index| items.row_data_tracked(index))
+        .map(|item| match item.kind {
+            MenuFlyoutItemKind::Separator => 0,
+            MenuFlyoutItemKind::Split => 2,
+            _ => 1,
+        })
+        .sum()
 }
 
 fn next_item(items: ModelRc<MenuFlyoutItem>, current: i32, forward: bool) -> i32 {
@@ -88,7 +102,8 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
         }
         MenuFlyoutItemKind::Command
         | MenuFlyoutItemKind::Separator
-        | MenuFlyoutItemKind::Submenu => {}
+        | MenuFlyoutItemKind::Submenu
+        | MenuFlyoutItemKind::Split => {}
     }
 }
 
@@ -96,6 +111,24 @@ fn update_checks(items: ModelRc<MenuFlyoutItem>, index: i32) {
 mod tests {
     use super::*;
     use slint::VecModel;
+
+    #[test]
+    fn accessible_focus_counts_both_split_parts_and_skips_separators() {
+        let item = |kind| MenuFlyoutItem {
+            kind,
+            ..Default::default()
+        };
+        let items = ModelRc::new(VecModel::from(vec![
+            item(MenuFlyoutItemKind::Command),
+            item(MenuFlyoutItemKind::Separator),
+            item(MenuFlyoutItemKind::Split),
+            item(MenuFlyoutItemKind::Toggle),
+        ]));
+
+        assert_eq!(accessible_index(items.clone(), 2), 1);
+        assert_eq!(accessible_index(items.clone(), 3), 3);
+        assert_eq!(accessible_index(items, 4), 4);
+    }
 
     #[test]
     fn updates_nested_items_without_copying_check_state() {

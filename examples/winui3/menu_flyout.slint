@@ -46,11 +46,17 @@ export component MenuFlyoutExample inherits Window {
             { kind: MenuFlyoutItemKind.separator },
             { id: "lyrics", text: "Show lyrics", kind: MenuFlyoutItemKind.toggle, checked: true },
             { id: "options", text: "More options", kind: MenuFlyoutItemKind.submenu },
+            { id: "share", text: "Share", kind: MenuFlyoutItemKind.split,
+                icon: @image-url("../../apps/lumatune/ui/icons/share_16_regular.svg") },
+            { id: "refresh", text: "Refresh", kind: MenuFlyoutItemKind.split,
+                secondary-label: "Other refresh commands" },
             { id: "title", text: "Sort by title", kind: MenuFlyoutItemKind.radio, group: "sort", checked: true },
             { id: "artist", text: "Sort by artist", kind: MenuFlyoutItemKind.radio, group: "sort" },
             { id: "pin", parent-id: "options", text: "Pin to top", kind: MenuFlyoutItemKind.toggle },
             { id: "export", parent-id: "options", text: "Export", kind: MenuFlyoutItemKind.submenu },
             { id: "playlist", parent-id: "export", text: "Playlist file" },
+            { id: "copy-link", parent-id: "share", text: "Copy link" },
+            { id: "send-link", parent-id: "share", text: "Send link" },
         ];
         invoked(item) => {
             root.result = item.text + (item.checked ? " (checked)" : "");

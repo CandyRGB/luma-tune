@@ -92,7 +92,7 @@ components/
 | --- | --- | --- |
 | ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、长正文滚动，以及可取消和延迟的关闭事件 |
 | Flyout | 🚧 | `components/dialogs-flyouts/flyout.slint`，支持对齐、贴边翻转、受限尺寸、双轴滚动、可取消关闭和焦点恢复。验收记录见下。 |
-| MenuFlyout | 🚧 | `components/menus-toolbars/menu_flyout.slint`，共用 Flyout 的定位与关闭，已实现命令、禁用项、分隔线、勾选项、单选组、菜单内快捷键和多级子菜单。 |
+| MenuFlyout | 🚧 | `components/menus-toolbars/menu_flyout.slint`，共用 Flyout 的定位与关闭，已实现命令、禁用项、分隔线、勾选项、单选组、菜单内快捷键、多级子菜单和分裂菜单项。 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
 
@@ -102,7 +102,8 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 
 - 浅色软件渲染和深色 FemtoVG 已验证方向键循环、跳过禁用项和分隔线、Enter 与 Space 激活、勾选和单选互斥、菜单内快捷键、鼠标、Escape 与焦点恢复。小窗口已验证 Home 和 End 滚到当前项。
 - 三级菜单已验证向右展开、窗口右缘向左翻转、悬停延迟、Esc 与左方向键逐级收起，以及选中命令或点外部时关闭整串弹层。子菜单重叠 4 px，悬停延迟暂用 400 ms。
-- 菜单使用 Slint 的列表、按钮和勾选类型提供可访问标签与状态。剩余项包括 Windows 读屏验收、分裂菜单项、菜单外快捷键、上下文入口、从右到左的布局、跟随系统悬停延迟、多窗口边界、Acrylic 和高对比度。
+- 分裂菜单项的主命令和子菜单入口独立命中。已验证方向键在两部分间切换、Enter 与 Space 松开时激活、收起子菜单后焦点回到入口、没有子项时入口禁用。Windows UI Automation 已核对两个按钮名称、禁用状态和焦点切换。键盘行为同时对照了 [WinUI 分裂菜单项源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/SplitMenuFlyoutItem_Partial.cpp)。
+- 仍需验收读屏播报、菜单外快捷键、上下文入口、从右到左的布局、跟随系统悬停延迟、多窗口边界、Acrylic 和高对比度。
 
 ### Layout
 | 控件 | 现状 | 备注 |
