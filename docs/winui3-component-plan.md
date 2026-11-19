@@ -221,9 +221,13 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | Image | ✅ | |
-| PersonPicture（头像） | 🔨 | 低难度 |
+| PersonPicture（头像） | 🚧 | `components/media/person_picture.slint`，支持照片、首字母、群组、联系人数据及徽标 |
 | AnimatedVisualPlayer（Lottie） | ⚠️ | 依赖 Lottie 运行时 |
 | WebView2 / MediaPlayerElement | ⚠️ | 宿主能力，难等价 |
+
+运行 `cargo run -p lumatune --example person_picture` 可试用照片、自动和手动首字母、人员和群组占位符，以及数字、字形和图片徽标。组件接收宿主提供的联系人姓名和各尺寸图片，按 WinUI 顺序回退。照片居中裁切并保留透明圆角。徽标超过 99 时显示 `99+`，无障碍名称保留真实数值。
+
+Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退、圆形裁切、徽标种类与优先级、RTL 和 48/96/144 像素三档。Windows UI Automation 验证了带状态的非焦点文本名称。Windows 联系人对象和异步头像流由宿主提供，目前组件接受已解析的联系人数据。系统读屏和 WinUI 样式替换仍待验收。对照模板和 Gallery 示例已存入 `.refs/WinUI/`。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PersonPicture/PersonPicture.idl) · [首字母实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PersonPicture/InitialsGenerator.cpp)
 
 ### Motion / Windowing / System / Shell / Styles
 - Motion：`Connected Animation`、`Page/Theme Transitions` → 🔨/⚠️（Slint 动画能力有限，按需）。
@@ -241,7 +245,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
-8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / ⬜ PersonPicture
+8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
 9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
 10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
 
