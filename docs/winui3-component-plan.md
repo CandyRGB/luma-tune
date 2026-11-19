@@ -8,15 +8,15 @@
 
 - 按 [WinUI Gallery 控件目录](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/SampleSupport/Data/ControlInfoData.json) 逐项核对范围。补记本体控件缺项，并记录示例页、宿主 API 和外部库控件的归属。
 - 对可直接复用的 Slint 控件也执行验收。每项记录对应的实现、原生对照、运行验证和已知差异。现有表格中的「可直接用」仍需核对 WinUI 3 一致性。
-- 核对浅色、深色和适用的 Windows 高对比度，检查鼠标、键盘、焦点与可访问状态。实测可运行示例后再标记完成，所有范围内条目通过后结束复刻。
+- 在浅色主题下核对视觉，检查鼠标、键盘、焦点与可访问状态。深色和 Windows 高对比度免于专项验证。实测可运行示例后再标记完成，所有范围内条目通过后结束复刻。
 
 ## 实施顺序
 
-1. 补齐已开始的 InfoBar、Expander 和 ContentDialog，先验收内容、浅色与深色视觉和交互。
+1. 补齐已开始的 InfoBar、Expander 和 ContentDialog，先验收内容、浅色视觉和交互。
 2. 实现 Flyout 和 MenuFlyout，验证定位、键盘操作、焦点恢复和关闭行为，再复用到 CommandBar、分裂按钮等控件。
 3. 实现 NumberBox、AutoSuggestBox、导航、分页、集合与其他待做控件。按下方优先级推进独立组件，并先满足各自的依赖。
 4. 补齐现有清单与 Gallery 目录的缺项，覆盖日期、媒体、滚动与布局等类别。
-5. 最后统一制作和验收 Windows 高对比度主题，再逐项复验原生控件与 Slint 实现。
+5. 最后统一制作 Windows 高对比度主题。
 
 ## 约定
 
@@ -73,7 +73,7 @@ components/
 | RatingControl | 🔨 | |
 | ColorPicker | ⚠️ | 复杂，暂不做 |
 
-运行 `cargo run -p lumatune --example flyout_buttons` 可试用三个按钮，附加 `-- --dark` 切换至深色。已验证鼠标点击、Enter 与 Space、分裂按钮的 F4 与 Alt+↓、弹层关闭后的焦点恢复、禁用态，以及 ToggleSplitButton 用主区域切换状态、用箭头开菜单。Windows UI Automation 已实测展开、调用和切换。AccessKit 通过独立子节点提供分裂按钮的主命令。读屏、原生收起动作、图标动效、触屏及高对比度仍待验收。[DropDownButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/DropDownButton/DropDownButton.xaml) · [SplitButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.xaml) · [SplitButton 键盘实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.cpp)
+运行 `cargo run -p lumatune --example flyout_buttons` 可试用三个按钮，附加 `-- --dark` 切换至深色。已验证鼠标点击、Enter 与 Space、分裂按钮的 F4 与 Alt+↓、弹层关闭后的焦点恢复、禁用态，以及 ToggleSplitButton 用主区域切换状态、用箭头开菜单。Windows UI Automation 已实测展开、调用和切换。AccessKit 通过独立子节点提供分裂按钮的主命令。读屏、原生收起动作、图标动效和触屏仍待验收。[DropDownButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/DropDownButton/DropDownButton.xaml) · [SplitButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.xaml) · [SplitButton 键盘实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.cpp)
 
 ### Collections
 | 控件 | 现状 | 备注 |
@@ -99,7 +99,7 @@ components/
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
 
-Flyout 对照微软的 [定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) 和 [呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)。运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击、与窗口边界交互的一致性及高对比度。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。
+运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击和窗口边界交互。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。[WinUI 定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)
 
 MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/menus)、[呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/MenuFlyout_themeresources.xaml) 和 [级联定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/CascadingMenuHelper.cpp)。运行 `cargo run -p lumatune --example menu_flyout` 可试用菜单。示例支持 `--dark`、`--compact`、`--edge` 和 `--scoped-shortcuts`，通过 Cargo 的 `--` 传入。
 
@@ -108,7 +108,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 - 分裂菜单项的主命令和子菜单入口独立命中。已验证方向键在两部分间切换、Enter 与 Space 松开时激活、收起子菜单后焦点回到入口、没有子项时入口禁用。Windows UI Automation 已核对两个按钮名称、禁用状态和焦点切换。键盘行为同时对照了 [WinUI 分裂菜单项源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/SplitMenuFlyoutItem_Partial.cpp)。
 - `ContextFlyoutArea` 接收鼠标右键、菜单键与 Shift+F10。右键从指针坐标打开，键盘操作从控件边缘打开。已验证贴边翻转和关闭后恢复焦点。自行处理右键的子控件可用 `request-at` 转发。[Windows 上下文命令规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/collection-commanding)
 - `MenuFlyoutAccelerators` 可挂在窗口内容或仅挂在焦点范围内。已验证菜单关闭时执行命令、菜单打开时调用未展开的子项、禁用项不响应，以及限定范围内外的差异。[Windows 键盘快捷键规范](https://learn.microsoft.com/windows/apps/develop/input/keyboard-accelerators)
-- 剩余项包括读屏播报、触屏长按与笔输入、从右到左的布局、跟随系统悬停延迟、多窗口边界、Acrylic 和高对比度。
+- 剩余项包括读屏播报、触屏长按与笔输入、从右到左的布局、跟随系统悬停延迟、多窗口边界和 Acrylic。
 
 ### Layout
 | 控件 | 现状 | 备注 |
@@ -160,12 +160,16 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | TextBox / LineEdit | 🟡 | `LineEdit`；password 需掩码封装 |
 | PasswordBox | 🔨 | 掩码封装 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
-| AutoSuggestBox（建议下拉） | 🔨 | 高价值 |
+| AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichEditBox | ⚠️ | 富文本支持弱 |
 
 运行 `cargo run -p lumatune --example number_box` 可试用 NumberBox，附加 `-- --dark` 切换至深色。已验证 Enter 与失焦提交、Esc 恢复、上下键和 PageUp/PageDown、焦点内滚轮、内联与紧凑步进、长按连续步进、环绕、两种验证模式、范围限制、长输入光标和程序设值。Windows UI Automation 已实测 Spinner 类型、范围属性和设值。[Microsoft NumberBox 规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/number-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.xaml)
 
-当前公开数值使用 Slint 的 32 位浮点，空值由 `has-value` 表示。十进制分隔符跟随 Slint 区域设置，支持自定义解析和格式化回调。仍需补齐 WinUI `Double` 的精度和地区格式、编辑器右键菜单、紧凑步进面板跨窗口绘制、读屏播报及高对比度。
+当前公开数值使用 Slint 的 32 位浮点，空值由 `has-value` 表示。十进制分隔符跟随 Slint 区域设置，支持自定义解析和格式化回调。仍需补齐 WinUI `Double` 的精度和地区格式、编辑器右键菜单、紧凑步进面板跨窗口绘制和读屏播报。
+
+运行 `cargo run -p lumatune --example auto_suggest_box` 可试用 AutoSuggestBox，附加 `-- --above` 可将编辑器放在窗口底部，触发建议列表向上展开。已验证键盘选择、Esc 和 Tab 恢复原始文本、Enter 和鼠标提交、搜索图标提交、禁用建议文本预览、清空、禁用和异步筛选。Windows UI Automation 已实测编辑框类型与设值、展开状态和列表项类型。共享输入框样式后复验了 NumberBox 的键鼠交互和长文本光标滚动。[Microsoft AutoSuggestBox 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/auto-suggest-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/AutoSuggestBox_Partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/AutoSuggestBox/AutoSuggestBox_themeresources.xaml)
+
+建议弹层当前在父容器内绘制，使用 Acrylic 的纯色回退。跨窗口与父容器裁剪、建议项模板、IME 候选窗避让、手柄和读屏播报仍待补齐或验证。
 
 ### Media
 | 控件 | 现状 | 备注 |
@@ -188,7 +192,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互及关闭事件，待补自定义操作按钮）
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
 4. ⬜ CommandBar（menus-toolbars）
-5. 🚧 NumberBox（text） / ⬜ AutoSuggestBox（text）
+5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）
 7. ⬜ TabView（navigation，在 TabWidget 上补关闭/新建）
 8. ⬜ InfoBadge / PipsPager / PersonPicture（status-info / scrolling / media）
