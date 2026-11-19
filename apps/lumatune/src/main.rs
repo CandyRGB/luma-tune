@@ -7,7 +7,9 @@ use lumatune_win::settings::{self, Settings, ThemeMode};
 use lumatune_win::{Session, display, foreground, presets, state};
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
+mod breadcrumb_bar;
 mod contrast_theme;
+mod navigation_view;
 
 slint::include_modules!();
 
@@ -30,6 +32,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let target = display::primary(&displays).cloned();
 
     let ui = AppWindow::new()?;
+    breadcrumb_bar::install(ui.global::<BreadcrumbBarBehavior>());
+    navigation_view::install(ui.global::<NavigationViewBehavior>(), &ui);
     let prefs = settings::load();
     ui.set_theme_mode(prefs.theme.index());
     let _contrast_watcher = contrast_theme::watch(&ui);

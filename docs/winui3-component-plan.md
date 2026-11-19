@@ -24,6 +24,7 @@
 - 风格与现有组件一致：`export component`、属性/回调注入、Slint `Palette` 语义色。
 - **长度一律偶数**，计算结果取最近偶数（奇点为界取较大偶数，如 1→2、3→4、2.5→2）。
 - 图标用 SVG `@image-url(...)` + `colorize` 染色（`apps/lumatune/ui/icons/`）。
+- 优先读 `.refs/WinUI/` 的官方 XAML、C++ 和 Gallery 示例。资料缺失时再从上游下载，并在本地记录源文件的 Blob SHA。
 - **容器组件避免多个重叠子元素**：`inherits Rectangle` 的自定义组件若有多个绝对重叠的子元素（如全高色条 + 内容布局），其 `preferred-height` 会算不出，放进 `VerticalLayout` 会被压扁。改为**单一布局子元素**（色条作为布局内的窄元素）可让高度由内容撑开。
 - 每个组件：编译无警告 + 截图目检 + 至少一处可运行示例验证后再提交。
 - 可以省略会触发 Slint 布局重算的过渡动画。起止状态的布局和交互仍需对齐 WinUI 3。
@@ -41,14 +42,14 @@ components/
   media/            PersonPicture, AnimatedVisualPlayer ...
   menus-toolbars/   CommandBar, MenuFlyout, AppBarButton ...
   motion/           Connected Animation 等（按需）
-  navigation/       NavRail(自研,✅), BreadcrumbBar(✅), NavigationView, TabView, Pivot
+  navigation/       BreadcrumbBar, NavigationView, TabView, Pivot
   scrolling/        PipsPager, AnnotatedScrollBar ...
   shell/            页面壳 / Frame ...
   status-info/      InfoBar, InfoBadge, ProgressRing ...
   text/             NumberBox, AutoSuggestBox, PasswordBox ...
 ```
 
-> 现有组件已归位：`navigation/nav_rail.slint`、`navigation/breadcrumb_bar.slint`、`dialogs-flyouts/content_dialog.slint`。
+> 主窗口使用 `navigation/navigation_view.slint` 和 `navigation/breadcrumb_bar.slint`。
 
 ## Slint 1.18.1 已有（可直接用）
 
@@ -121,11 +122,15 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 ### Navigation
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| BreadcrumbBar | ✅ | `components/navigation/breadcrumb_bar.slint` |
+| BreadcrumbBar | 🚧 | 支持宽度折叠、隐藏路径弹层、键盘导航和 RTL，已接入主窗口页眉 |
 | NavigationView | 🚧 | 独立 `components/navigation/navigation_view.slint`，支持自适应窗格、目录层级和顶部溢出 |
 | TabView（可增删/关闭） | 🟡 | `TabWidget` 静态标签，无关闭/新建 |
 | Pivot | 🔨 | 可用 `TabWidget` 近似 |
 | SelectorBar | 🔨 | |
+
+### BreadcrumbBar
+
+运行 `cargo run -p lumatune --example breadcrumb_bar` 可试用不同窗口宽度、RTL 和按路径返回。空间不足时按文字实际宽度折叠路径前缀。清单从最近的隐藏祖先排到根节点，选择回传其在原始路径中的索引。已在 Windows 浅色窗口实测溢出布局、鼠标、键盘、Escape 和 RTL。通用 `ItemTemplate`、原生 UI Automation 导航地标和 Acrylic 浮出面仍待补齐。[WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/Breadcrumb/BreadcrumbBar.xaml) · [WinUI 布局](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/Breadcrumb/BreadcrumbLayout.cpp)
 
 ### NavigationView
 
@@ -137,7 +142,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 
 附加 `-- --slots --search` 可试用 `pane-header`、`pane-custom-content`、`pane-footer`、`page-header` 和 `content-overlay`。窗格的三个自定义区域在顶部与左侧模式间复用同一组控件，顶部溢出计算会为它们保留空间。页面标题区域可容纳可交互控件，`content-overlay` 位于顶部导航下方。浅色已验证插槽位置、窄窗口溢出、鼠标激活，以及覆盖窗格依次经过自定义控件的正反向 Tab 循环。命名插槽使用 Slint 1.18.1 的实验语法，Cargo 示例已启用。直接用 `slint-viewer` 检查示例时需设置 `SLINT_ENABLE_EXPERIMENTAL_FEATURES=1`。
 
-触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
+触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口使用 `NavigationView` 的自适应窗格，并在 `page-header` 插槽中显示路径。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
 
 ### Status & info
 | 控件 | 现状 | 备注 |

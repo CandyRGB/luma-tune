@@ -133,50 +133,9 @@ Slint 1.18，控件风格用内置的 **fluent**，不显式指定样式——�
 
 ## 导航边栏组件与动效
 
-导航边栏已抽成 `NavRail`（`apps/lumatune/ui/app.slint`），调用处只有五行：
+主窗口使用 `NavigationView`。`menu-items` 承载「预设库」和「应用」，`settings` 将「设置」固定在底部。应用以 `NavPage` 保存当前页面，并用稳定 ID 与 `selected-id` 同步。`item-invoked` 切换页面，`back-requested` 在预设编辑页返回列表。
 
-```slint
-NavRail {
-    items: [
-        { page: NavPage.presets, icon: Icons.library, label: "预设库" },
-        { page: NavPage.apps,    icon: Icons.apps,    label: "应用" },
-    ];
-    current <=> root.page;
-    compact <=> root.nav-compact;
-    activated => { bg.focus(); }
-}
-```
-
-| 成员 | 作用 |
-| --- | --- |
-| `items: [NavItemSpec]` | 顶部条目，`NavItemSpec` 是 `{ page, icon, label }` |
-| `footer: NavItemSpec` | 底部固定条目，默认 `{ NavPage.settings, Icons.settings, "设置" }` |
-| `current: NavPage` | 选中项，按**枚举**比较，不依赖数组下标 |
-| `compact` | 展开 / 收缩 |
-| `can-go-back` | 回退箭头是否可用 |
-| `activated()` | 任何一次选中后触发，用于清焦点 |
-| `back()` | 回退箭头被点 |
-
-`current` 和 `compact` 都是 `in-out` 双向绑定，所以点击由组件内部写入、外层直接读同一个属性，不需要转发回调。
-
-**为什么页面键用枚举而不是下标**：数组下标会随条目顺序漂移，底部条目还得靠 `entries.length` 现算；改成 `NavPage` 后每条自带身份，增删或重排都不影响选中，写错名字还会编译失败。Slint 没有 map/dict 类型，但枚举被编译成整数，`==` 比较是 O(1)，效果等价于哈希。
-
-按你的参照写法（`Icon="Play"` / `Tag="SamplePage1"`），对应关系是：`Icon="Play"` → `icon: Icons.xxx`，`Tag` → `page: NavPage.xxx`，`Content` → `label`。唯一对不上的是 `NavigationView.MenuItems` 那种子元素语法——Slint 组件不能接受一组同构子元素，只能传数组。
-
-动效只做**颜色与形变**，不做布局动画：
-
-| 元素 | 属性 | 时长 | 曲线 |
-| --- | --- | --- | --- |
-| 条目底色 | `background` | 120ms | 默认 |
-| 选中竖条 | `height` 4 ↔ 16、`opacity` | 150ms | `ease-out` |
-| 图标颜色 | `tint` | 120ms | 默认 |
-| 折叠按钮 | 底色 4% → 3%、图标前景 → 72% | 100ms | 默认 |
-
-**展开 / 收缩本身是瞬时的**，没有宽度过渡。初版做过 180ms 的 `width` 动画，实测看起来卡顿：这个界面单帧渲染要 25–40 ms（14 个滑杆、5 张卡片、渐变与圆角），宽度动画每帧都要重新布局并重绘整窗，只能跑到 24–35 fps，肉眼可见掉帧。颜色类过渡只重绘局部、且时长更短，不存在这个问题。
-
-折叠按钮**不做任何缩放**。WinUI 的 NavigationView 折叠按钮就是一个带 `FontIcon` 的普通 Button（`.refs/WinUIonWeb/src/components/Button.vue` 里搜不到任何 `transform` / `scale`），按下反馈只有两件事：底色从悬停的 4% 略降到 3%（`SubtleFillColorTertiary`），图标前景降到 72%（`TextFillColorSecondary`）。所以按下时图标**形状完全不变**，只是变淡一点、底下多一层很浅的填充。
-
-曾试过横向压缩（`transform-scale-x` 62% + `ease-out-back`）做「弹性」，结果横线看起来**变粗**：横向压缩让线条变短，而笔画粗细是纵向的、完全不变，比例上就显得敦实；再加上 16–20px 的字形做非等比缩放要重新光栅化，抗锯齿边缘被挤在一起，观感更重。小尺寸字形不要做非等比缩放。
+默认窗口使用 200px 宽的展开窗格，中等宽度收至 48px，窄窗口使用覆盖窗格。窗格切换直接采用目标布局。下面的性能数据来自早期宽度动画实验。
 
 ### 实测开销
 
@@ -204,64 +163,11 @@ Slint 自带 `SLINT_DEBUG_PERFORMANCE=refresh_lazy,console` 会打印帧率、�
 
 ## 面包屑（BreadcrumbBar）
 
-`BreadcrumbBar` 在 `apps/lumatune/ui/app.slint`，用于表达「当前位置的路径」，而不是替代导航边栏。
+`NavigationView` 的 `page-header` 插槽显示当前页面的路径。预设列表显示「预设库」，编辑页显示「预设库 › 预设名」或「预设库 › 新建预设」，应用与设置页各显示一项。
 
-```slint
-BreadcrumbBar {
-    items: root.crumbs;
-    interactive: true;
-    select(idx) => { ... }
-}
-```
+`BreadcrumbBar` 使用 `items: [Crumb]` 接收路径。宽度不足时，省略号收起最左侧的祖先，浮出菜单以由近到远的顺序列出这些祖先。`select(int)` 回传祖先在原路径中的索引。末项显示当前位置。
 
-| 成员 | 作用 |
-| --- | --- |
-| `items: [Crumb]` | 路径，`Crumb` 目前只有 `label` |
-| `interactive` | 祖先项是否可点；关闭时连悬停底色都不出现 |
-| `select(int)` | 点击祖先项，参数是其在 `items` 里的索引 |
-
-配色与左侧导航共用同一套词汇，不另立一套：
-
-| 元素 | 取值 | 对应导航 |
-| --- | --- | --- |
-| 控件底色 | `alternate-background` + 4px 圆角，高 28px | 导航窗格底色 |
-| 文字字号 | 14px | 导航项同字号 |
-| 祖先项文字 | `foreground` 85% | 导航图标默认不透明度 |
-| 当前项文字 | `foreground` 100% | 导航文字默认色 |
-| 可点祖先悬停底 | 前景 4% | 导航项悬停底 |
-| 分隔符 | `ChevronRight`（`E76C`）10px，前景 50% | 无对应，单独定 |
-
-末项永远不可点，分隔符画在每一项前面、第一项不画。
-
-控件**横向收缩到内容宽度**（外面套 `HorizontalLayout` + 尾部占位；直接放进 `VerticalLayout` 会被拉满整宽），所以呈现为一枚贴着路径的胶囊，而不是横贯内容区的色带。
-
-**接入方式**：内容区顶部有一条 40px 高的**标题带**，底色 `alternate-background`，与左侧导航同色，二者在视觉上连成 L 形；面包屑放在带内左侧（左内边距 20px）。控件本身透明、不铺底——底色由带提供，这样它天然横贯整个内容区，而不是缩在某个栏里。
-
-路径按视图变化：
-
-| 视图 | 路径 |
-| --- | --- |
-| 预设库 · 列表 | `预设库` |
-| 预设库 · 参数 | `预设库 › <预设名>` |
-| 应用 | `应用` |
-| 设置 | `设置` |
-
-点击祖先项（只有参数视图里有）＝回到列表：清 `active-name`、`current-preset = -1`、通知 Rust 清 `active`（否则「删除」会误删上一个选中项），名称输入框里的文字保留。
-
-### 页面结构
-
-预设库是**两级**的，不是一页两栏：
-
-- **列表视图**：只有预设列表，一行一个，右侧箭头表示可进入；上方一个「新建预设」按钮。
-- **参数视图**：点列表行进入，顶部是名称 + 保存 / 删除，下面才是参数卡片。
-
-之前把列表和参数并排放在一页，导致内容区被切成 232px + 剩余两段，标题带也就没法横贯整幅——这是布局的问题，不是面包屑的问题。
-
-返回列表有三条路：点面包屑的「预设库」、点导航顶部的回退按钮、再点一次导航栏的「预设库」（导航点击会清 `editing`）。三者做的是同一件事——清 `editing` / `active-name` / `current-preset`，并回调 Rust 清 `active`。
-
-### 暂未实现
-
-WinUI 的 BreadcrumbBar 在宽度不够时会把前面的项折叠成一个「…」，点开是浮出菜单。这需要弹层（flyout）原语，Slint 里得自己搭 `PopupWindow`；当前路径只有两层，触发不到，先不做。
+预设库使用独立的列表和参数编辑页。点击「预设库」面包屑、导航返回按钮或在编辑时再次选择「预设库」会调用同一返回逻辑，清除 UI 选中项并通知 Rust 清除当前预设的索引。
 
 ## 主题模式
 
@@ -286,44 +192,7 @@ function apply-theme() {
 
 界面采用 Windows 11 设置页的卡片结构：组标题（光照 / 色彩）在卡片**外面**，卡片是 `border-radius: 8px` 的圆角块（`Palette.background`，1px `Theme.card-stroke` 描边）。参数行高 40px，行间用缩进 16px 的 1px 分隔线，首行不画线。
 
-左侧是**导航边栏**（`NavRail`），宽 200px，可收缩到 48px（收缩后只留图标）。顶部是一枚三横线按钮，40×36，与导航项尺寸完全一致、图标同为 16px 字形，展开与收起共用同一个按钮。
-
-它上方还有一枚**回退按钮**（40×36，同样无包裹行，图标与折叠按钮同为 16px 字形）：`can-go-back` 为真时用常态前景、可点；为假时降到 35% 且 `TouchArea.enabled = false`，连悬停都不响应。两枚按钮共用同一根 24px 轴线和 4px 节奏。
-
-折叠按钮**没有任何包裹行**：它和导航项一样是列表的直接子项，所以「按钮 → 第一个条目」的间距就直接等于 `VerticalLayout` 的 `spacing: 4px`，与条目之间完全一致。早期它被塞在一个 40px 高的行里（那是放产品标识用的），才多出一截余量；现在产品标识已移除，那层壳也跟着删掉了。
-
-导航项依次为「预设库」「应用」，最底部固定「设置」。容器内边距是**四边各 4px**，与 `spacing: 4px` 同值——整列导航只有一个竖直节奏值，从窗口顶到页脚底不会出现第二个间距。WinUI 的页脚容器是 `padding: 0`（直接贴窗格底边），我们上下各留 4px 是为了让圆角悬停块不压到窗口边缘。
-
-导航项按 WinUI `NavigationView` 的资源常量排布，不是估的：
-
-| 常量 | 值 | 落到代码里 |
-| --- | --- | --- |
-| `NavigationViewCompactPaneLength` | 48 | 收缩宽度 |
-| `NavigationViewItemOnLeftMinHeight` | 36 | 行高 |
-| `NavigationViewIconBoxWidth` | 40 | 图标盒宽 |
-| `NavigationViewItemOnLeftIconBoxHeight` | 16 | 图标尺寸 |
-| `NavigationViewSelectionIndicatorWidth` / `Height` / `Radius` | 3 / 16 / 2 | 左侧竖条 |
-| `NavigationViewPaneHeaderRowMinHeight` | 40 | **不使用**：那个常量是给「带标题的窗格头部」用的最小行高，我们没有头部内容，硬套会多出 4px |
-
-图标的水平位置由 `x: (min(parent.width, 40px) - 20px) / 2` 决定——**永远按最窄的面板宽度计算**。这样展开与收缩时图标落在同一根轴线（距面板左缘 24px），切换时不会横向跳动。顶部三横线按钮共用这根轴线。文字从 x=40 开始，收缩时隐藏。
-
-这条不能写成 `root.compact ? 居中 : 固定值`：两态用不同的坐标来源，差值就藏在常量里（实测会差 2px）。
-
-选中态是 4% 透明的 `foreground` 底 + 3×16 的强调色竖条；**图标与文字都不变色、不加粗**，字形与未选中项完全一致，强调色只出现在左侧那根竖条上。不用 `selection-background`（fluent 里那是饱和强调色，整块蓝太吵）。
-
-按下（`TouchArea.pressed`）时**底色与前景同时减淡**：
-
-| 状态 | 底色（叠加在 242 上） | 文字 | 图标 |
-| --- | --- | --- | --- |
-| 常态 | 透明 | 前景 90%（≈24） | 前景 85%（≈35） |
-| 悬停 / 选中 | 前景 4%（→233） | 同上 | 同上 |
-| 按下 | 前景 **2.5%**（→236） | 前景 **62%**（≈90） | 前景 **60%**（≈101） |
-
-括号内是取色实测的灰度值，对照官方截图（底色 243）：常态文字 28、按下文字 92、按下图标 97、按下底 237。我们落在 24 / 90 / 101 / 236，逐项重合。
-
-按下的底色比悬停**更浅**，这是 WinUI 的原样（`SubtleFillColorTertiary` 比 `Secondary` 浅），可感知的差别由前景减淡承担——只改底色的话 2.5% 与 4% 在灰底上分不出来。
-
-初版按下只降到 72%（照 `TextFillColorSecondary` 的 token 值），实测比官方**深了 27 级**（65 vs 92），看着几乎没有「按下去」的反馈。token 的 62% 是给**正文**用的，导航项这种 13–14px 小字在按下态还要再压一档，最终按实测取 62% / 60%。
+导航窗格的行高度与收起宽度由 `NavigationView` 统一控制，应用在编辑预设时启用返回键。组件的交互验证记录见 [WinUI 3 组件复刻计划](winui3-component-plan.md#navigationview)。
 
 尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
 

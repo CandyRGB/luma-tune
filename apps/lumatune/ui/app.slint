@@ -1,8 +1,13 @@
 import { Button, LineEdit, Palette, Slider } from "std-widgets.slint";
-import { NavRail } from "components/navigation/nav_rail.slint";
+import { NavigationView } from "components/navigation/navigation_view.slint";
 import { BreadcrumbBar, Crumb } from "components/navigation/breadcrumb_bar.slint";
 
+export { BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb } from "components/navigation/breadcrumb_bar.slint";
 export { ContrastTheme } from "components/contrast_theme.slint";
+export {
+    NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind, NavigationViewLeftLayout,
+    NavigationViewMeasurement, NavigationViewRow, NavigationViewTopContentWidths, NavigationViewTopLayout,
+} from "components/navigation/navigation_view.slint";
 
 export enum NavPage {
     presets,
@@ -15,14 +20,13 @@ global Theme {
     out property <brush> divider: Palette.foreground.with-alpha(0.08);
 }
 
-// Maps the app's page enum to/from the integer id used by the generic NavRail.
 global NavMap {
-    public pure function page-id(page: NavPage) -> int {
-        page == NavPage.presets ? 0 : (page == NavPage.apps ? 1 : 2)
+    public pure function page-id(page: NavPage) -> string {
+        page == NavPage.presets ? "presets" : (page == NavPage.apps ? "apps" : "settings")
     }
 
-    public pure function page-from-id(id: int) -> NavPage {
-        id == 0 ? NavPage.presets : (id == 1 ? NavPage.apps : NavPage.settings)
+    public pure function page-from-id(id: string) -> NavPage {
+        id == "presets" ? NavPage.presets : (id == "apps" ? NavPage.apps : NavPage.settings)
     }
 }
 
@@ -255,8 +259,8 @@ component SectionHeader inherits HorizontalLayout {
 
 export component AppWindow inherits Window {
     title: "LumaTune";
-    width: 1040px;
-    height: 640px;
+    preferred-width: 1040px;
+    preferred-height: 640px;
     background: Palette.alternate-background;
     default-font-family: "Microsoft YaHei UI";
 
@@ -264,7 +268,6 @@ export component AppWindow inherits Window {
     in-out property <string> status: "";
 
     in-out property <NavPage> page: NavPage.presets;
-    in-out property <bool> nav-compact: false;
 
     in-out property <[string]> presets: [];
     in-out property <[string]> binding-rows: [];
@@ -292,8 +295,8 @@ export component AppWindow inherits Window {
     in-out property <bool> comparing: false;
     in-out property <int> theme-mode: 0;
     in property <[Crumb]> crumbs: root.page == NavPage.presets
-        ? (root.editing && root.active-name != ""
-            ? [{ label: "预设库" }, { label: root.active-name }]
+        ? (root.editing
+            ? [{ label: "预设库" }, { label: root.active-name == "" ? "新建预设" : root.active-name }]
             : [{ label: "预设库" }])
         : (root.page == NavPage.apps ? [{ label: "应用" }] : [{ label: "设置" }]);
 
@@ -312,6 +315,15 @@ export component AppWindow inherits Window {
         Palette.color-scheme = root.theme-mode == 1 ? ColorScheme.light : (root.theme-mode == 2 ? ColorScheme.dark : ColorScheme.unknown);
     }
 
+    function leave-preset-editor() {
+        root.editing = false;
+        root.active-name = "";
+        root.current-preset = -1;
+        root.clear-selection();
+        bg.focus();
+    }
+
+    changed page => { navigation.selected-id = NavMap.page-id(root.page); }
     changed theme-mode => { root.apply-theme(); }
 
     bg := FocusScope {
@@ -329,68 +341,36 @@ export component AppWindow inherits Window {
             clicked => { bg.focus(); }
         }
 
-        HorizontalLayout {
-            NavRail {
-                items: [
-                    { id: NavMap.page-id(NavPage.presets), icon: @image-url("icons/library_16_regular.svg"), label: "预设库" },
-                    { id: NavMap.page-id(NavPage.apps), icon: @image-url("icons/apps_16_regular.svg"), label: "应用" },
-                ];
-                footer: { id: NavMap.page-id(NavPage.settings), icon: @image-url("icons/settings_16_regular.svg"), label: "设置" };
-                current: NavMap.page-id(root.page);
-                compact <=> root.nav-compact;
-                can-go-back: root.page == NavPage.presets && root.editing;
-                back => {
-                    root.editing = false;
-                    root.active-name = "";
-                    root.current-preset = -1;
-                    root.clear-selection();
-                    bg.focus();
-                }
-                selected(id) => {
-                    root.page = NavMap.page-from-id(id);
-                    bg.focus();
-                    if (root.page == NavPage.presets) {
-                        root.editing = false;
-                    }
+        navigation := NavigationView {
+            width: parent.width;
+            height: parent.height;
+            open-pane-length: 200px;
+            menu-items: [
+                { id: NavMap.page-id(NavPage.presets), icon: @image-url("icons/library_16_regular.svg"), label: "预设库" },
+                { id: NavMap.page-id(NavPage.apps), icon: @image-url("icons/apps_16_regular.svg"), label: "应用" },
+            ];
+            settings: { id: NavMap.page-id(NavPage.settings), icon: @image-url("icons/settings_16_regular.svg"), label: "设置" };
+            selected-id: NavMap.page-id(root.page);
+            is-back-enabled: root.page == NavPage.presets && root.editing;
+            back-requested => { root.leave-preset-editor(); }
+            item-invoked(id) => {
+                root.page = NavMap.page-from-id(id);
+                if (root.page == NavPage.presets && root.editing) {
+                    root.leave-preset-editor();
                 }
             }
 
+            page-header << BreadcrumbBar {
+                horizontal-stretch: 1;
+                bar-height: 42px;
+                overflow-label: "显示隐藏路径";
+                items: root.crumbs;
+                interactive: root.page == NavPage.presets && root.editing;
+                select(idx) => { root.leave-preset-editor(); }
+            }
+
             Rectangle {
-                background: Palette.background;
-
-                Rectangle {
-                    y: 0;
-                    height: 42px;
-                    background: Palette.background;
-
-                    Rectangle {
-                        width: parent.width;
-                        height: parent.height;
-                        background: Palette.foreground.with-alpha(0.03);
-                    }
-
-                    HorizontalLayout {
-                        padding-left: 20px;
-                        padding-right: 16px;
-
-                        BreadcrumbBar {
-                            items: root.crumbs;
-                            interactive: root.page == NavPage.presets && root.editing;
-                            select(idx) => {
-                                root.editing = false;
-                                root.active-name = "";
-                                root.current-preset = -1;
-                                root.clear-selection();
-                            }
-                        }
-
-                        Rectangle { }
-                    }
-                }
-
                 if root.page == NavPage.presets : Rectangle {
-                    y: 42px;
-                    height: parent.height - 42px;
                     background: transparent;
 
                     if !root.editing : Rectangle {
@@ -772,8 +752,6 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == NavPage.apps : Rectangle {
-                    y: 42px;
-                    height: parent.height - 42px;
                     background: transparent;
 
                     VerticalLayout {
@@ -862,8 +840,6 @@ export component AppWindow inherits Window {
                 }
 
                 if root.page == NavPage.settings : Rectangle {
-                    y: 42px;
-                    height: parent.height - 42px;
                     background: transparent;
 
                     VerticalLayout {
