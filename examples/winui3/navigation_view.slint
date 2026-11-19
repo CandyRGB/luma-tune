@@ -1,10 +1,10 @@
 import { Button, Palette } from "std-widgets.slint";
 import {
     NavigationView, NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewItem,
-    NavigationViewItemKind, NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopLayout,
+    NavigationViewItemKind, NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopLayout,
 } from "../../apps/lumatune/ui/components/navigation/navigation_view.slint";
 
-export { NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewItem, NavigationViewItemKind,
+export { NavigationViewBehavior, NavigationViewDisplayMode, NavigationViewItem, NavigationViewItemKind, NavigationViewLeftLayout,
     NavigationViewMeasurement, NavigationViewPaneDisplayMode, NavigationViewRow, NavigationViewTopLayout }
 
 export component NavigationViewExample inherits Window {
@@ -19,6 +19,11 @@ export component NavigationViewExample inherits Window {
     out property <bool> pane-open: view.is-pane-open;
     out property <NavigationViewDisplayMode> display-mode: view.display-mode;
     out property <string> last-invoked;
+    in-out property <bool> selection-follows-focus;
+    in property <bool> deep-menu;
+    in property <bool> with-search;
+    in-out property <string> query;
+    out property <string> submitted;
     private property <string> previous;
     private property <string> current: "home";
 
@@ -27,9 +32,18 @@ export component NavigationViewExample inherits Window {
         width: parent.width;
         pane-display-mode: root.mode;
         pane-title: "Library";
+        selection-follows-focus: root.selection-follows-focus;
+        is-search-visible: root.with-search;
+        search-text <=> root.query;
+        search-placeholder: "Search library";
+        search-suggestions: root.query == "" ? [] : [
+            { id: "artists", label: "Artists", suggested-text: "Artists" },
+            { id: "albums", label: "Albums", suggested-text: "Albums" },
+        ];
+        search-submitted(text) => { root.submitted = text; }
         header: root.selected-id == "home" ? "Home" : root.selected-id == "library" ? "Library"
             : root.selected-id == "artists" ? "Artists" : root.selected-id == "albums" ? "Albums"
-            : root.selected-id == "favorites" ? "Favorites" : root.selected-id == "history" ? "Listening history"
+            : root.selected-id == "recent" ? "Recently released" : root.selected-id == "favorites" ? "Favorites" : root.selected-id == "history" ? "Listening history"
             : root.selected-id == "settings" || root.selected-id == "$settings" ? "Settings" : "Downloads";
         selected-id: "home";
         is-back-enabled: root.previous != "";
@@ -44,6 +58,11 @@ export component NavigationViewExample inherits Window {
             { id: "divider", kind: NavigationViewItemKind.separator },
             { id: "downloads", label: "Offline downloads", disabled: true,
                 icon: @image-url("../../apps/lumatune/ui/icons/arrow_download_16_regular.svg") },
+            { id: root.deep-menu ? "releases" : "", label: "New releases and recommendations", icon: @image-url("../../apps/lumatune/ui/icons/music_note_2_16_regular.svg") },
+            { id: root.deep-menu ? "recent" : "", parent-id: "releases", label: "Recently released" },
+            { id: root.deep-menu ? "recommendations" : "", parent-id: "releases", label: "Recommendations" },
+            { id: root.deep-menu ? "shared" : "", label: "Shared collections", icon: @image-url("../../apps/lumatune/ui/icons/library_16_regular.svg") },
+            { id: root.deep-menu ? "community" : "", label: "Community libraries", icon: @image-url("../../apps/lumatune/ui/icons/library_16_regular.svg") },
         ];
         footer-menu-items: [
             { id: "refresh", label: "Refresh", suppress-selection: true, icon: @image-url("../../apps/lumatune/ui/icons/arrow_clockwise_16_regular.svg") },
@@ -67,7 +86,9 @@ export component NavigationViewExample inherits Window {
                 Button { text: "Minimal"; clicked => { root.mode = NavigationViewPaneDisplayMode.left-minimal; } }
                 Button { text: "Top"; clicked => { root.mode = NavigationViewPaneDisplayMode.top; } }
             }
+            if root.with-search : Text { text: "Submitted: " + root.submitted; font-size: 14px; color: Palette.foreground; }
             Text { text: "Selection: " + root.selected-id; font-size: 14px; color: Palette.foreground; }
+            Button { text: "Toggle selection follows focus"; clicked => { root.selection-follows-focus = !root.selection-follows-focus; } }
         }
     }
 }

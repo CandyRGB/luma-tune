@@ -131,7 +131,9 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 
 运行 `cargo run -p lumatune --example navigation_view` 可切换 Auto、Left、LeftCompact、LeftMinimal 和 Top。已在浅色窗口核对展开窗格、两种覆盖窗格、顶部导航及溢出菜单；用实际窗口宽度验证 640/641 与 1007/1008 两组断点。已验证鼠标选中、方向键和空格、父项展开、子项选择、返回请求、Escape 收起、仅触发命令的项目，以及选中溢出项后将其移回顶部。Windows UI Automation 可读到列表项的选中、禁用和展开状态，Expand 动作可展开父项。
 
-待补搜索框、窗格自定义内容、标题和页脚插槽、紧凑项提示、层级弹层和覆盖窗格的完整焦点循环，以及 UI Automation 的 Collapse 和条目激活差异。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
+覆盖窗格已验证 Tab 和 Shift+Tab 循环、Escape 后返回触发按钮，以及短窗口滚动菜单时页脚保持可见。紧凑项显示提示。附加 `-- --search` 可验证紧凑搜索打开后直接进入输入框、键盘提交建议，以及切换到顶部模式后保留查询。附加 `-- --top --deep-menu` 可验证选中溢出父项后仍能操作子项，选中叶子时再将整组移回顶部。
+
+待补窗格标题、自定义内容、页脚和页面标题插槽，以及标题栏区域的布局接入。触控、手柄、UI Automation 的 Collapse 和条目激活仍需核对。覆盖窗格使用纯色 Acrylic 回退。LumaTune 主窗口继续使用 `NavRail`。[Microsoft NavigationView 说明](https://learn.microsoft.com/windows/apps/develop/ui/controls/navigationview) · [WinUI 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NavigationView/NavigationView.xaml)
 
 ### Status & info
 | 控件 | 现状 | 备注 |

@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use slint::{Model, ModelExt, ModelRc, SharedString, VecModel};
 
 use crate::{
-    NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind, NavigationViewMeasurement,
-    NavigationViewRow, NavigationViewTopLayout,
+    NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind, NavigationViewLeftLayout,
+    NavigationViewMeasurement, NavigationViewRow, NavigationViewTopLayout,
 };
 
 const OVERFLOW_ID: &str = "$overflow";
@@ -60,6 +60,11 @@ pub fn install(behavior: NavigationViewBehavior<'_>) {
         };
         rows.row_data_tracked(index)
             .map_or(-1, |row| row.accessible_index)
+    });
+    behavior.on_indicator(|rows| {
+        rows.iter()
+            .find(|row| row.shows_indicator)
+            .map_or_else(SharedString::default, |row| row.item.id)
     });
     behavior.on_last(|rows| {
         rows.row_count()
@@ -245,20 +250,34 @@ fn left_rows(
     selected: SharedString,
     height: f32,
     compact: bool,
-) -> ModelRc<NavigationViewRow> {
+) -> NavigationViewLeftLayout {
     let items = Items::new(&menu, &footer, settings);
     let expanded = tracked(&expanded).into_iter().collect();
     let mut rows = items.visible(&items.primary, &expanded, compact);
     let mut trailing = items.visible(&items.footer, &expanded, compact);
-    let main_end = layout_vertical(&mut rows, 0.0);
+    let menu_extent = layout_vertical(&mut rows, 0.0);
     let footer_extent = layout_vertical(&mut trailing, 0.0);
-    let footer_start = main_end.max(((height - footer_extent) / 2.0).floor() * 2.0);
-    for row in &mut trailing {
-        row.offset += footer_start;
+    let mut available = (height.max(0.0) / 2.0).floor() * 2.0;
+    let separator =
+        menu_extent > 0.0 && footer_extent > 0.0 && menu_extent + footer_extent > available;
+    if separator {
+        available = (available - 4.0).max(0.0);
     }
-    rows.extend(trailing);
+    let half = (available / 4.0).floor() * 2.0;
+    let footer_height = if separator && footer_extent > half {
+        available - menu_extent.min(half)
+    } else {
+        footer_extent.min(available)
+    };
     items.mark(&mut rows, &selected);
-    model(rows)
+    items.mark(&mut trailing, &selected);
+    NavigationViewLeftLayout {
+        menu: model(rows),
+        footer: model(trailing),
+        menu_height: available - footer_height,
+        footer_height,
+        separator,
+    }
 }
 
 fn top_rows(
@@ -268,6 +287,7 @@ fn top_rows(
     metrics: ModelRc<NavigationViewMeasurement>,
     selected: SharedString,
     available: f32,
+    search_width: f32,
 ) -> NavigationViewTopLayout {
     let items = Items::new(&menu, &footer, settings);
     let available = (available.max(0.0) / 2.0).floor() * 2.0;
@@ -300,8 +320,9 @@ fn top_rows(
         .or_else(|| primary.iter().position(|row| is_item(&row.item)));
     let primary_width: f32 = primary.iter().map(|row| row.extent).sum();
     let trailing_width: f32 = trailing.iter().map(|row| row.extent).sum();
-    let overflow_needed = primary_width + trailing_width > available;
+    let overflow_needed = primary_width + trailing_width + search_width > available;
     let mut remaining = available
+        - search_width
         - if overflow_needed {
             TOP_OVERFLOW_WIDTH
         } else {
@@ -314,7 +335,7 @@ fn top_rows(
         primary[index].extent = primary[index].extent.min(remaining.max(0.0));
         remaining -= primary[index].extent;
     }
-    for row in trailing {
+    for row in trailing.into_iter().rev() {
         if row.extent <= remaining {
             remaining -= row.extent;
             top_footer.push(row);
@@ -322,6 +343,8 @@ fn top_rows(
             overflow.push(row);
         }
     }
+    top_footer.reverse();
+    overflow.reverse();
     let mut hidden_primary = Vec::new();
     let mut offset = 0.0;
     for (index, mut row) in primary.into_iter().enumerate() {
@@ -355,6 +378,7 @@ fn top_rows(
         });
     }
     let mut end_offset = available - top_footer.iter().map(|row| row.extent).sum::<f32>();
+    let search_offset = end_offset - search_width;
     for mut row in top_footer {
         row.offset = end_offset;
         end_offset += row.extent;
@@ -364,6 +388,7 @@ fn top_rows(
     NavigationViewTopLayout {
         rows: model(rows),
         overflow: model(hidden_primary),
+        search_offset,
     }
 }
 
