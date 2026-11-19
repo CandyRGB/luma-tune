@@ -150,12 +150,16 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | --- | --- | --- |
 | MenuBar / MenuBarItem | 🟡 | 公开有 `MenuBar` |
 | CommandBar / AppBarButton / AppBarToggleButton / AppBarSeparator | 🚧 | `components/menus-toolbars/command_bar.slint` 与 `app_bar_button.slint`，支持主次命令、动态溢出、自定义内容和附属菜单。 |
-| CommandBarFlyout | 🔨 | |
+| CommandBarFlyout | 🚧 | `components/menus-toolbars/command_bar_flyout.slint`，复用 AppBar 元素并支持标准、瞬态和指针移远关闭模式。 |
 | SwipeControl | 🔨 | |
 
 运行 `cargo run -p lumatune --example command_bar` 可试用命令栏。附加 `-- --narrow --bottom` 可查看窄窗口和向上展开，`-- --narrow --ordered` 可查看指定顺序的成组迁移，`-- --app-bar-buttons` 可单独试用三种 AppBar 元素。已验证浅色下的紧凑与最小状态、向上和向下展开、方向键、Esc、外部点击关闭、快捷键、溢出区内滚动和附属菜单。实际调整窗口大小时，切换命令迁入和移出溢出区后保留选中状态。Windows UI Automation 已实测展开、调用和切换。[Microsoft CommandBar 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar) · [WinUI 溢出与键盘源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/CommandBar_Partial.cpp) · [命令栏模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/CommandBar_themeresources.xaml) · [按钮模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/AppBarButton_themeresources.xaml)
 
 展开状态使用 Acrylic 的纯色回退，溢出区在窗口内绘制。长标签换行、`AppBarElementContainer` 和分裂命令、跨窗口弹层、触屏和手柄、RTL 目检及读屏播报仍待补齐或验收。
+
+运行 `cargo run -p lumatune --example command_bar_flyout` 可试用两种打开方式。附加 `-- --edge` 可试用向上展开，`-- --pointer-dismiss` 可试用指针移远关闭，`-- --always-expanded`、`-- --primary-only` 和 `-- --secondary-only` 可试用其余命令布局。浅色已验证标准模式起始焦点、瞬态保留输入焦点、省略号双向切换、Tab 与方向键、外部点击、指针距弹层超过 80px 后关闭、上下文键和附属菜单。执行次命令可关闭浮层并恢复到调用方指定的焦点。Windows UI Automation 已实测展开、切换和调用。[Microsoft CommandBarFlyout 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 键盘逻辑](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/CommandBarFlyoutCommandBar.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/CommandBarFlyout_themeresources.xaml)
+
+当前浮层随宿主窗口绘制，使用 Acrylic 的纯色回退。宿主通过 `restore-focus` 指定恢复元素，用 `CommandBarFlyoutKeyScope` 处理瞬态下的 Esc。原生菜单自动化角色、跨窗口定位、自定义命令容器、触屏和手柄仍待补齐或验收。
 
 ### Text
 | 控件 | 现状 | 备注 |
@@ -163,6 +167,7 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | TextBlock | ✅ | `Text` |
 | TextBox / LineEdit | 🟡 | `LineEdit`；password 需掩码封装 |
 | PasswordBox | 🔨 | 掩码封装 |
+| TextCommandBarFlyout | 🔨 | 文本编辑专用命令，复用 CommandBarFlyout，需接入文本选择和剪贴板。 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichEditBox | ⚠️ | 富文本支持弱 |

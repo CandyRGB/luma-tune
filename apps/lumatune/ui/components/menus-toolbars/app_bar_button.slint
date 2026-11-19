@@ -18,6 +18,7 @@ export component AppBarButton inherits Rectangle {
 
     // The CommandBar owns focus and check state for commands rendered from its models.
     in property <bool> hosted;
+    in property <bool> floating;
     in property <bool> keyboard-highlight;
     in property <bool> toggleable;
     in property <bool> overflow;
@@ -38,11 +39,12 @@ export component AppBarButton inherits Rectangle {
         + (root.show-icon-column ? 38px : 0px);
 
     preferred-width: root.overflow
-        ? max(160px, ceil((root.label-start + caption.preferred-width
+        ? max(root.floating ? 128px : 160px, ceil((root.label-start + caption.preferred-width
             + (root.accelerator-text != "" ? shortcut.preferred-width + 24px : 0px)
             + (root.has-flyout ? 32px : 12px)) / 2px) * 2px)
-        : 68px;
-    height: root.overflow ? 36px : root.bottom-label ? 64px : 48px;
+        : root.floating ? (root.bottom-label ? 60px : 40px) : 68px;
+    height: root.overflow ? 36px : root.floating ? (root.bottom-label ? 52px : 40px)
+        : root.bottom-label ? 64px : 48px;
     accessible-role: button;
     accessible-label: root.label;
     accessible-enabled: root.enabled;
@@ -75,7 +77,7 @@ export component AppBarButton inherits Rectangle {
 
     Rectangle {
         x: root.overflow ? 4px : root.more-button && root.rtl ? 6px : 2px;
-        y: root.overflow ? 0px : root.height == 24px ? 2px : 6px;
+        y: root.overflow ? 0px : root.floating || root.height == 24px ? 2px : 6px;
         width: max(0px, parent.width - (root.overflow || root.more-button ? 8px : 4px));
         height: max(0px, parent.height - 2 * self.y);
         border-radius: 4px;
@@ -91,8 +93,8 @@ export component AppBarButton inherits Rectangle {
         x: root.overflow || root.right-label
             ? (root.rtl ? parent.width - self.start - self.width : self.start)
             : (parent.width - self.width) / 2;
-        y: !root.overflow && (root.bottom-label || (root.more-button && root.height >= 48px))
-            ? 16px : (parent.height - self.height) / 2;
+        y: !root.overflow && root.bottom-label ? (root.floating ? 8px : 16px)
+            : !root.floating && root.more-button && root.height >= 48px ? 16px : (parent.height - self.height) / 2;
         width: 16px;
         height: 16px;
         source: root.icon;
@@ -114,7 +116,7 @@ export component AppBarButton inherits Rectangle {
         private property <length> end: (root.overflow ? (root.has-flyout ? 32px : 12px) : 2px)
             + (root.overflow && root.accelerator-text != "" ? shortcut.preferred-width + 24px : 0px);
         x: root.rtl ? self.end : self.start;
-        y: !root.overflow && root.bottom-label ? 34px : 0px;
+        y: !root.overflow && root.bottom-label ? (root.floating ? 26px : 34px) : 0px;
         width: max(0px, parent.width - self.start - self.end);
         height: !root.overflow && root.bottom-label ? 24px : parent.height;
         visible: !root.more-button && (root.overflow || root.bottom-label || root.right-label);

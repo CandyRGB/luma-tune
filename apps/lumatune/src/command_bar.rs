@@ -4,7 +4,6 @@ use crate::{
 };
 use slint::{Model, ModelExt, ModelRc, VecModel};
 
-const BUTTON_WIDTH: f32 = 68.0;
 const MORE_WIDTH: f32 = 48.0;
 const END_GAP: f32 = 6.0;
 const SEPARATOR_WIDTH: f32 = 6.0;
@@ -13,10 +12,18 @@ const OVERFLOW_BUTTON_HEIGHT: f32 = 36.0;
 
 pub fn install(behavior: CommandBarBehavior<'_>) {
     behavior.on_arrange(
-        |primary, secondary, width, content_width, dynamic, label_position, visibility, reveal| {
+        |primary,
+         secondary,
+         width,
+         content_width,
+         item_width,
+         dynamic,
+         label_position,
+         visibility,
+         reveal| {
             arrange(
-                entries(&primary, false),
-                entries(&secondary, true),
+                entries(&primary, false, item_width),
+                entries(&secondary, true, item_width),
                 LayoutOptions {
                     width,
                     content_width,
@@ -31,10 +38,22 @@ pub fn install(behavior: CommandBarBehavior<'_>) {
     behavior.on_next_item(next_item);
     behavior.on_index_of(index_of);
     behavior.on_accessible_index(accessible_index);
+    behavior.on_has_actions(|items| {
+        items.model_tracker().track_row_count_changes();
+        (0..items.row_count()).any(|index| {
+            items
+                .row_data_tracked(index)
+                .is_some_and(|item| !item.hidden && item.kind != CommandBarItemKind::Separator)
+        })
+    });
     behavior.on_toggle(toggle);
 }
 
-fn entries(items: &ModelRc<CommandBarItem>, secondary: bool) -> Vec<CommandBarEntry> {
+fn entries(
+    items: &ModelRc<CommandBarItem>,
+    secondary: bool,
+    default_width: f32,
+) -> Vec<CommandBarEntry> {
     items.model_tracker().track_row_count_changes();
     (0..items.row_count())
         .filter_map(|source_index| {
@@ -47,7 +66,7 @@ fn entries(items: &ModelRc<CommandBarItem>, secondary: bool) -> Vec<CommandBarEn
             } else if item.width > 0.0 {
                 (item.width / 2.0).round() * 2.0
             } else {
-                BUTTON_WIDTH
+                default_width
             };
             Some(CommandBarEntry {
                 item,
@@ -290,8 +309,8 @@ mod tests {
         width: f32,
     ) -> CommandBarLayout {
         arrange(
-            entries(&ModelRc::new(VecModel::from(primary)), false),
-            entries(&ModelRc::new(VecModel::from(secondary)), true),
+            entries(&ModelRc::new(VecModel::from(primary)), false, 68.0),
+            entries(&ModelRc::new(VecModel::from(secondary)), true, 68.0),
             LayoutOptions {
                 width,
                 content_width: 0.0,
