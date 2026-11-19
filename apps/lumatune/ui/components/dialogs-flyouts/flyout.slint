@@ -1,0 +1,145 @@
+import { Palette, ScrollView } from "std-widgets.slint";
+import { FlyoutLayout, FlyoutPlacement, FlyoutRect } from "flyout_layout.slint";
+
+export { FlyoutPlacement, FlyoutRect }
+
+export enum FlyoutCloseReason { programmatic, light-dismiss, escape }
+
+// Place the flyout over the window's content and bind anchor to window-relative geometry.
+export component Flyout inherits Rectangle {
+    in property <FlyoutRect> anchor;
+    in property <FlyoutPlacement> placement: FlyoutPlacement.top;
+    in property <bool> dim-background: false;
+    in property <length> content-padding: 16px;
+    in property <length> presenter-min-width: 96px;
+    in property <length> presenter-min-height: 40px;
+    in property <length> presenter-max-width: 456px;
+    in property <length> presenter-max-height: 758px;
+    in property <bool> allow-horizontal-scroll: true;
+    out property <bool> is-open: popup.is-open;
+
+    callback opening();
+    callback opened();
+    callback closing(FlyoutCloseReason) -> bool;
+    callback closed(FlyoutCloseReason);
+
+    private property <bool> changing;
+
+    public function show() {
+        if (!root.is-open && !root.changing) {
+            root.changing = true;
+            root.opening();
+            popup.show();
+            root.changing = false;
+            root.opened();
+        }
+    }
+
+    public function hide() {
+        root.dismiss(FlyoutCloseReason.programmatic);
+    }
+
+    // Returning true from closing keeps a light-dismissed or programmatically closed flyout open.
+    function dismiss(reason: FlyoutCloseReason) {
+        if (root.is-open && !root.changing) {
+            root.changing = true;
+            if (root.closing(reason)) {
+                root.changing = false;
+            } else {
+                popup.close();
+                root.changing = false;
+                root.closed(reason);
+            }
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        close-policy: no-auto-close;
+        forward-focus: start-focus;
+
+        FocusScope {
+            width: parent.width;
+            height: parent.height;
+            focus-on-click: false;
+            focus-on-tab-navigation: false;
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.dismiss(FlyoutCloseReason.escape);
+                    return accept;
+                }
+                return reject;
+            }
+
+            Rectangle {
+                background: root.dim-background ? #0000004d : transparent;
+                TouchArea {
+                    clicked => { root.dismiss(FlyoutCloseReason.light-dismiss); }
+                }
+            }
+
+            Rectangle {
+                private property <bool> full: root.placement == FlyoutPlacement.full;
+                private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+                private property <FlyoutRect> bounds: {
+                    x: 0px, y: 0px, width: parent.width, height: parent.height,
+                };
+                private property <Size> desired-size: {
+                    width: min(root.presenter-max-width,
+                        self.full ? self.bounds.width : round(max(root.presenter-min-width, content.preferred-width) / 2px) * 2px),
+                    height: min(root.presenter-max-height,
+                        self.full ? self.bounds.height : round(max(root.presenter-min-height, content.preferred-height) / 2px) * 2px),
+                };
+                private property <FlyoutRect> geometry: FlyoutLayout.place(root.placement, root.anchor, self.bounds,
+                    self.desired-size, { width: root.presenter-min-width, height: root.presenter-min-height });
+
+                x: self.geometry.x;
+                y: self.geometry.y;
+                width: self.geometry.width;
+                height: self.geometry.height;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: self.dark ? #00000033 : #0000000f;
+                background: self.dark ? #2c2c2c : #f9f9f9;
+                drop-shadow-blur: 16px;
+                drop-shadow-color: self.dark ? #00000042 : #00000024;
+                drop-shadow-offset-y: 8px;
+
+                TouchArea { }
+
+                ScrollView {
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal-scrollbar-policy: root.allow-horizontal-scroll ? as-needed : always-off;
+                    content-width: max(self.visible-width, root.allow-horizontal-scroll ? content.min-width : 0px);
+                    content-height: max(self.visible-height, content.preferred-height);
+                    // Slint drops keyboard focus when the focused control scrolls out of view.
+                    // Keep the keyboard in the popup after pointer scrolling.
+                    scrolled => { fallback-focus.focus(); }
+
+                    start-focus := FocusScope {
+                        enabled: false;
+                        width: 0px;
+                        height: 0px;
+                    }
+
+                    content := VerticalLayout {
+                        padding: root.content-padding;
+                        @children
+                    }
+                }
+
+                fallback-focus := FocusScope {
+                    width: 0px;
+                    height: 0px;
+                    focus-on-click: false;
+                    focus-on-tab-navigation: false;
+                    focus-gained(reason) => { self.focus-on-tab-navigation = true; }
+                }
+            }
+        }
+    }
+}

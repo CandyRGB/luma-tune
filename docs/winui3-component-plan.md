@@ -91,9 +91,12 @@ components/
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、长正文滚动，以及可取消和延迟的关闭事件 |
-| Flyout / MenuFlyout | 🔨 | 任意锚点浮层 |
+| Flyout | 🚧 | `components/dialogs-flyouts/flyout.slint`，支持对齐、贴边翻转、受限尺寸、双轴滚动、可取消关闭和焦点恢复。验收记录见下。 |
+| MenuFlyout | 🔨 | 菜单项导航、选中状态与级联子菜单待做，共用 Flyout 的关闭和锚点定位。 |
 | TeachingTip | 🔨 | 引导气泡 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
+
+Flyout 对照微软的 [定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) 和 [呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)。运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击、与窗口边界交互的一致性及高对比度。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。
 
 ### Layout
 | 控件 | 现状 | 备注 |
