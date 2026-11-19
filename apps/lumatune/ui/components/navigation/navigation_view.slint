@@ -1,6 +1,7 @@
 import { Palette, ScrollView } from "std-widgets.slint";
 import { AutoSuggestion, AutoSuggestBox, AutoSuggestTextChangeReason } from "../text/auto_suggest_box.slint";
 import { FlyoutPlacement, FlyoutRect, FlyoutLayout } from "../dialogs-flyouts/flyout_layout.slint";
+import { InfoBadge, InfoBadgeContent } from "../status-info/info_badge.slint";
 
 export enum NavigationViewPaneDisplayMode { auto, left, left-compact, left-minimal, top }
 export enum NavigationViewDisplayMode { minimal, compact, expanded }
@@ -14,6 +15,7 @@ export struct NavigationViewItem {
     kind: NavigationViewItemKind,
     disabled: bool,
     suppress-selection: bool,
+    badge: InfoBadgeContent,
 }
 
 export struct NavigationViewRow {
@@ -68,6 +70,19 @@ export global NavigationViewBehavior {
     pure callback toggle([string], string) -> [string];
 }
 
+component NavigationItemBadge inherits InfoBadge {
+    in property <InfoBadgeContent> data;
+    visible: root.data.visible;
+    value: root.data.value;
+    icon-source: root.data.icon-source;
+    preserve-icon-colors: root.data.preserve-icon-colors;
+    show-tone-icon: root.data.show-tone-icon;
+    glyph: root.data.glyph;
+    tone: root.data.tone;
+    accessible-name: root.data.accessible-name;
+    decorative: true;
+}
+
 component NavigationViewItemMeasure inherits Text {
     in property <NavigationViewItem> item;
     in property <[NavigationViewMeasurement]> metrics;
@@ -75,7 +90,10 @@ component NavigationViewItemMeasure inherits Text {
     font-size: 14px;
     font-weight: item.kind == NavigationViewItemKind.header ? 600 : 400;
     visible: false;
-    private property <length> measured-width: ceil((self.preferred-width + 24px + (item.icon.width > 0 ? 24px : 0px)) / 2px) * 2px;
+    private property <length> badge-space: root.item.kind == NavigationViewItemKind.item && root.item.badge.visible
+        ? max(0px, badge-metrics.preferred-width - 4px) : 0px;
+    private property <length> measured-width: ceil((self.preferred-width + 24px + (item.icon.width > 0 ? 24px : 0px) + root.badge-space) / 2px) * 2px;
+    badge-metrics := NavigationItemBadge { data: root.item.badge; }
     init => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
     changed measured-width => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
     changed item => { NavigationViewBehavior.measure(root.metrics, root.item.id, root.measured-width); }
@@ -162,7 +180,13 @@ component NavigationViewItemPresenter inherits Rectangle {
     private property <length> indent: root.icon-only ? 0px : 16px * entry.depth;
     private property <length> label-start: horizontal ? (root.icon ? 36px : 12px)
         : entry.item.kind == NavigationViewItemKind.header ? 12px + indent : (root.icon ? 40px : 12px) + indent;
-    private property <length> label-end: root.has-chevron ? 32px : 12px;
+    private property <bool> show-badge: root.actionable && root.entry.item.badge.visible;
+    private property <bool> corner-badge: root.icon-only && !root.horizontal;
+    private property <length> trailing: root.has-chevron ? 32px : 12px;
+    private property <length> badge-end: root.corner-badge || root.horizontal ? 2px : root.has-chevron ? 32px : 14px;
+    private property <length> chevron-shift: root.horizontal && root.show-badge ? max(0px, badge.width - 4px) : 0px;
+    private property <length> label-end: root.show-badge && !root.corner-badge
+        ? max(root.trailing + root.chevron-shift, root.badge-end + badge.width + 6px) : root.trailing;
     private property <color> foreground: Palette.foreground.with-alpha(!root.enabled && root.actionable ? 0.36 : hit.pressed ? 0.62 : 1);
 
     border-radius: 4px;
@@ -183,6 +207,7 @@ component NavigationViewItemPresenter inherits Rectangle {
     if root.actionable && !root.more : Rectangle {
         accessible-role: list-item;
         accessible-label: root.entry.item.label;
+        accessible-description: root.show-badge ? badge.status-text : "";
         accessible-id: root.entry.item.id;
         accessible-enabled: root.enabled;
         accessible-item-index: root.entry.accessible-index;
@@ -222,6 +247,14 @@ component NavigationViewItemPresenter inherits Rectangle {
         overflow: elide;
         color: root.foreground;
     }
+    badge := NavigationItemBadge {
+        data: root.entry.item.badge;
+        visible: root.show-badge;
+        width: min(self.preferred-width, max(0px, root.width - root.badge-end - 2px));
+        height: self.preferred-height;
+        x: root.rtl ? root.badge-end : parent.width - root.badge-end - self.width;
+        y: root.corner-badge ? 2px : max(0px, round((parent.height - self.height) / 4px) * 2px - (root.horizontal ? 6px : 0px));
+    }
     if entry.shows-indicator : Rectangle {
         width: root.horizontal ? 16px : 4px;
         height: root.horizontal ? 4px : 16px;
@@ -237,7 +270,7 @@ component NavigationViewItemPresenter inherits Rectangle {
     if root.has-chevron : Image {
         width: 8px;
         height: 8px;
-        x: root.rtl ? 12px : parent.width - 20px;
+        x: root.rtl ? 12px + root.chevron-shift : parent.width - 20px - root.chevron-shift;
         y: round((parent.height - self.height) / 4px) * 2px;
         source: root.expanded ? @image-url("../../icons/chevron_up_16_regular.svg")
             : @image-url("../../icons/chevron_down_16_regular.svg");
@@ -254,7 +287,7 @@ component NavigationViewItemPresenter inherits Rectangle {
     }
     chevron := TouchArea {
         enabled: root.enabled && root.has-chevron;
-        x: root.rtl ? 0px : parent.width - self.width;
+        x: root.rtl ? root.chevron-shift : parent.width - self.width - root.chevron-shift;
         width: 32px;
         height: parent.height;
         clicked => { root.activated(true); }

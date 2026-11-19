@@ -156,10 +156,14 @@ Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、自定义内容和可区分来源的可取消关闭 |
-| InfoBadge（角标） | 🔨 | |
+| InfoBadge（角标） | 🚧 | `components/status-info/info_badge.slint`，支持点、计数、字形与图像，并可附在导航条目上 |
 | ProgressBar | 🟡 | `ProgressIndicator` |
 | ProgressRing（环形） | 🔨 | `Spinner` 非环形进度 |
 | ToolTip | 🟡 | 基础可用，样式弱 |
+
+运行 `cargo run -p lumatune --example info_badge` 可试用强调色和五种状态色、4×4 点状徽标、16px 高的计数、状态字形和自定义图像。非负 `value` 优先显示数字，负值使用图标或点状状态。自定义图像可保留原色。导航条目通过 `badge` 提供可见性、内容和状态描述，顶部布局会按徽标宽度重新计算。
+
+Windows 浅色已验证六组样式、零值与最大 32 位整数、计数优先级、显隐切换、展开和紧凑窗格、顶部导航、RTL，以及徽标与导航点击的共存。独立徽标可向辅助技术提供非焦点文本，嵌入导航时则作为该条目的状态描述。Slint 会把小于 -1 的值按无数字状态渲染，WinUI 对这类输入抛出异常。Windows 状态字形依赖 Segoe Fluent Icons，读屏播报尚待验收。官方模板及示例已存入 `.refs/WinUI/`。
 
 ### Scrolling
 | 控件 | 现状 | 备注 |
@@ -233,7 +237,7 @@ Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
-8. ⬜ InfoBadge / PipsPager / PersonPicture（status-info / scrolling / media）
+8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / ⬜ PipsPager / ⬜ PersonPicture
 9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
 10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
 
