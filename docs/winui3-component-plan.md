@@ -22,7 +22,7 @@ components/
   collections/      TreeView, GridView 增强 ...
   date-time/        CalendarDatePicker, DatePicker, TimePicker ...
   dialogs-flyouts/  ContentDialog(✅), Flyout, TeachingTip ...
-  layout/           Expander, SplitView ...
+  layout/           Expander(🚧), SplitView ...
   media/            PersonPicture, AnimatedVisualPlayer ...
   menus-toolbars/   CommandBar, MenuFlyout, AppBarButton ...
   motion/           Connected Animation 等（按需）
@@ -41,7 +41,7 @@ components/
 
 ## 官方分组 × 可行性
 
-图例：✅ 已有可直接用 · 🟡 部分可用需增强 · 🔨 需复刻 · ⚠️ 不建议/难等价
+图例：✅ 已有可直接用 · 🚧 已开始复刻 · 🟡 部分可用需增强 · 🔨 需复刻 · ⚠️ 不建议/难等价
 
 ### Basic input
 | 控件 | 现状 | 备注 |
@@ -84,7 +84,7 @@ components/
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | Grid / StackPanel / RelativePanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
-| Expander | 🔨 | 折叠区块，高价值 |
+| Expander | 🚧 | `components/layout/expander.slint`，支持文本标题和可组合内容、向上/向下展开 |
 | SplitView | 🔨 | 抽屉 + 遮罩 |
 | VariableSizedWrapGrid / WrapPanel | 🟡 | 可用布局近似 |
 
@@ -100,7 +100,7 @@ components/
 ### Status & info
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| InfoBar（可关提示条） | ✅ | `components/status-info/info_bar.slint` |
+| InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、四种严重性与自定义内容 |
 | InfoBadge（角标） | 🔨 | |
 | ProgressBar | 🟡 | `ProgressIndicator` |
 | ProgressRing（环形） | 🔨 | `Spinner` 非环形进度 |
@@ -151,8 +151,8 @@ components/
 ## 复刻优先级（实用 + Slint 缺）
 
 1. ✅ ContentDialog（`dialogs-flyouts/content_dialog.slint`）
-2. ✅ InfoBar（status-info/info_bar.slint）
-3. ⬜ Expander（layout）
+2. 🚧 InfoBar（`status-info/info_bar.slint`，常用样式和交互已验证，待补高对比度和自定义操作按钮）
+3. 🚧 Expander（`layout/expander.slint`，常用样式和交互已验证，待补高对比度、可组合标题和禁用向内容控件传递）
 4. ⬜ CommandBar（menus-toolbars）
 5. ⬜ NumberBox / AutoSuggestBox（text）
 6. ⬜ NavigationView（navigation，或在现有 NavRail 上补齐）

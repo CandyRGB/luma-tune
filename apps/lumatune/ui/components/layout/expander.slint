@@ -1,0 +1,182 @@
+import { Palette } from "std-widgets.slint";
+
+export enum ExpandDirection { down, up }
+
+// WinUI Expander metrics: 48px regions, 16px content padding and a 32px chevron target.
+export component Expander inherits Rectangle {
+    in property <string> header;
+    in property <ExpandDirection> expand-direction: ExpandDirection.down;
+    // Controls the header. Interactive content can bind its own enabled state to this property.
+    in property <bool> enabled: true;
+    in-out property <bool> expanded: false;
+    callback expanding();
+    callback collapsed();
+
+    private property <bool> opens-up: root.expand-direction == ExpandDirection.up;
+    private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    private property <brush> stroke: root.dark ? #0000001a : #0000000f;
+    private property <length> content-height: max(48px, content-layout.preferred-height);
+    private property <length> reveal-height: 0px;
+    private property <bool> show-content: root.expanded || root.reveal-height > 0px;
+    private property <length> corner-radius: 4px;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    min-width: max(96px, header-layout.min-width, root.expanded ? content-layout.min-width : 0px);
+    preferred-width: max(96px, header-layout.preferred-width, root.expanded ? content-layout.preferred-width : 0px);
+    height: header-button.height + root.reveal-height;
+    forward-focus: header-focus;
+
+    changed expanded => {
+        if (root.expanded) {
+            root.expanding();
+        } else {
+            root.collapsed();
+        }
+    }
+
+    states [
+        expanded when root.expanded: {
+            reveal-height: root.content-height;
+            in { animate reveal-height { duration: 332ms; easing: ease-out; } }
+            out { animate reveal-height { duration: 168ms; easing: ease-in; } }
+        }
+    ]
+
+    header-button := Rectangle {
+        x: 0px;
+        y: root.opens-up ? root.reveal-height : 0px;
+        width: parent.width;
+        height: max(48px, header-layout.preferred-height);
+        border-width: 1px;
+        border-color: root.stroke;
+        border-top-left-radius: root.show-content && root.opens-up ? 0px : root.corner-radius;
+        border-top-right-radius: self.border-top-left-radius;
+        border-bottom-left-radius: root.show-content && !root.opens-up ? 0px : root.corner-radius;
+        border-bottom-right-radius: self.border-bottom-left-radius;
+        background: Palette.control-background;
+
+        accessible-role: button;
+        accessible-label: root.header;
+        accessible-enabled: root.enabled;
+        accessible-expandable: true;
+        accessible-expanded: root.expanded;
+        accessible-action-default => { header-touch.clicked(); }
+        accessible-action-expand => {
+            if (root.enabled) {
+                root.expanded = true;
+            }
+        }
+
+        private property <brush> foreground: root.enabled ? Palette.foreground : Palette.foreground.with-alpha(0.36);
+
+        header-layout := HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 8px;
+            spacing: 20px;
+
+            Text {
+                horizontal-stretch: 1;
+                text: root.header;
+                color: header-button.foreground;
+                font-size: 14px;
+                vertical-alignment: center;
+                wrap: word-wrap;
+                accessible-role: none;
+            }
+
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 32px;
+                height: 32px;
+                border-radius: 4px;
+                background: !root.enabled ? transparent
+                    : header-touch.pressed ? Palette.foreground.with-alpha(root.dark ? 0.04 : 0.024)
+                    : header-touch.has-hover ? Palette.foreground.with-alpha(root.dark ? 0.06 : 0.04)
+                    : transparent;
+
+                Image {
+                    width: 12px;
+                    height: 12px;
+                    source: @image-url("../../icons/expander_chevron_down_12.svg");
+                    colorize: header-button.foreground;
+                    transform-rotation: root.expanded != root.opens-up ? 180deg : 0deg;
+                    animate transform-rotation { duration: 168ms; easing: ease-out; }
+                }
+            }
+        }
+
+        header-touch := TouchArea {
+            enabled: root.enabled;
+            clicked => {
+                if (root.enabled) {
+                    root.expanded = !root.expanded;
+                }
+            }
+        }
+
+        header-focus := FocusScope {
+            width: 0px;
+            enabled: root.enabled;
+            key-pressed(event) => {
+                if (event.text == Key.Space || event.text == Key.Return) {
+                    return accept;
+                }
+                return reject;
+            }
+            key-released(event) => {
+                if (event.text == Key.Space || event.text == Key.Return) {
+                    header-touch.clicked();
+                    return accept;
+                }
+                return reject;
+            }
+        }
+
+        if header-focus.has-focus && root.enabled : Rectangle {
+            border-width: 2px;
+            border-color: Palette.foreground;
+            border-radius: root.corner-radius;
+            Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                border-width: 1px;
+                border-color: Palette.background;
+                border-radius: 2px;
+            }
+        }
+    }
+
+    // Keep the content mounted so inputs keep their values across toggles.
+    Rectangle {
+        x: 0px;
+        y: root.opens-up ? 0px : header-button.height;
+        width: parent.width;
+        height: root.reveal-height;
+        visible: root.show-content;
+        clip: true;
+
+        Rectangle {
+            x: 0px;
+            y: root.opens-up ? 0px : parent.height - self.height;
+            width: parent.width;
+            height: root.content-height + 1px;
+            // Clip the hairline at the join so only the header draws the seam.
+            border-width: 1px;
+            border-color: root.stroke;
+            border-top-left-radius: root.opens-up ? root.corner-radius : 0px;
+            border-top-right-radius: self.border-top-left-radius;
+            border-bottom-left-radius: root.opens-up ? 0px : root.corner-radius;
+            border-bottom-right-radius: self.border-bottom-left-radius;
+            background: root.dark ? #ffffff08 : #f6f6f680;
+
+            content-layout := VerticalLayout {
+                padding: 16px;
+                alignment: center;
+                @children
+            }
+        }
+    }
+}

@@ -1,11 +1,4 @@
-// InfoBar — a WinUI 3-style inline message bar.
-//
-// A severity-tinted bar with an optional icon, a title, a message, an optional
-// action button and an optional close button. Mirrors WinUI's InfoBar surface
-// (Title/Message/Severity/IsOpen/IsClosable/IsIconVisible/ActionButton).
-// App-agnostic; uses Slint `Palette` + severity accent colors. Even lengths.
-
-import { Palette } from "std-widgets.slint";
+import { Button, Palette } from "std-widgets.slint";
 
 export enum InfoSeverity {
     informational,
@@ -14,118 +7,192 @@ export enum InfoSeverity {
     error,
 }
 
+component InfoBarText inherits Text {
+    color: Palette.foreground;
+    font-size: 14px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+}
+
 export component InfoBar inherits Rectangle {
     in-out property <bool> open: true;
-    in property <string> title: "";
-    in property <string> message: "";
+    in property <string> title;
+    in property <string> message;
     in property <InfoSeverity> severity: InfoSeverity.informational;
     in property <bool> is-icon-visible: true;
     in property <bool> is-closable: true;
-    in property <string> action-label: "";
+    in property <image> icon-source;
+    in property <string> action-label;
 
     callback closed();
     callback action();
 
+    private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    private property <brush> icon-color:
+        root.severity == InfoSeverity.success ? (root.dark ? #6ccb5f : #0f7b0f)
+        : root.severity == InfoSeverity.warning ? (root.dark ? #fce100 : #9d5d00)
+        : root.severity == InfoSeverity.error ? (root.dark ? #ff99a4 : #c42b1c)
+        : Palette.accent-background;
+    private property <image> status-icon:
+        root.severity == InfoSeverity.success ? @image-url("../../icons/checkmark_circle_16_filled.svg")
+        : root.severity == InfoSeverity.warning ? @image-url("../../icons/error_circle_16_filled.svg")
+        : root.severity == InfoSeverity.error ? @image-url("../../icons/info_bar_error_16.svg")
+        : @image-url("../../icons/info_16_filled.svg");
+    private property <int> content-count: (root.title != "" ? 1 : 0)
+        + (root.message != "" ? 1 : 0) + (root.action-label != "" ? 1 : 0);
+    private property <length> content-left: root.is-icon-visible ? 46px : 16px;
+    private property <length> content-width: max(0px, root.width - root.content-left - 16px - (root.is-closable ? 48px : 0px));
+    private property <bool> stacked: root.content-count == 1
+        || inline-content.preferred-width > root.content-width || inline-content.preferred-height > 32px;
+    private property <length> header-height: root.stacked ? max(48px, stacked-content.preferred-height) : 48px;
+    private property <bool> has-custom-icon: root.icon-source.width > 0 && root.icon-source.height > 0;
+
+    // In a spaced layout, use `if` at the call site to reclaim the gap on dismissal too.
     visible: root.open;
+    min-width: root.content-left + 16px + (root.is-closable ? 48px : 0px);
+    horizontal-stretch: 1;
     vertical-stretch: 0;
+    height: root.open ? root.header-height + custom-content.preferred-height : 0px;
     border-radius: 4px;
     border-width: 1px;
-    border-color: root.accent.with-alpha(0.36);
-    background: root.accent.with-alpha(0.08);
-    height: content.preferred-height;
+    border-color: root.dark ? #0000001a : #0000000f;
+    background:
+        root.severity == InfoSeverity.success ? (root.dark ? #393d1b : #dff6dd)
+        : root.severity == InfoSeverity.warning ? (root.dark ? #433519 : #fff4ce)
+        : root.severity == InfoSeverity.error ? (root.dark ? #442726 : #fde7e9)
+        : root.dark ? #ffffff08 : #f6f6f680;
 
-    private property <brush> accent:
-        root.severity == InfoSeverity.success ? #0F7B0F
-        : root.severity == InfoSeverity.warning ? #9D5D00
-        : root.severity == InfoSeverity.error ? #C42B1C
-        : #005FB8;
-
-    private property <image> glyph:
-        root.severity == InfoSeverity.success ? @image-url("../../icons/checkmark_circle_16_filled.svg")
-        : root.severity == InfoSeverity.warning ? @image-url("../../icons/warning_16_filled.svg")
-        : root.severity == InfoSeverity.error ? @image-url("../../icons/error_circle_16_filled.svg")
-        : @image-url("../../icons/info_16_filled.svg");
-
-    content := HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 12px;
-        padding-top: 12px;
-        padding-bottom: 12px;
-        spacing: 12px;
-        alignment: start;
-
-        if root.is-icon-visible : Image {
+    if root.is-icon-visible : Rectangle {
+        x: 16px;
+        y: 16px;
+        width: 16px;
+        height: 16px;
+        if !root.has-custom-icon : Rectangle {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: Palette.accent-foreground;
+        }
+        Image {
             width: 16px;
             height: 16px;
-            vertical-stretch: 0;
-            source: root.glyph;
-            colorize: root.accent;
+            source: root.has-custom-icon ? root.icon-source : root.status-icon;
+            image-fit: contain;
+            colorize: root.has-custom-icon ? transparent : root.icon-color;
+        }
+    }
+
+    // The natural inline width determines when all three elements move to separate rows.
+    inline-content := HorizontalLayout {
+        x: root.content-left;
+        y: 0px;
+        width: root.content-width;
+        height: 48px;
+        alignment: start;
+        visible: !root.stacked;
+
+        if root.title != "" : InfoBarText {
+            text: root.title;
+            font-weight: 600;
+            vertical-alignment: center;
         }
 
-        VerticalLayout {
-            vertical-stretch: 0;
-            spacing: 2px;
+        if root.title != "" && root.message != "" : Rectangle { width: 12px; }
 
-            Text {
-                visible: root.title != "";
-                text: root.title;
-                font-size: 14px;
-                font-weight: 600;
-                color: Palette.foreground;
-                overflow: elide;
-            }
-
-            Text {
-                visible: root.message != "";
-                text: root.message;
-                font-size: 13px;
-                color: Palette.foreground.with-alpha(0.80);
-                overflow: elide;
-            }
+        if root.message != "" : InfoBarText {
+            text: root.message;
+            vertical-alignment: center;
         }
 
-        Rectangle { }
+        if root.action-label != "" && (root.title != "" || root.message != "") : Rectangle { width: 16px; }
 
-        if root.action-label != "" : Rectangle {
-            width: action-txt.preferred-width + 16px;
+        if root.action-label != "" : Button {
+            y: 8px;
             height: 32px;
-            vertical-stretch: 0;
-            border-radius: 4px;
-            background: act-hit.has-hover ? root.accent.with-alpha(0.10) : transparent;
+            text: root.action-label;
+            clicked => { root.action(); }
+        }
+    }
 
-            action-txt := Text {
-                x: 8px;
-                y: (parent.height - self.height) / 2;
-                text: root.action-label;
-                font-size: 13px;
-                font-weight: 600;
-                color: root.accent;
-                vertical-alignment: center;
-            }
+    stacked-content := VerticalLayout {
+        x: root.content-left;
+        y: 0px;
+        width: root.content-width;
+        height: self.preferred-height;
+        padding-top: 14px;
+        padding-bottom: 18px;
+        alignment: start;
+        visible: root.stacked;
 
-            act-hit := TouchArea {
-                clicked => { root.action(); }
+        if root.title != "" : InfoBarText {
+            text: root.title;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+
+        if root.title != "" && root.message != "" : Rectangle { height: 4px; }
+
+        if root.message != "" : InfoBarText {
+            text: root.message;
+            wrap: word-wrap;
+        }
+
+        if root.action-label != "" && (root.title != "" || root.message != "") : Rectangle { height: 12px; }
+
+        if root.action-label != "" : Button {
+            width: min(root.content-width, self.preferred-width);
+            height: 32px;
+            text: root.action-label;
+            clicked => { root.action(); }
+        }
+    }
+
+    custom-content := VerticalLayout {
+        x: root.content-left;
+        y: root.header-height;
+        width: root.content-width;
+        height: self.preferred-height;
+        @children
+    }
+
+    if root.is-closable : Rectangle {
+        x: parent.width - 44px;
+        y: 6px;
+        width: 38px;
+        height: 38px;
+        border-radius: 4px;
+        border-width: close-focus.has-focus ? 2px : 0px;
+        border-color: Palette.foreground;
+        background: close-touch.pressed ? Palette.foreground.with-alpha(0.025)
+            : close-touch.has-hover ? Palette.foreground.with-alpha(0.06)
+            : transparent;
+
+        accessible-role: button;
+        accessible-label: "关闭";
+        accessible-action-default => { close-touch.clicked(); }
+
+        Image {
+            width: 16px;
+            height: 16px;
+            source: @image-url("../../icons/dismiss_16_regular.svg");
+            colorize: Palette.foreground;
+        }
+
+        close-touch := TouchArea {
+            clicked => {
+                root.open = false;
+                root.closed();
             }
         }
 
-        if root.is-closable : Rectangle {
-            width: 32px;
-            height: 32px;
-            vertical-stretch: 0;
-            border-radius: 4px;
-            background: close-hit.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
-
-            Image {
-                width: 12px;
-                height: 12px;
-                x: (parent.width - 12px) / 2;
-                y: (parent.height - 12px) / 2;
-                source: @image-url("../../icons/dismiss_16_regular.svg");
-                colorize: Palette.foreground.with-alpha(0.70);
-            }
-
-            close-hit := TouchArea {
-                clicked => { root.closed(); }
+        close-focus := FocusScope {
+            width: 0px;
+            key-pressed(event) => {
+                if (event.text == Key.Space || event.text == Key.Return) {
+                    close-touch.clicked();
+                    return accept;
+                }
+                return reject;
             }
         }
     }
