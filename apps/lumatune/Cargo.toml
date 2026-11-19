@@ -8,5 +8,8 @@ lumatune-core = { version = "0.1.0", path = "../../crates/lumatune-core" }
 lumatune-win = { version = "0.1.0", path = "../../crates/lumatune-win" }
 slint = "1.18.1"
 
+[dev-dependencies]
+arboard = { version = "3.7", default-features = false }
+
 [build-dependencies]
 slint-build = "1.18.1"

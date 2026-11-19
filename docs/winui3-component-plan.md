@@ -167,10 +167,14 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 | TextBlock | ✅ | `Text` |
 | TextBox / LineEdit | 🟡 | `LineEdit`；password 需掩码封装 |
 | PasswordBox | 🔨 | 掩码封装 |
-| TextCommandBarFlyout | 🔨 | 文本编辑专用命令，复用 CommandBarFlyout，需接入文本选择和剪贴板。 |
+| TextCommandBarFlyout | 🚧 | `components/text/text_command_bar_flyout.slint`，根据文本控件、选区、剪贴板和编辑历史显示命令。 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichEditBox | ⚠️ | 富文本支持弱 |
+
+运行 `cargo run -p lumatune --example text_command_bar_flyout` 可试用可编辑文本、只读文本和密码输入框。右键、菜单键和 Shift+F10 打开上下文菜单，“Show selection tools” 演示选区工具栏。浅色已验证选区在菜单夺取焦点后仍可见，Esc 后恢复编辑焦点，次命令执行后收起，以及撤销、重做和系统剪贴板上的 Unicode 剪切、复制和粘贴。只读示例仅显示复制和全选，密码示例仅显示可用的粘贴和全选。Windows UI Automation 已验证调用全选和展开次命令。[Microsoft 文档及截图](https://learn.microsoft.com/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 命令规则](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp)
+
+编辑器负责提供选区、可粘贴状态和撤销重做能力。示例管理逐步编辑历史。实机触控自动打开及选区定位、富文本编辑器接入、拼写检查和读屏播报仍待补齐或验收。
 
 运行 `cargo run -p lumatune --example number_box` 可试用 NumberBox，附加 `-- --dark` 切换至深色。已验证 Enter 与失焦提交、Esc 恢复、上下键和 PageUp/PageDown、焦点内滚轮、内联与紧凑步进、长按连续步进、环绕、两种验证模式、范围限制、长输入光标和程序设值。Windows UI Automation 已实测 Spinner 类型、范围属性和设值。[Microsoft NumberBox 规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/number-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/NumberBox/NumberBox.xaml)
 
@@ -211,6 +215,6 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 ## 每个组件的验收标准
 
 - 编译通过且无警告；`cargo test` 通过。
-- 软件渲染截图目检：布局、配色、交互态（hover/press/disabled/暗色）符合 WinUI 3 视觉。
+- 浅色软件渲染截图目检，核对布局、配色、悬停、按下和禁用态。
 - 至少一处可运行示例（临时插入预览、验证后移除）证明实际渲染正确。
 - 遵循本文件顶部约定（分类目录、偶数长度、Palette、SVG 图标）。
