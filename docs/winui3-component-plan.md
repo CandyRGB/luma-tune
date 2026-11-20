@@ -65,8 +65,8 @@ components/
 | Button | 🚧 | `components/basic-input/button.slint`，支持普通、强调、透明样式和关联 Flyout |
 | RepeatButton | 🚧 | `components/basic-input/repeat_button.slint`，支持长按连发、自定义间隔和三种点击模式 |
 | CheckBox | 🚧 | `components/basic-input/check_box.slint`，支持双态、三态、标签布局和状态回调 |
-| ComboBox | ✅ | |
-| Slider | ✅ | |
+| ComboBox | 🟡 | Slint 原生支持字符串选项，WinUI 占位文字、选项模板、可编辑提交和弹层暂存选择待对齐 |
+| Slider | 🚧 | `components/basic-input/slider.slint`，支持方向、刻度、吸附、数值提示和键盘 |
 | RadioButton | 🚧 | `components/basic-input/radio_button.slint`，支持独立单选、文字和自定义内容 |
 | RadioButtons | 🚧 | `components/basic-input/radio_buttons.slint`，支持互斥、按列排列、自适应列数和键盘导航 |
 | ToggleSwitch | 🚧 | `components/basic-input/toggle_switch.slint`，支持拖动切换、标题、状态文字和自定义内容 |
@@ -93,6 +93,16 @@ Windows 浅色已对照 WinUI Gallery 的按钮尺寸、填充、文字和默认
 运行 `cargo run -p lumatune --example check_box` 可试用双态、三态、禁用、RTL 和全选汇总。单项通过 `check-state` 提供状态。程序设值会通知对应状态回调。指针、空格和 UI Automation 激活在状态回调之后发出 `clicked`。
 
 已对照 WinUI Gallery 的 20px 指示框、标签及键盘行为，并在 Windows 浅色实测标签点击、悬停与按下、拖出取消、空格释放、Enter 保持状态、双态数字键盘加减、三态循环、禁用、焦点框和 UI Automation Toggle。加减键按 Slint 字符事件识别，主键盘上的同字符也会触发。勾形与横线取自官方动画几何，Slint 通过水平揭示近似勾形动画，并以无障碍描述表达不确定状态。原生不确定枚举、非默认 `ClickMode`、完整图标动画、触控与读屏播报待补齐。官方模板、动画及 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### Slider
+
+运行 `cargo run -p lumatune --example slider` 可试用横向和纵向滑块、RTL、反向、刻度吸附、小数步进及禁用。拖动时拇指跟随连续位置，公开值按步长或刻度吸附。程序设值只钳制范围，键盘方向键使用 `small-change`，吸附到刻度时改用 `tick-frequency`。LumaTune 现有业务滑块继续使用 Slint 原生连续调节。
+
+Windows 浅色已对照 WinUI Gallery 的 4px 轨道、22px 拇指外圈、双侧刻度、焦点框和按下数值提示。已实测轨道点击、拖动和释放、四个方向键、Home / End、非整倍数端点、RTL、反向、纵向刻度、程序设值、小数、禁用及 UI Automation RangeValue。提示在父容器内绘制，边缘避让、独立的 UI Automation 大步长、手柄和读屏播报仍待补。官方模板、步进算法、刻度算法及 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### ComboBox
+
+WinUI Gallery 的颜色示例初始无选中项。Windows 浅色实测 F4 或 Space 展开，展开后方向键只移动当前焦点，Esc 恢复原状态，Enter 提交。Slint 原生 ComboBox 的默认索引为 0，弹层方向键会立即选择。标题、占位文字、可编辑输入与提交、选项模板和弹层选择行为待对齐。官方模板、选择行为和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### RadioButton 和 RadioButtons
 
