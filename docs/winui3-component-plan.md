@@ -143,11 +143,19 @@ Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、
 | GridView | 🟡 | `ListView`/`for`+wrap 可拼 |
 | ItemsRepeater | 🟡 | `for`/`ListView` 覆盖多数 |
 | TreeView | 🚧 | `components/collections/tree_view.slint`，支持层级、三态多选、懒加载、拖放重排和视口虚拟化 |
-| FlipView | 🔨 | 轮播 |
+| FlipView | 🚧 | `components/collections/flip_view.slint`，支持横纵分页、选择、鼠标、键盘和触控翻页 |
 
 运行 `cargo run -p lumatune --example tree_view` 可试用树形行、懒加载、单选和三态多选。模型按稳定 ID 与父 ID 组织，条目顺序决定同级顺序。节点展开回调可加载子项。复选框或空格切换多选，条目点击或 Enter 调用该条目。拖放支持同级插入和改父节点，Alt+Shift+上下键可重排同级项。循环改父、拖到自身和重复移动已由算法处理。
 
 Windows 浅色已实测展开折叠、键盘焦点、多选与半选、懒加载、拖放和键盘重排、RTL，以及 10,000 项列表跳到末行。UI Automation 已读取展开和选中状态。Slint 的无障碍树使用 Tree 容器与可选择列表项，独立提供展开和折叠按钮。WinUI 的自定义项模板、连续拖拽自动滚动、悬停展开、系统跨控件拖放、读屏播报与手柄仍待验收。对照模板和 Gallery 示例已存入 `.refs/WinUI/`。[WinUI TreeViewItem 行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/TreeView/TreeViewItem.cpp)
+
+#### FlipView
+
+运行 `cargo run -p lumatune --example flip_view` 可试用图片页和自定义内容。示例优先使用本地缓存的 Gallery 图片，缺少图片时显示页名。接入组件时先注册 `FlipViewBehavior`。选项使用非空且唯一的 ID，重排时按 ID 保持选中项，删除时选择原索引处可用的页。列表为空时索引为 -1。
+
+Windows 浅色已用同一组 Gallery 图片对照 400×270px 页面、16×38px 水平按钮、38×16px 垂直按钮、实心箭头和焦点框。已实测首尾页按钮隐藏、3 秒隐退、停留在按钮上保持显示、方向键、PageUp / PageDown、Home / End、滚轮合并、RTL、键鼠禁用、重排和清空。Windows 触控注入验证了 Slint 横纵滑动。UI Automation 已验证 List 选择与按钮 Invoke，只有当前页进入无障碍树。
+
+按钮内缩把官方的 1px 按项目规则取为 2px。自定义内容使用当前页插槽。Acrylic 材质、原生触控惯性、逐项模板、手柄和读屏仍待对齐。官方模板、行为、Gallery 示例和校验过的图片均已保存在 `.refs/WinUI/`。
 
 ### Date & time
 | 控件 | 现状 | 备注 |
