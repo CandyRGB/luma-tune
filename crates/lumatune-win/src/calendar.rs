@@ -237,17 +237,38 @@ impl CalendarSystem {
         let formatter = if format.is_empty() {
             DateTimeFormatter::ShortDate()?
         } else {
-            DateTimeFormatter::CreateDateTimeFormatterContext(
-                &HSTRING::from(format),
-                &self.native.Languages()?,
-                &HSTRING::from("ZZ"),
-                &self.native.GetCalendarSystem()?,
-                &self.native.GetClock()?,
-            )?
+            self.date_formatter(format)?
         };
         formatter
             .FormatUsingTimeZone(native_date(self.clamp(date)), &self.utc)
             .map(clean)
+    }
+
+    fn date_formatter(&self, format: &str) -> Result<DateTimeFormatter> {
+        DateTimeFormatter::CreateDateTimeFormatterContext(
+            &HSTRING::from(format),
+            &self.native.Languages()?,
+            &HSTRING::from("ZZ"),
+            &self.native.GetCalendarSystem()?,
+            &self.native.GetClock()?,
+        )
+    }
+
+    pub fn date_pattern(&self) -> Result<String> {
+        self.date_formatter("day month.full year")?
+            .Patterns()?
+            .GetAt(0)
+            .map(|value| value.to_string_lossy())
+    }
+
+    pub fn date_labels(&self, format: &str) -> Result<impl Fn(DateKey) -> String + '_> {
+        let formatter = self.date_formatter(format)?;
+        Ok(move |date| {
+            formatter
+                .FormatUsingTimeZone(native_date(self.clamp(date)), &self.utc)
+                .map(clean)
+                .unwrap_or_default()
+        })
     }
 }
 
