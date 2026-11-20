@@ -5,6 +5,7 @@ export enum ButtonClickMode { release, press, hover }
 export component ButtonInput inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> accepts-return: true;
+    in property <bool> accepts-space: true;
     in property <bool> tab-stop: true;
     in property <ButtonClickMode> click-mode: ButtonClickMode.release;
     out property <bool> has-focus: keyboard.has-focus;
@@ -84,7 +85,7 @@ export component ButtonInput inherits Rectangle {
             if root.click-mode == ButtonClickMode.hover {
                 return reject;
             }
-            if event.text == Key.Space || (root.accepts-return && event.text == Key.Return) {
+            if (root.accepts-space && event.text == Key.Space) || (root.accepts-return && event.text == Key.Return) {
                 root.pointer-focus = false;
                 if root.held-key == "" && !pointer.pressed {
                     root.held-key = event.text;

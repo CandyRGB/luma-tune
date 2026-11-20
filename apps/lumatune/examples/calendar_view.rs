@@ -5,8 +5,8 @@ use lumatune_win::{accent::light_accent_text_colors, calendar::today};
 use slint::{Color, ComponentHandle};
 
 slint::slint! {
-    import { CalendarViewBehavior, CalendarViewCell, CalendarViewDayName, CalendarViewDisplayMode, CalendarViewExample, CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange, CalendarViewSelectionMode } from "../../examples/winui3/calendar_view.slint";
-    export { CalendarViewBehavior, CalendarViewCell, CalendarViewDayName, CalendarViewDisplayMode, CalendarViewExample, CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange, CalendarViewSelectionMode }
+    import { CalendarDateText, CalendarViewBehavior, CalendarViewCell, CalendarViewDayName, CalendarViewDisplayMode, CalendarViewExample, CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange, CalendarViewSelectionMode } from "../../examples/winui3/calendar_view.slint";
+    export { CalendarDateText, CalendarViewBehavior, CalendarViewCell, CalendarViewDayName, CalendarViewDisplayMode, CalendarViewExample, CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange, CalendarViewSelectionMode }
 }
 
 fn main() -> Result<(), slint::PlatformError> {

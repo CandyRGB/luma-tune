@@ -43,11 +43,13 @@ export struct CalendarViewPage {
 }
 
 export struct CalendarViewSelectionChange { added: [int], removed: [int] }
+export struct CalendarDateText { date: int, text: string }
 
 export global CalendarViewBehavior {
     in property <bool> ready;
     pure callback page(CalendarViewOptions) -> CalendarViewPage;
     pure callback date-step(CalendarViewOptions, int, bool) -> int;
+    pure callback date-text(CalendarViewOptions, string) -> CalendarDateText;
     pure callback selection([int], [int], CalendarViewSelectionMode, int, int, int) -> [int];
     pure callback selection-change([int], [int]) -> CalendarViewSelectionChange;
 }
@@ -287,6 +289,10 @@ export component CalendarView inherits Rectangle {
 
     public function set-display-date(date: int) { root.display-date = date; }
     public function focus-calendar() { keyboard.focus(); }
+    public function focus-header() {
+        if root.display-mode == CalendarViewDisplayMode.decade { keyboard.focus(); }
+        else { header.focus(); }
+    }
 
     function switch-mode(up: bool) {
         if root.display-mode == CalendarViewDisplayMode.year {

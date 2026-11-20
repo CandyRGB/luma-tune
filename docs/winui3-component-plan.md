@@ -176,7 +176,8 @@ Windows 浅色已用同一组 Gallery 图片对照 400×270px 页面、16×38px 
 ### Date & time
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| CalendarDatePicker / DatePicker / TimePicker | 🟡 | 底层 `DatePickerPopup/TimePickerPopup` 有弹层，缺完整 picker |
+| CalendarDatePicker | 🚧 | `components/date-time/calendar_date_picker.slint`，复用日历面板，支持可空日期、日期格式、键鼠操作和适应视口的弹层 |
+| DatePicker / TimePicker | 🟡 | 底层 `DatePickerPopup/TimePickerPopup` 有弹层，缺完整 picker |
 | CalendarView | 🚧 | `components/date-time/calendar_view.slint`，支持月、年、年代视图，日期范围、禁选、单选与多选 |
 
 #### CalendarView
@@ -186,6 +187,14 @@ Windows 浅色已用同一组 Gallery 图片对照 400×270px 页面、16×38px 
 Windows 浅色已对照 Gallery 的 302×306px 面板、日期图形、标题和周标题、年视图月份缩写与年代网格。Gallery 对照示例展示五行，组件默认六周。已实测前后翻页、下钻、方向键、PageUp/PageDown、Home/End、Ctrl+上下键、选中与取消、禁选和范围截断。中英文切换、Hebrew、Hijri 和 Japanese 标题已在示例中验证。UI Automation 已读取列表的选中日期。Gregorian 闰日和后三种历法的日期计算有回归测试。对照模板及行为源码保存在 `.refs/WinUI/`。
 
 当前滚轮按周期分页。连续触控滚动、日期密度标记、逐项容器生命周期、完整的历法换代边界及 WinUI 网格无障碍模式仍待补齐。
+
+#### CalendarDatePicker
+
+运行 `cargo run -p lumatune --example calendar_date_picker` 可试用日期回填、清空、范围约束、短日期与自定义格式、RTL 和弹层翻转。宿主注册 `CalendarViewBehavior`。`date` 为日序号，0 表示空。`date-format` 为空时用系统短日期，显式格式按控件的语言和历法交给 Windows 格式化。`date-changed` 返回旧值与新值。`set-display-date` 可单独移动日历视图，传入 `popup-viewport` 可让弹层在宿主可用区域内居中并翻转。
+
+Windows 浅色已对照 Gallery 的标题、32px 字段、日期文字和 302×354px 日历面板。已实测打开、Escape、点击外部关闭、键盘选日、选择回填和再次点选同一天。再次点选会清空日期并保留弹层。下方和上方打开时均与字段留 4px 间距。Windows UI Automation 已验证 Button、Invoke 和只读 Value。模板、事件逻辑和原生自动化实现已保存在 `.refs/WinUI/`。
+
+弹层在宿主窗口内定位。WinUI 原生弹层跨窗口边界的行为、触控轻触关闭遮罩、自定义标题与日历样式仍待补齐。
 
 ### Dialogs & flyouts
 | 控件 | 现状 | 备注 |

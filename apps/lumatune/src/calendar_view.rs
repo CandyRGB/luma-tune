@@ -4,8 +4,9 @@ use lumatune_win::calendar::{self, CalendarSystem, DateKey, Unit};
 use slint::{Model, ModelRc, SharedString, VecModel};
 
 use crate::{
-    CalendarViewBehavior, CalendarViewCell, CalendarViewDayName, CalendarViewDisplayMode,
-    CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange, CalendarViewSelectionMode,
+    CalendarDateText, CalendarViewBehavior, CalendarViewCell, CalendarViewDayName,
+    CalendarViewDisplayMode, CalendarViewOptions, CalendarViewPage, CalendarViewSelectionChange,
+    CalendarViewSelectionMode,
 };
 
 #[derive(Default)]
@@ -41,6 +42,28 @@ pub fn install(behavior: CalendarViewBehavior<'_>) {
             .get(&options)
             .map(|system| page(system, &options))
             .unwrap_or_default()
+    });
+    let for_text = system.clone();
+    behavior.on_date_text(move |options, format| {
+        if options.date == 0 {
+            return CalendarDateText::default();
+        }
+        let mut system = for_text.borrow_mut();
+        let Some(calendar) = system.get(&options) else {
+            return CalendarDateText {
+                date: options.date,
+                text: SharedString::default(),
+            };
+        };
+        let date = limits(calendar, &options).date;
+        let text = calendar
+            .picker_date(date, &format)
+            .or_else(|_| calendar.picker_date(date, ""))
+            .unwrap_or_default();
+        CalendarDateText {
+            date,
+            text: text.into(),
+        }
     });
     behavior.on_date_step(move |options, direction, across_scope| {
         let mut system = system.borrow_mut();

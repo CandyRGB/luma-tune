@@ -232,6 +232,23 @@ impl CalendarSystem {
             .FormatUsingTimeZone(native_date(self.clamp(date)), &self.utc)
             .map(clean)
     }
+
+    pub fn picker_date(&self, date: DateKey, format: &str) -> Result<String> {
+        let formatter = if format.is_empty() {
+            DateTimeFormatter::ShortDate()?
+        } else {
+            DateTimeFormatter::CreateDateTimeFormatterContext(
+                &HSTRING::from(format),
+                &self.native.Languages()?,
+                &HSTRING::from("ZZ"),
+                &self.native.GetCalendarSystem()?,
+                &self.native.GetClock()?,
+            )?
+        };
+        formatter
+            .FormatUsingTimeZone(native_date(self.clamp(date)), &self.utc)
+            .map(clean)
+    }
 }
 
 fn clean(label: HSTRING) -> String {
