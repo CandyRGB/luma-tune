@@ -177,7 +177,15 @@ Windows 浅色已用同一组 Gallery 图片对照 400×270px 页面、16×38px 
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | CalendarDatePicker / DatePicker / TimePicker | 🟡 | 底层 `DatePickerPopup/TimePickerPopup` 有弹层，缺完整 picker |
-| CalendarView | 🔨 | |
+| CalendarView | 🚧 | `components/date-time/calendar_view.slint`，支持月、年、年代视图，日期范围、禁选、单选与多选 |
+
+#### CalendarView
+
+运行 `cargo run -p lumatune --example calendar_view` 可试用三层视图、日期范围、禁选日期、RTL、语言与历法。宿主注册 `CalendarViewBehavior`，并用 `lumatune_win::calendar::date_key` 构造日期。选择和边界使用从公元 1 年 1 月 1 日起的日序号，该日为 1。历法和语言改变时，日期值仍指向同一天。`selected-dates-changed` 回传增减项，`date-invoked` 可供日期选择器提交。
+
+Windows 浅色已对照 Gallery 的 302×306px 面板、日期图形、标题和周标题、年视图月份缩写与年代网格。Gallery 对照示例展示五行，组件默认六周。已实测前后翻页、下钻、方向键、PageUp/PageDown、Home/End、Ctrl+上下键、选中与取消、禁选和范围截断。中英文切换、Hebrew、Hijri 和 Japanese 标题已在示例中验证。UI Automation 已读取列表的选中日期。Gregorian 闰日和后三种历法的日期计算有回归测试。对照模板及行为源码保存在 `.refs/WinUI/`。
+
+当前滚轮按周期分页。连续触控滚动、日期密度标记、逐项容器生命周期、完整的历法换代边界及 WinUI 网格无障碍模式仍待补齐。
 
 ### Dialogs & flyouts
 | 控件 | 现状 | 备注 |

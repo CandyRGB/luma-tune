@@ -2576,10 +2576,12 @@ dependencies = [
 name = "lumatune-win"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "lumatune-core",
  "serde",
  "serde_json",
  "windows",
+ "windows-collections",
 ]
 
 [[package]]

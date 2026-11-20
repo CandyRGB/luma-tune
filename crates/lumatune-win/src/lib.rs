@@ -1,4 +1,5 @@
 pub mod accent;
+pub mod calendar;
 pub mod contrast;
 pub mod display;
 pub mod foreground;
