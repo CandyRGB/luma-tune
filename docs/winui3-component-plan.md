@@ -70,7 +70,7 @@ components/
 | ToggleSwitch | 🟡 | `Switch` 有，样式不完全同 |
 | ToggleButton | 🔨 | 待校对 Slint `Button.checkable` 与 WinUI 的视觉和交互态。 |
 | DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
-| HyperlinkButton | 🔨 | 无 |
+| HyperlinkButton | 🚧 | `components/basic-input/hyperlink_button.slint`，支持文本、自定义内容、点击回调和 URI 导航 |
 | RatingControl | 🚧 | `components/basic-input/rating_control.slint`，支持分数、未评占位、清除、只读及自定义图标 |
 | ColorPicker | ⚠️ | 复杂，暂不做 |
 
@@ -79,6 +79,12 @@ components/
 运行 `cargo run -p lumatune --example rating_control` 可试用占位评分、清除、整数键盘步进和自定义图像。非负的实际评分限制在 1 到最高分之间，负值表示未评分。占位评分允许 0 到 1 之间的小数。程序设值保持小数。鼠标悬停只预览，点击提交，允许清除时再次点击同一分数会清除。方向键和 Home / End 可调整评分，RTL 镜像左右方向与分数裁切。
 
 Windows 浅色已实测 16px 星形、8px 间距、占位色、半星裁切、鼠标悬停放大、键盘、修改最高分后重算、RTL、禁用和只读。UI Automation 已验证 Slider 类型、范围设值及只读状态。WinUI 还提供独立的字符串 ValuePattern 和按语言格式化的评分描述，Slint 用范围值和描述表达。手柄交互、原生缩放动画和读屏播报仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControl.idl) · [WinUI 自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControlAutomationPeer.cpp)
+
+#### HyperlinkButton
+
+运行 `cargo run -p lumatune --example hyperlink_button` 可试用 URI 导航、纯点击回调、禁用和下划线。附加 `-- <URI>` 可替换示例目标。激活先执行 `clicked`，再读取当前 `navigate-uri` 并交给系统打开。自定义内容可绑定 `foreground` 跟随交互态，并用 `accessible-name` 提供名称。
+
+已用 WinUI Gallery 对照 Windows 浅色正常、悬停、按下、禁用和焦点状态。示例从 Windows 读取三档强调文字色。已实测鼠标、拖出取消、Tab、Enter 与 Space 松键激活、禁用、系统打开回环 HTTP 链接，以及 UI Automation 的调用能力。Slint 1.18.1 以可调用的 Button 角色提供无障碍入口。原生 Hyperlink 角色、非默认 `ClickMode` 和读屏播报仍待补齐。模板、按钮输入、自动化实现及 Gallery 示例已保存在 `.refs/WinUI/`。
 
 ### Collections
 | 控件 | 现状 | 备注 |
@@ -265,7 +271,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
 9. 🚧 Flyout / MenuFlyout / TeachingTip（已实测引导气泡的定位和关闭流程）
-10. 🚧 TreeView（已验收浅色及常用输入） / 🚧 RatingControl（浅色及常用操作已验收） / 🚧 ProgressRing（已验收浅色、动画及范围） / ⬜ HyperlinkButton
+10. 🚧 TreeView（已验收浅色及常用输入） / 🚧 RatingControl（浅色及常用操作已验收） / 🚧 ProgressRing（已验收浅色、动画及范围） / 🚧 HyperlinkButton（浅色、常用激活方式及 URI 导航已验收）
 
 ## 每个组件的验收标准
 

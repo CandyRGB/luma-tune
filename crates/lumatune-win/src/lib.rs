@@ -1,3 +1,4 @@
+pub mod accent;
 pub mod contrast;
 pub mod display;
 pub mod foreground;
