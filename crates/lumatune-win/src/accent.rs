@@ -7,6 +7,11 @@ pub struct LightAccentTextColors {
     pub tertiary: [u8; 3],
 }
 
+pub fn system_accent_color() -> windows::core::Result<[u8; 3]> {
+    let color = UISettings::new()?.GetColorValue(UIColorType::Accent)?;
+    Ok([color.R, color.G, color.B])
+}
+
 pub fn light_accent_text_colors() -> windows::core::Result<LightAccentTextColors> {
     let settings = UISettings::new()?;
     let color = |kind| {

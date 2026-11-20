@@ -141,7 +141,7 @@ Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、
 | --- | --- | --- |
 | ListView | ✅ | |
 | GridView | 🚧 | `components/collections/grid_view.slint`，支持自适应行列、四种选择模式、拖动重排和视口虚拟化 |
-| ItemsRepeater | 🟡 | `for`/`ListView` 覆盖多数 |
+| ItemsRepeater | 🚧 | `components/collections/items_repeater.slint`，提供 StackLayout、UniformGridLayout、FlowLayout 和自定义位置，支持宿主模板和视口虚拟化 |
 | TreeView | 🚧 | `components/collections/tree_view.slint`，支持层级、三态多选、懒加载、拖放重排和视口虚拟化 |
 | FlipView | 🚧 | `components/collections/flip_view.slint`，支持横纵分页、选择、鼠标、键盘和触控翻页 |
 
@@ -156,6 +156,14 @@ Windows 浅色已实测展开折叠、键盘焦点、多选与半选、懒加载
 Windows 浅色用本地缓存的 Gallery 原图对照了 190×130px 照片、4px 间距、悬停边线、按下状态和选中的蓝白双层边框。已实测窄宽换列、鼠标和键盘选择、Ctrl 保留选区、Shift 范围、禁用项、无选择模式下的条目调用、拖动重排和 RTL。跳到 10,000 项模型末尾时创建了 10 个格子，UI Automation 能读取末项及其选中状态。
 
 FemtoVG 正常裁切照片圆角，Slint 1.18.1 的软件渲染会保留图片直角。滚动视口边缘会裁切外侧焦点框。通用逐项模板、可变尺寸和分组、跨控件拖放、拖拽自动滚动、原生多选的 UI Automation 声明、读屏和手柄仍待对齐。模板、行为源码、Gallery 页面和照片均已保存在 `.refs/WinUI/`。
+
+#### ItemsRepeater
+
+运行 `cargo run -p lumatune --example items_repeater` 可试用色条、圆形、网格、可变尺寸流式布局和自定义排列。宿主注册 `ItemsRepeaterBehavior`，将自己的数据长度、视口尺寸和内容坐标中的滚动偏移传给组件，在 `for rect in repeater.realized` 中按原始索引绑定 Slint 条目。模板自行提供交互和无障碍语义。提供与数据行对应的非空唯一键，可在滚动或增删导致条目换索引时保留仍在视口缓存内且相对顺序未变的条目状态。
+
+Windows 浅色对照了 Gallery 三条色条的强调色、底色、24px 高度和 8px 间距。官方 425px 色条槽宽按项目规则取 426px。实测增删至空、横纵方向、RTL、窄宽换行、对齐、可变尺寸、按索引跳转和自定义排列。10,000 项纵向列表在首尾各创建 8 个条目。已验证滚动及移除首项后仍在缓存内的开关保留选中态。
+
+条目尺寸由宿主提供，自定义布局通过坐标模型接入。内置布局预计算整批几何，然后按视口及缓存创建元素。WinUI 的逐项测量、元素生命周期事件、元素池、离屏焦点与锚点保持仍待补齐。官方行为源码与 Gallery 示例已存入 `.refs/WinUI/`。
 
 #### FlipView
 
