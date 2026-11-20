@@ -1,4 +1,5 @@
 import { Palette } from "std-widgets.slint";
+import { ButtonInput, ButtonFocusVisual } from "button_input.slint";
 
 export struct HyperlinkButtonAccentColors {
     primary: color,
@@ -16,19 +17,16 @@ export component HyperlinkButton inherits Rectangle {
     in property <string> navigate-uri;
     in property <bool> enabled: true;
     in property <bool> underline-visible;
-    out property <bool> has-focus: keyboard.has-focus;
+    out property <bool> has-focus: input.has-focus;
     out property <color> foreground: !root.enabled ? (root.dark ? #ffffff5e : #0000005c)
-        : root.dark ? root.accent.with-alpha(root.pressed ? 0.7 : 1)
-        : root.pressed ? root.light-colors.tertiary
-        : pointer.has-hover ? root.light-colors.secondary : root.light-colors.primary;
+        : root.dark ? root.accent.with-alpha(input.pressed ? 0.7 : 1)
+        : input.pressed ? root.light-colors.tertiary
+        : input.has-hover ? root.light-colors.secondary : root.light-colors.primary;
     callback clicked();
     callback navigation-failed(string);
 
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <color> accent: Palette.accent-background;
-    private property <bool> pointer-focus;
-    private property <string> held-key;
-    private property <bool> pressed: (pointer.pressed && pointer.has-hover) || root.held-key != "";
     private property <HyperlinkButtonAccentColors> light-colors: HyperlinkButtonTheme.light-accent-text.primary.alpha > 0
         ? HyperlinkButtonTheme.light-accent-text : {
             primary: root.light-accent(#003e92),
@@ -44,11 +42,11 @@ export component HyperlinkButton inherits Rectangle {
     vertical-stretch: 0;
     border-radius: 4px;
     background: !root.enabled ? transparent
-        : root.pressed ? (root.dark ? #ffffff0a : #00000006)
-        : pointer.has-hover ? (root.dark ? #ffffff0f : #00000009) : transparent;
+        : input.pressed ? (root.dark ? #ffffff0a : #00000006)
+        : input.has-hover ? (root.dark ? #ffffff0f : #00000009) : transparent;
     animate background { duration: 83ms; easing: linear; }
 
-    forward-focus: keyboard;
+    forward-focus: input;
     accessible-role: button;
     accessible-label: root.accessible-name;
     accessible-enabled: root.enabled;
@@ -69,18 +67,6 @@ export component HyperlinkButton inherits Rectangle {
             if uri != "" && !Platform.open-url(uri) {
                 root.navigation-failed(uri);
             }
-        }
-    }
-
-    changed has-focus => {
-        if !root.has-focus {
-            root.pointer-focus = false;
-            root.held-key = "";
-        }
-    }
-    changed enabled => {
-        if !root.enabled {
-            root.held-key = "";
         }
     }
 
@@ -111,64 +97,14 @@ export component HyperlinkButton inherits Rectangle {
         @children
     }
 
-    pointer := TouchArea {
+    input := ButtonInput {
         enabled: root.enabled;
-        pointer-event(event) => {
-            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                root.held-key = "";
-                root.pointer-focus = true;
-                keyboard.focus();
-            }
-        }
         clicked => { root.activate(); }
     }
 
-    keyboard := FocusScope {
-        x: 0px;
-        width: 0px;
-        enabled: root.enabled;
-
-        key-pressed(event) => {
-            if event.text == Key.Return || event.text == Key.Space {
-                root.pointer-focus = false;
-                if root.held-key == "" && !pointer.pressed {
-                    root.held-key = event.text;
-                }
-                return accept;
-            }
-            if event.text == Key.Escape && root.held-key != "" {
-                root.held-key = "";
-                return accept;
-            }
-            return reject;
-        }
-        key-released(event) => {
-            if root.held-key != "" && event.text == root.held-key {
-                root.held-key = "";
-                root.activate();
-                return accept;
-            }
-            return reject;
-        }
-    }
-
-    if root.enabled && root.has-focus && !root.pointer-focus: Rectangle {
-        x: -4px;
-        y: -4px;
-        width: root.width + 8px;
-        height: root.height + 8px;
-        border-width: 2px;
-        border-radius: 6px;
-        border-color: root.dark ? white : #000000e4;
-
-        Rectangle {
-            x: 2px;
-            y: 2px;
-            width: parent.width - 4px;
-            height: parent.height - 4px;
-            border-width: 1px;
-            border-radius: 4px;
-            border-color: root.dark ? #000000b3 : white;
-        }
+    if root.enabled && input.keyboard-focused: ButtonFocusVisual {
+        control-width: root.width;
+        control-height: root.height;
+        control-radius: root.border-radius;
     }
 }

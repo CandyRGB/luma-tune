@@ -68,7 +68,7 @@ components/
 | Slider | ✅ | |
 | RadioButton | 🟡 | `RadioGroup` 有；便捷分组 `RadioButtons` 待封装 |
 | ToggleSwitch | 🟡 | `Switch` 有，样式不完全同 |
-| ToggleButton | 🔨 | 待校对 Slint `Button.checkable` 与 WinUI 的视觉和交互态。 |
+| ToggleButton | 🚧 | `components/basic-input/toggle_button.slint`，支持双态、三态、状态回调和自定义内容 |
 | DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
 | HyperlinkButton | 🚧 | `components/basic-input/hyperlink_button.slint`，支持文本、自定义内容、点击回调和 URI 导航 |
 | RatingControl | 🚧 | `components/basic-input/rating_control.slint`，支持分数、未评占位、清除、只读及自定义图标 |
@@ -79,6 +79,12 @@ components/
 运行 `cargo run -p lumatune --example rating_control` 可试用占位评分、清除、整数键盘步进和自定义图像。非负的实际评分限制在 1 到最高分之间，负值表示未评分。占位评分允许 0 到 1 之间的小数。程序设值保持小数。鼠标悬停只预览，点击提交，允许清除时再次点击同一分数会清除。方向键和 Home / End 可调整评分，RTL 镜像左右方向与分数裁切。
 
 Windows 浅色已实测 16px 星形、8px 间距、占位色、半星裁切、鼠标悬停放大、键盘、修改最高分后重算、RTL、禁用和只读。UI Automation 已验证 Slider 类型、范围设值及只读状态。WinUI 还提供独立的字符串 ValuePattern 和按语言格式化的评分描述，Slint 用范围值和描述表达。手柄交互、原生缩放动画和读屏播报仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControl.idl) · [WinUI 自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControlAutomationPeer.cpp)
+
+#### ToggleButton
+
+运行 `cargo run -p lumatune --example toggle_button` 可试用双态、三态、禁用与自定义内容。`check-state` 接受未选中、选中与不确定状态。程序设值会触发对应的状态回调；鼠标、键盘和 UI Automation 激活还会在状态回调之后触发 `clicked`。程序可在双态模式下设置不确定状态，下一次激活回到未选中。
+
+已与 WinUI Gallery 对照浅色填充、文字、指针和键盘焦点，并实测拖出取消、松键激活、双态和三态转换、禁用及 UI Automation Toggle。Slint 的软件渲染会将渐变边框按首色绘制，无障碍树用描述表达不确定状态。原生 `Indeterminate` 枚举、非默认 `ClickMode` 和读屏播报待补齐。模板、行为实现和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### HyperlinkButton
 

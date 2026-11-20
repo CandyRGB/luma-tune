@@ -1,0 +1,93 @@
+import { Palette } from "std-widgets.slint";
+
+export component ButtonInput inherits Rectangle {
+    in property <bool> enabled: true;
+    out property <bool> has-focus: keyboard.has-focus;
+    out property <bool> keyboard-focused: root.has-focus && !root.pointer-focus;
+    out property <bool> has-hover: pointer.has-hover;
+    out property <bool> pressed: (pointer.pressed && pointer.has-hover) || root.held-key != "";
+    callback clicked();
+
+    private property <bool> pointer-focus;
+    private property <string> held-key;
+
+    forward-focus: keyboard;
+
+    changed has-focus => {
+        if !root.has-focus {
+            root.pointer-focus = false;
+            root.held-key = "";
+        }
+    }
+    changed enabled => {
+        if !root.enabled {
+            root.held-key = "";
+        }
+    }
+
+    pointer := TouchArea {
+        enabled: root.enabled;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.held-key = "";
+                root.pointer-focus = true;
+                keyboard.focus();
+            }
+        }
+        clicked => { root.clicked(); }
+    }
+
+    keyboard := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == Key.Space {
+                root.pointer-focus = false;
+                if root.held-key == "" && !pointer.pressed {
+                    root.held-key = event.text;
+                }
+                return accept;
+            }
+            if event.text == Key.Escape && root.held-key != "" {
+                root.held-key = "";
+                return accept;
+            }
+            return reject;
+        }
+        key-released(event) => {
+            if root.held-key != "" && event.text == root.held-key {
+                root.held-key = "";
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+export component ButtonFocusVisual inherits Rectangle {
+    in property <length> control-width;
+    in property <length> control-height;
+    in property <length> control-radius: 4px;
+    private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+
+    x: -4px;
+    y: -4px;
+    width: root.control-width + 8px;
+    height: root.control-height + 8px;
+    border-width: 2px;
+    border-radius: root.control-radius + 2px;
+    border-color: root.dark ? white : #000000e4;
+
+    Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        border-width: 1px;
+        border-radius: root.control-radius;
+        border-color: root.dark ? #000000b3 : white;
+    }
+}
