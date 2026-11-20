@@ -1,30 +1,39 @@
 import { Palette } from "std-widgets.slint";
 
+export enum ButtonStyle { standard, accent, subtle }
+
 export component ButtonSurface inherits Rectangle {
     in property <string> text;
     in property <bool> enabled: true;
     in property <bool> hovered;
     in property <bool> pressed;
     in property <bool> selected;
+    in property <ButtonStyle> appearance: ButtonStyle.standard;
     in property <color> accent: Palette.accent-background;
-    out property <color> foreground: root.selected
+    out property <color> foreground: root.accented
         ? (root.dark ? (root.pressed || !root.enabled ? #00000080 : black)
             : (root.pressed ? #ffffffb3 : white))
         : (!root.enabled ? (root.dark ? #ffffff5e : #0000005c)
             : root.pressed ? (root.dark ? #ffffffc9 : #0000009e) : (root.dark ? white : #000000e4));
 
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
-    private property <bool> outer-fill: root.enabled && root.selected;
-    private property <brush> fill: root.selected
+    private property <bool> accent-style: root.appearance == ButtonStyle.accent;
+    private property <bool> subtle: root.appearance == ButtonStyle.subtle;
+    private property <bool> accented: root.accent-style || root.selected;
+    private property <bool> outer-fill: root.accent-style || (root.enabled && root.selected);
+    private property <color> subtle-fill: !root.enabled ? transparent
+        : root.pressed ? (root.dark ? #ffffff0a : #00000006)
+        : root.hovered ? (root.dark ? #ffffff0f : #00000009) : transparent;
+    private property <brush> fill: root.accented
         ? (!root.enabled ? (root.dark ? #ffffff29 : #00000037)
             : root.accent.with-alpha(root.pressed ? 0.8 : root.hovered ? 0.9 : 1))
-        : (!root.enabled || root.pressed ? (root.dark ? #ffffff0a : #f9f9f94d)
+        : root.subtle ? root.subtle-fill : (!root.enabled || root.pressed ? (root.dark ? #ffffff0a : #f9f9f94d)
             : root.hovered ? (root.dark ? #ffffff14 : #f9f9f980) : Palette.control-background);
-    private property <brush> stroke: root.selected
+    private property <brush> stroke: root.accented
         ? (!root.enabled || root.pressed ? transparent : (root.dark
             ? @linear-gradient(180deg, #ffffff14 90.67%, #ffffff12 100%)
             : @linear-gradient(180deg, #ffffff14 90.67%, #00000066 100%)))
-        : (!root.enabled || root.pressed ? (root.dark ? #ffffff12 : #0000000f) : (root.dark
+        : root.subtle ? root.subtle-fill : (!root.enabled || root.pressed ? (root.dark ? #ffffff12 : #0000000f) : (root.dark
             ? @linear-gradient(180deg, #ffffff17 0%, #ffffff12 8.33%)
             : @linear-gradient(180deg, #0000000f 90.58%, #00000029 100%)));
 
