@@ -71,10 +71,14 @@ components/
 | ToggleButton | 🔨 | 待校对 Slint `Button.checkable` 与 WinUI 的视觉和交互态。 |
 | DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
 | HyperlinkButton | 🔨 | 无 |
-| RatingControl | 🔨 | |
+| RatingControl | 🚧 | `components/basic-input/rating_control.slint`，支持分数、未评占位、清除、只读及自定义图标 |
 | ColorPicker | ⚠️ | 复杂，暂不做 |
 
 运行 `cargo run -p lumatune --example flyout_buttons` 可试用三个按钮，附加 `-- --dark` 切换至深色。已验证鼠标点击、Enter 与 Space、分裂按钮的 F4 与 Alt+↓、弹层关闭后的焦点恢复、禁用态，以及 ToggleSplitButton 用主区域切换状态、用箭头开菜单。Windows UI Automation 已实测展开、调用和切换。AccessKit 通过独立子节点提供分裂按钮的主命令。读屏、原生收起动作、图标动效和触屏仍待验收。[DropDownButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/DropDownButton/DropDownButton.xaml) · [SplitButton 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.xaml) · [SplitButton 键盘实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/SplitButton/SplitButton.cpp)
+
+运行 `cargo run -p lumatune --example rating_control` 可试用占位评分、清除、整数键盘步进和自定义图像。非负的实际评分限制在 1 到最高分之间，负值表示未评分。占位评分允许 0 到 1 之间的小数。程序设值保持小数。鼠标悬停只预览，点击提交，允许清除时再次点击同一分数会清除。方向键和 Home / End 可调整评分，RTL 镜像左右方向与分数裁切。
+
+Windows 浅色已实测 16px 星形、8px 间距、占位色、半星裁切、鼠标悬停放大、键盘、修改最高分后重算、RTL、禁用和只读。UI Automation 已验证 Slider 类型、范围设值及只读状态。WinUI 还提供独立的字符串 ValuePattern 和按语言格式化的评分描述，Slint 用范围值和描述表达。手柄交互、原生缩放动画和读屏播报仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControl.idl) · [WinUI 自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControlAutomationPeer.cpp)
 
 ### Collections
 | 控件 | 现状 | 备注 |
@@ -255,7 +259,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
 9. 🚧 Flyout / MenuFlyout / TeachingTip（已实测引导气泡的定位和关闭流程）
-10. 🚧 TreeView（已验收浅色及常用输入） / ⬜ RatingControl / ⬜ ProgressRing / ⬜ HyperlinkButton
+10. 🚧 TreeView（已验收浅色及常用输入） / 🚧 RatingControl（浅色及常用操作已验收） / ⬜ ProgressRing / ⬜ HyperlinkButton
 
 ## 每个组件的验收标准
 
