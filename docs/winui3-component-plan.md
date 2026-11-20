@@ -82,8 +82,12 @@ components/
 | ListView | ✅ | |
 | GridView | 🟡 | `ListView`/`for`+wrap 可拼 |
 | ItemsRepeater | 🟡 | `for`/`ListView` 覆盖多数 |
-| TreeView | 🔨 | 无 |
+| TreeView | 🚧 | `components/collections/tree_view.slint`，支持层级、三态多选、懒加载、拖放重排和视口虚拟化 |
 | FlipView | 🔨 | 轮播 |
+
+运行 `cargo run -p lumatune --example tree_view` 可试用树形行、懒加载、单选和三态多选。模型按稳定 ID 与父 ID 组织，条目顺序决定同级顺序。节点展开回调可加载子项。复选框或空格切换多选，条目点击或 Enter 调用该条目。拖放支持同级插入和改父节点，Alt+Shift+上下键可重排同级项。循环改父、拖到自身和重复移动已由算法处理。
+
+Windows 浅色已实测展开折叠、键盘焦点、多选与半选、懒加载、拖放和键盘重排、RTL，以及 10,000 项列表跳到末行。UI Automation 已读取展开和选中状态。Slint 的无障碍树使用 Tree 容器与可选择列表项，独立提供展开和折叠按钮。WinUI 的自定义项模板、连续拖拽自动滚动、悬停展开、系统跨控件拖放、读屏播报与手柄仍待验收。对照模板和 Gallery 示例已存入 `.refs/WinUI/`。[WinUI TreeViewItem 行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/TreeView/TreeViewItem.cpp)
 
 ### Date & time
 | 控件 | 现状 | 备注 |
@@ -251,7 +255,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
 9. 🚧 Flyout / MenuFlyout / TeachingTip（已实测引导气泡的定位和关闭流程）
-10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
+10. 🚧 TreeView（已验收浅色及常用输入） / ⬜ RatingControl / ⬜ ProgressRing / ⬜ HyperlinkButton
 
 ## 每个组件的验收标准
 
