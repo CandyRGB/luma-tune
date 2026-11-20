@@ -1,8 +1,9 @@
 import { Palette } from "std-widgets.slint";
 import { ButtonInput, ButtonFocusVisual } from "button_input.slint";
 import { ButtonSurface } from "button_surface.slint";
+import { CheckStateBehavior, ToggleButtonState } from "check_state.slint";
 
-export enum ToggleButtonState { unchecked, checked, indeterminate }
+export { ToggleButtonState }
 
 export component ToggleButton inherits Rectangle {
     in property <string> text;
@@ -10,7 +11,7 @@ export component ToggleButton inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> is-three-state;
     in property <color> accent: Palette.accent-background;
-    in-out property <ToggleButtonState> check-state: ToggleButtonState.unchecked;
+    in-out property <ToggleButtonState> check-state <=> state-behavior.state;
     out property <bool> has-focus: input.has-focus;
     out property <color> foreground: surface.foreground;
 
@@ -19,7 +20,6 @@ export component ToggleButton inherits Rectangle {
     callback unchecked();
     callback indeterminate();
 
-    private property <ToggleButtonState> reported-state;
     private property <bool> selected: root.check-state == ToggleButtonState.checked;
 
     border-radius: 4px;
@@ -39,31 +39,18 @@ export component ToggleButton inherits Rectangle {
     accessible-description: root.check-state == ToggleButtonState.indeterminate ? @tr("Indeterminate") : "";
     accessible-action-default => { root.activate(); }
 
-    init => { root.reported-state = root.check-state; }
-    changed check-state => { root.notify-state(); }
-
-    function notify-state() {
-        let state = root.check-state;
-        if state != root.reported-state {
-            root.reported-state = state;
-            if state == ToggleButtonState.checked {
-                root.checked();
-            } else if state == ToggleButtonState.indeterminate {
-                root.indeterminate();
-            } else {
-                root.unchecked();
-            }
+    function activate() {
+        if root.enabled {
+            state-behavior.advance();
+            root.clicked();
         }
     }
 
-    function activate() {
-        if root.enabled {
-            root.check-state = root.check-state == ToggleButtonState.unchecked ? ToggleButtonState.checked
-                : root.check-state == ToggleButtonState.checked && root.is-three-state
-                    ? ToggleButtonState.indeterminate : ToggleButtonState.unchecked;
-            root.notify-state();
-            root.clicked();
-        }
+    state-behavior := CheckStateBehavior {
+        is-three-state: root.is-three-state;
+        checked => { root.checked(); }
+        unchecked => { root.unchecked(); }
+        indeterminate => { root.indeterminate(); }
     }
 
     surface := ButtonSurface {

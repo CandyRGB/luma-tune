@@ -4,6 +4,7 @@ export enum ButtonClickMode { release, press, hover }
 
 export component ButtonInput inherits Rectangle {
     in property <bool> enabled: true;
+    in property <bool> accepts-return: true;
     in property <ButtonClickMode> click-mode: ButtonClickMode.release;
     out property <bool> has-focus: keyboard.has-focus;
     out property <bool> keyboard-focused: root.has-focus && !root.pointer-focus;
@@ -15,6 +16,7 @@ export component ButtonInput inherits Rectangle {
     out property <bool> pressed: root.click-mode == ButtonClickMode.hover ? root.has-hover
         : (root.pointer-held && root.has-hover) || root.held-key != "";
     callback clicked();
+    callback unhandled-key-pressed(KeyEvent) -> EventResult;
 
     private property <bool> pointer-focus;
     private property <bool> pointer-armed;
@@ -80,7 +82,7 @@ export component ButtonInput inherits Rectangle {
             if root.click-mode == ButtonClickMode.hover {
                 return reject;
             }
-            if event.text == Key.Return || event.text == Key.Space {
+            if event.text == Key.Space || (root.accepts-return && event.text == Key.Return) {
                 root.pointer-focus = false;
                 if root.held-key == "" && !pointer.pressed {
                     root.held-key = event.text;
@@ -94,7 +96,13 @@ export component ButtonInput inherits Rectangle {
                 root.held-key = "";
                 return accept;
             }
-            return reject;
+            let result = root.unhandled-key-pressed(event);
+            if result == accept {
+                root.pointer-focus = false;
+                root.pointer-armed = false;
+                root.held-key = "";
+            }
+            return result;
         }
         key-released(event) => {
             if root.held-key != "" && event.text == root.held-key {
@@ -113,12 +121,14 @@ export component ButtonFocusVisual inherits Rectangle {
     in property <length> control-width;
     in property <length> control-height;
     in property <length> control-radius: 4px;
+    in property <length> horizontal-margin: 4px;
+    in property <length> vertical-margin: 4px;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
 
-    x: -4px;
-    y: -4px;
-    width: root.control-width + 8px;
-    height: root.control-height + 8px;
+    x: -root.horizontal-margin;
+    y: -root.vertical-margin;
+    width: root.control-width + 2 * root.horizontal-margin;
+    height: root.control-height + 2 * root.vertical-margin;
     border-width: 2px;
     border-radius: root.control-radius + 2px;
     border-color: root.dark ? white : #000000e4;

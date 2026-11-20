@@ -64,7 +64,7 @@ components/
 | --- | --- | --- |
 | Button | 🚧 | `components/basic-input/button.slint`，支持普通、强调、透明样式和关联 Flyout |
 | RepeatButton | 🚧 | `components/basic-input/repeat_button.slint`，支持长按连发、自定义间隔和三种点击模式 |
-| CheckBox | ✅ | |
+| CheckBox | 🚧 | `components/basic-input/check_box.slint`，支持双态、三态、标签布局和状态回调 |
 | ComboBox | ✅ | |
 | Slider | ✅ | |
 | RadioButton | 🟡 | `RadioGroup` 有；便捷分组 `RadioButtons` 待封装 |
@@ -86,6 +86,12 @@ Windows 浅色已实测 16px 星形、8px 间距、占位色、半星裁切、�
 运行 `cargo run -p lumatune --example button` 可试用普通、强调和透明样式、图标内容、禁用、三种点击模式和关联 Flyout。普通文本通过 `text` 提供，自定义内容通过子元素和 `accessible-name` 提供。启用关联 Flyout 时，按钮先发出 `clicked`，再将当前锚点交给 `open-flyout`。
 
 Windows 浅色已对照 WinUI Gallery 的按钮尺寸、填充、文字和默认释放激活。已实测指针、Enter、空格、Tab、拖出取消、按下及悬停模式、UI Automation Invoke，以及 Flyout 锚定和按 Esc 后的焦点恢复。软件渲染的渐变描边使用首色。WinUI 命令对象、加速键、触控和读屏播报仍待补齐。官方模板、行为及 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### CheckBox
+
+运行 `cargo run -p lumatune --example check_box` 可试用双态、三态、禁用、RTL 和全选汇总。单项通过 `check-state` 提供状态。程序设值会通知对应状态回调。指针、空格和 UI Automation 激活在状态回调之后发出 `clicked`。
+
+已对照 WinUI Gallery 的 20px 指示框、标签及键盘行为，并在 Windows 浅色实测标签点击、悬停与按下、拖出取消、空格释放、Enter 保持状态、双态数字键盘加减、三态循环、禁用、焦点框和 UI Automation Toggle。加减键按 Slint 字符事件识别，主键盘上的同字符也会触发。勾形与横线取自官方动画几何，Slint 通过水平揭示近似勾形动画，并以无障碍描述表达不确定状态。原生不确定枚举、非默认 `ClickMode`、完整图标动画、触控与读屏播报待补齐。官方模板、动画及 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### RepeatButton
 
