@@ -170,12 +170,18 @@ Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬
 | InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、自定义内容和可区分来源的可取消关闭 |
 | InfoBadge（角标） | 🚧 | `components/status-info/info_badge.slint`，支持点、计数、字形与图像，并可附在导航条目上 |
 | ProgressBar | 🟡 | `ProgressIndicator` |
-| ProgressRing（环形） | 🔨 | `Spinner` 非环形进度 |
+| ProgressRing（环形） | 🚧 | `components/status-info/progress_ring.slint`，支持确定与不确定模式、范围、配色和停用 |
 | ToolTip | 🟡 | 基础可用，样式弱 |
 
 运行 `cargo run -p lumatune --example info_badge` 可试用强调色和五种状态色、4×4 点状徽标、16px 高的计数、状态字形和自定义图像。非负 `value` 优先显示数字，负值使用图标或点状状态。自定义图像可保留原色。导航条目通过 `badge` 提供可见性、内容和状态描述，顶部布局会按徽标宽度重新计算。
 
 Windows 浅色已验证六组样式、零值与最大 32 位整数、计数优先级、显隐切换、展开和紧凑窗格、顶部导航、RTL，以及徽标与导航点击的共存。独立徽标可向辅助技术提供非焦点文本，嵌入导航时则作为该条目的状态描述。Slint 会把小于 -1 的值按无数字状态渲染，WinUI 对这类输入抛出异常。Windows 状态字形依赖 Segoe Fluent Icons，读屏播报尚待验收。官方模板及示例已存入 `.refs/WinUI/`。
+
+#### ProgressRing
+
+运行 `cargo run -p lumatune --example progress_ring` 可切换确定与不确定模式、透明与浅灰轨道、动画和活动状态，并试用 16/32/60px 三种尺寸。范围边界交叉时，刚设置的边界同步收拢另一端，进度值限制在区间内。两端相等时显示空进度。
+
+Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义范围。确定样式已与 WinUI Gallery 实例对照，圆弧从 12 点方向顺时针增长。UI Automation 在活动时提供进度条角色，并在确定模式提供只读范围值。Slint 使用矢量圆弧并按项目约定取偶数尺寸。WinUI 的自定义 `IAnimatedVisualSource` 和读屏播报仍待补齐。模板、动画源码、自动化实现及 Gallery 示例已保存在 `.refs/WinUI/`。
 
 ### Scrolling
 | 控件 | 现状 | 备注 |
@@ -259,7 +265,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
 9. 🚧 Flyout / MenuFlyout / TeachingTip（已实测引导气泡的定位和关闭流程）
-10. 🚧 TreeView（已验收浅色及常用输入） / 🚧 RatingControl（浅色及常用操作已验收） / ⬜ ProgressRing / ⬜ HyperlinkButton
+10. 🚧 TreeView（已验收浅色及常用输入） / 🚧 RatingControl（浅色及常用操作已验收） / 🚧 ProgressRing（已验收浅色、动画及范围） / ⬜ HyperlinkButton
 
 ## 每个组件的验收标准
 
