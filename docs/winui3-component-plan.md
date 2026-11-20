@@ -69,7 +69,7 @@ components/
 | Slider | ✅ | |
 | RadioButton | 🚧 | `components/basic-input/radio_button.slint`，支持独立单选、文字和自定义内容 |
 | RadioButtons | 🚧 | `components/basic-input/radio_buttons.slint`，支持互斥、按列排列、自适应列数和键盘导航 |
-| ToggleSwitch | 🟡 | `Switch` 有，样式不完全同 |
+| ToggleSwitch | 🚧 | `components/basic-input/toggle_switch.slint`，支持拖动切换、标题、状态文字和自定义内容 |
 | ToggleButton | 🚧 | `components/basic-input/toggle_button.slint`，支持双态、三态、状态回调和自定义内容 |
 | DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
 | HyperlinkButton | 🚧 | `components/basic-input/hyperlink_button.slint`，支持文本、自定义内容、点击回调和 URI 导航 |
@@ -105,6 +105,12 @@ Windows 浅色已用 WinUI Gallery 对照圆形指示器、正常和按下填充
 运行 `cargo run -p lumatune --example repeat_button` 可比较 Press、Release、Hover 和长按计数。默认按下即点击，等待 500ms 后每隔 33ms 连发。空格支持长按，Enter 只在首次触发时点击。按住移出暂停、移回继续，释放、失焦或禁用会结束连发。UI Automation Invoke 触发一次点击。
 
 Windows 浅色已对照 WinUI Gallery 的填充、文字、焦点和默认按下时机。已实测鼠标、空格、Enter、移出重返、禁用、焦点切换、缩短延迟及 UI Automation。Release 和 Hover 已在 Slint 示例中验证。软件渲染的渐变描边仍使用首色，触控和读屏播报待验收。官方模板、时序源码和 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### ToggleSwitch
+
+运行 `cargo run -p lumatune --example toggle_switch` 可试用默认开关、自定义状态文字、禁用和 RTL。`is-on` 接受双向绑定，鼠标、键盘、UI Automation 或程序修改状态时都会触发 `toggled`。默认文字可本地化，UI Automation 名称包含标题与自定义状态文字，也可通过 `accessible-name` 指定。
+
+Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、40px 操作区、标题、颜色、悬停、按下和焦点框。已实测标题和尾部留白点击不触发、状态文字点击、Space 松键切换、Enter 与方向键保持状态、水平拖动到轨道中点、垂直移动取消点击、RTL 拖动、禁用以及 UI Automation Toggle。鼠标点击允许 2px 位移，按下时的滑块宽度从原版 17px 取整为 18px。滑块回位采用 Slint 位置动画，时序与系统动画有差异。独立的标题与状态模板、系统触控手势、手柄和读屏播报仍待补齐。官方模板、行为和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### ToggleButton
 
