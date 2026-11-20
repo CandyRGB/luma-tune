@@ -175,13 +175,19 @@ Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬
 | --- | --- | --- |
 | InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、自定义内容和可区分来源的可取消关闭 |
 | InfoBadge（角标） | 🚧 | `components/status-info/info_badge.slint`，支持点、计数、字形与图像，并可附在导航条目上 |
-| ProgressBar | 🟡 | `ProgressIndicator` |
+| ProgressBar | 🚧 | `components/status-info/progress_bar.slint`，支持确定和不确定模式、暂停与错误 |
 | ProgressRing（环形） | 🚧 | `components/status-info/progress_ring.slint`，支持确定与不确定模式、范围、配色和停用 |
 | ToolTip | 🟡 | 基础可用，样式弱 |
 
 运行 `cargo run -p lumatune --example info_badge` 可试用强调色和五种状态色、4×4 点状徽标、16px 高的计数、状态字形和自定义图像。非负 `value` 优先显示数字，负值使用图标或点状状态。自定义图像可保留原色。导航条目通过 `badge` 提供可见性、内容和状态描述，顶部布局会按徽标宽度重新计算。
 
 Windows 浅色已验证六组样式、零值与最大 32 位整数、计数优先级、显隐切换、展开和紧凑窗格、顶部导航、RTL，以及徽标与导航点击的共存。独立徽标可向辅助技术提供非焦点文本，嵌入导航时则作为该条目的状态描述。Slint 会把小于 -1 的值按无数字状态渲染，WinUI 对这类输入抛出异常。Windows 状态字形依赖 Segoe Fluent Icons，读屏播报尚待验收。官方模板及示例已存入 `.refs/WinUI/`。
+
+#### ProgressBar
+
+运行 `cargo run -p lumatune --example progress_bar` 可试用确定进度、不确定进度、暂停、错误、RTL 和内边距。`value` 接收原始进度，`effective-value` 提供范围内的结果。范围放宽后会恢复原始请求值；最小值超过最大值时，最大值随之上调。错误优先于暂停。
+
+Windows 浅色已与 WinUI Gallery 对照，并实测 1px 轨道、六种状态、两段扫描、宽窄尺寸、内边距、RTL 和范围恢复。UI Automation 在确定模式报告只读范围值，在不确定模式报告忙碌、暂停或错误状态。按偶数尺寸约定，默认指示条由 3px 取整到 4px。确定进度的条宽立即更新，原生重新定位和恢复运行的过渡仍有差异。原生模板设置和读屏播报待补齐。模板、行为源码及 Gallery 示例已存入 `.refs/WinUI/`。
 
 #### ProgressRing
 
