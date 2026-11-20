@@ -65,7 +65,7 @@ components/
 | Button | 🚧 | `components/basic-input/button.slint`，支持普通、强调、透明样式和关联 Flyout |
 | RepeatButton | 🚧 | `components/basic-input/repeat_button.slint`，支持长按连发、自定义间隔和三种点击模式 |
 | CheckBox | 🚧 | `components/basic-input/check_box.slint`，支持双态、三态、标签布局和状态回调 |
-| ComboBox | 🟡 | Slint 原生支持字符串选项，WinUI 占位文字、选项模板、可编辑提交和弹层暂存选择待对齐 |
+| ComboBox | 🚧 | `components/basic-input/combo_box.slint`，支持占位、暂存选择、可编辑提交和选项图标及字体 |
 | Slider | 🚧 | `components/basic-input/slider.slint`，支持方向、刻度、吸附、数值提示和键盘 |
 | RadioButton | 🚧 | `components/basic-input/radio_button.slint`，支持独立单选、文字和自定义内容 |
 | RadioButtons | 🚧 | `components/basic-input/radio_buttons.slint`，支持互斥、按列排列、自适应列数和键盘导航 |
@@ -102,7 +102,9 @@ Windows 浅色已对照 WinUI Gallery 的 4px 轨道、22px 拇指外圈、双�
 
 #### ComboBox
 
-WinUI Gallery 的颜色示例初始无选中项。Windows 浅色实测 F4 或 Space 展开，展开后方向键只移动当前焦点，Esc 恢复原状态，Enter 提交。Slint 原生 ComboBox 的默认索引为 0，弹层方向键会立即选择。标题、占位文字、可编辑输入与提交、选项模板和弹层选择行为待对齐。官方模板、选择行为和 Gallery 示例已保存在 `.refs/WinUI/`。
+运行 `cargo run -p lumatune --example combo_box` 可试用颜色占位、选项字体和可编辑字号。接入组件时先注册 `ComboBoxBehavior`，并传入宿主视口尺寸以启用可编辑弹层的边缘避让和外部点击关闭。默认在确认后更新选中项，也可以即时更新。可编辑输入支持前缀补全和自定义值，`text-submitted` 返回 true 时回到当前已提交值。
+
+Windows 浅色已与 WinUI Gallery 对照标题、32px 字段、占位文字、图标和弹层。已实测 F4、Alt＋方向键、Space、方向键暂存、Enter 提交、Esc 恢复、外部点击关闭、前缀查找、禁用项、RTL、Editable 文本校验，以及 UI Automation 的 ExpandCollapse 状态和 SelectionItem 选择。选项目前可指定图片与字体，任意选项模板、Acrylic 材质、触控和读屏待补齐。可编辑弹层在宿主内绘制，跨窗定位及输入法候选窗避让待补。官方模板、选择行为和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### RadioButton 和 RadioButtons
 
