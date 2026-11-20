@@ -97,7 +97,7 @@ components/
 | ContentDialog | 🚧 | `components/dialogs-flyouts/content_dialog.slint`，已验收模态焦点、默认键、长正文滚动，以及可取消和延迟的关闭事件 |
 | Flyout | 🚧 | `components/dialogs-flyouts/flyout.slint`，支持对齐、贴边翻转、受限尺寸、双轴滚动、可取消关闭和焦点恢复。验收记录见下。 |
 | MenuFlyout | 🚧 | `components/menus-toolbars/menu_flyout.slint`，已实现普通与分裂菜单项、选择状态、多级子菜单、上下文入口及可限定作用域的快捷键。 |
-| TeachingTip | 🔨 | 引导气泡 |
+| TeachingTip | 🚧 | `components/dialogs-flyouts/teaching_tip.slint`，支持锚点、箭头、主图、操作及可延期关闭 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
 
 运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击和窗口边界交互。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。[WinUI 定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)
@@ -110,6 +110,10 @@ MenuFlyout 对照微软的 [菜单规范](https://learn.microsoft.com/windows/ap
 - `ContextFlyoutArea` 接收鼠标右键、菜单键与 Shift+F10。右键从指针坐标打开，键盘操作从控件边缘打开。已验证贴边翻转和关闭后恢复焦点。自行处理右键的子控件可用 `request-at` 转发。[Windows 上下文命令规范](https://learn.microsoft.com/windows/apps/develop/ui/controls/collection-commanding)
 - `MenuFlyoutAccelerators` 可挂在窗口内容或仅挂在焦点范围内。已验证菜单关闭时执行命令、菜单打开时调用未展开的子项、禁用项不响应，以及限定范围内外的差异。[Windows 键盘快捷键规范](https://learn.microsoft.com/windows/apps/develop/input/keyboard-accelerators)
 - 剩余项包括读屏播报、触屏长按与笔输入、从右到左的布局、跟随系统悬停延迟、多窗口边界和 Acrylic。
+
+运行 `cargo run -p lumatune --example teaching_tip` 可试用带目标与无目标的引导气泡，附加 `-- --edge` 可试用空间不足时的换向。支持 WinUI 的首选及备选对齐、RTL、独立的尾箭头策略、自动或指定主图位置、可滚动正文及上下文相关的关闭按钮。操作回调由宿主决定是否关闭。宿主可在 `closing` 中取消关闭，或调用 `defer-close()` 后用 `complete-close(cancel)` 处理结果。
+
+Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮、关闭取消和延期、外部点击、Escape 与 F6。UI Automation 已验证操作按钮和调用模式。嵌入时由宿主将 F6 和焦点恢复接到相应控件。气泡受宿主窗口约束，瞬态面板使用纯色；原生跨窗口弹层、Acrylic、样式模板替换、读屏播报与手柄仍待验收。对照模板、行为源码和 Gallery 示例已存入 `.refs/WinUI/`。
 
 ### Layout
 | 控件 | 现状 | 备注 |
@@ -246,7 +250,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
 7. 🚧 TabView（`navigation/tab_view.slint`，已验证桌面常用交互，待补原生跨窗口拖放、模板和提示）
 8. 🚧 InfoBadge（已验收浅色呈现、动态值及导航用法） / 🚧 PipsPager（已验收浅色和常用交互） / 🚧 PersonPicture（浅色已验收，待接入 Windows 联系人）
-9. ⬜ Flyout / MenuFlyout / TeachingTip（dialogs-flyouts）
+9. 🚧 Flyout / MenuFlyout / TeachingTip（已实测引导气泡的定位和关闭流程）
 10. ⬜ TreeView / RatingControl / ProgressRing / HyperlinkButton
 
 ## 每个组件的验收标准
