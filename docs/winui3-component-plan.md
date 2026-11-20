@@ -62,7 +62,8 @@ components/
 ### Basic input
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| Button / RepeatButton | ✅ | |
+| Button | 🟡 | Slint `Button` 可用，待对照 WinUI 的激活时机和状态样式 |
+| RepeatButton | 🚧 | `components/basic-input/repeat_button.slint`，支持长按连发、自定义间隔和三种点击模式 |
 | CheckBox | ✅ | |
 | ComboBox | ✅ | |
 | Slider | ✅ | |
@@ -79,6 +80,12 @@ components/
 运行 `cargo run -p lumatune --example rating_control` 可试用占位评分、清除、整数键盘步进和自定义图像。非负的实际评分限制在 1 到最高分之间，负值表示未评分。占位评分允许 0 到 1 之间的小数。程序设值保持小数。鼠标悬停只预览，点击提交，允许清除时再次点击同一分数会清除。方向键和 Home / End 可调整评分，RTL 镜像左右方向与分数裁切。
 
 Windows 浅色已实测 16px 星形、8px 间距、占位色、半星裁切、鼠标悬停放大、键盘、修改最高分后重算、RTL、禁用和只读。UI Automation 已验证 Slider 类型、范围设值及只读状态。WinUI 还提供独立的字符串 ValuePattern 和按语言格式化的评分描述，Slint 用范围值和描述表达。手柄交互、原生缩放动画和读屏播报仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControl.idl) · [WinUI 自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/RatingControl/RatingControlAutomationPeer.cpp)
+
+#### RepeatButton
+
+运行 `cargo run -p lumatune --example repeat_button` 可比较 Press、Release、Hover 和长按计数。默认按下即点击，等待 500ms 后每隔 33ms 连发。空格支持长按，Enter 只在首次触发时点击。按住移出暂停、移回继续，释放、失焦或禁用会结束连发。UI Automation Invoke 触发一次点击。
+
+Windows 浅色已对照 WinUI Gallery 的填充、文字、焦点和默认按下时机。已实测鼠标、空格、Enter、移出重返、禁用、焦点切换、缩短延迟及 UI Automation。Release 和 Hover 已在 Slint 示例中验证。软件渲染的渐变描边仍使用首色，触控和读屏播报待验收。官方模板、时序源码和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### ToggleButton
 

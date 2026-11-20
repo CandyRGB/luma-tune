@@ -1,14 +1,23 @@
 import { Palette } from "std-widgets.slint";
 
+export enum ButtonClickMode { release, press, hover }
+
 export component ButtonInput inherits Rectangle {
     in property <bool> enabled: true;
+    in property <ButtonClickMode> click-mode: ButtonClickMode.release;
     out property <bool> has-focus: keyboard.has-focus;
     out property <bool> keyboard-focused: root.has-focus && !root.pointer-focus;
-    out property <bool> has-hover: pointer.has-hover;
-    out property <bool> pressed: (pointer.pressed && pointer.has-hover) || root.held-key != "";
+    out property <bool> has-hover: pointer.has-hover && root.enabled
+        && pointer.mouse-x >= 0px && pointer.mouse-x < root.width
+        && pointer.mouse-y >= 0px && pointer.mouse-y < root.height;
+    out property <bool> pointer-held: root.pointer-armed && pointer.pressed;
+    out property <bool> space-held: root.held-key == Key.Space;
+    out property <bool> pressed: root.click-mode == ButtonClickMode.hover ? root.has-hover
+        : (root.pointer-held && root.has-hover) || root.held-key != "";
     callback clicked();
 
     private property <bool> pointer-focus;
+    private property <bool> pointer-armed;
     private property <string> held-key;
 
     forward-focus: keyboard;
@@ -16,25 +25,50 @@ export component ButtonInput inherits Rectangle {
     changed has-focus => {
         if !root.has-focus {
             root.pointer-focus = false;
+            root.pointer-armed = false;
             root.held-key = "";
         }
     }
     changed enabled => {
         if !root.enabled {
+            root.pointer-armed = false;
             root.held-key = "";
+        }
+    }
+    changed click-mode => {
+        root.pointer-armed = false;
+        root.held-key = "";
+    }
+    changed has-hover => {
+        if root.has-hover && root.click-mode == ButtonClickMode.hover {
+            root.clicked();
         }
     }
 
     pointer := TouchArea {
         enabled: root.enabled;
         pointer-event(event) => {
-            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left
+                && root.click-mode != ButtonClickMode.hover {
                 root.held-key = "";
                 root.pointer-focus = true;
+                root.pointer-armed = true;
                 keyboard.focus();
+                if root.click-mode == ButtonClickMode.press {
+                    root.clicked();
+                }
+            }
+            if event.kind == PointerEventKind.cancel
+                || (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                root.pointer-armed = false;
             }
         }
-        clicked => { root.clicked(); }
+        clicked => {
+            if root.pointer-armed && root.click-mode == ButtonClickMode.release {
+                root.pointer-armed = false;
+                root.clicked();
+            }
+        }
     }
 
     keyboard := FocusScope {
@@ -43,10 +77,16 @@ export component ButtonInput inherits Rectangle {
         enabled: root.enabled;
 
         key-pressed(event) => {
+            if root.click-mode == ButtonClickMode.hover {
+                return reject;
+            }
             if event.text == Key.Return || event.text == Key.Space {
                 root.pointer-focus = false;
                 if root.held-key == "" && !pointer.pressed {
                     root.held-key = event.text;
+                    if root.click-mode == ButtonClickMode.press {
+                        root.clicked();
+                    }
                 }
                 return accept;
             }
@@ -59,7 +99,9 @@ export component ButtonInput inherits Rectangle {
         key-released(event) => {
             if root.held-key != "" && event.text == root.held-key {
                 root.held-key = "";
-                root.clicked();
+                if root.click-mode == ButtonClickMode.release {
+                    root.clicked();
+                }
                 return accept;
             }
             return reject;
