@@ -67,7 +67,8 @@ components/
 | CheckBox | 🚧 | `components/basic-input/check_box.slint`，支持双态、三态、标签布局和状态回调 |
 | ComboBox | ✅ | |
 | Slider | ✅ | |
-| RadioButton | 🟡 | `RadioGroup` 有；便捷分组 `RadioButtons` 待封装 |
+| RadioButton | 🚧 | `components/basic-input/radio_button.slint`，支持独立单选、文字和自定义内容 |
+| RadioButtons | 🚧 | `components/basic-input/radio_buttons.slint`，支持互斥、按列排列、自适应列数和键盘导航 |
 | ToggleSwitch | 🟡 | `Switch` 有，样式不完全同 |
 | ToggleButton | 🚧 | `components/basic-input/toggle_button.slint`，支持双态、三态、状态回调和自定义内容 |
 | DropDownButton / SplitButton / ToggleSplitButton | 🚧 | `components/basic-input/flyout_button.slint`，可接入 Flyout 或 MenuFlyout，支持键鼠、禁用态和选中状态。 |
@@ -92,6 +93,12 @@ Windows 浅色已对照 WinUI Gallery 的按钮尺寸、填充、文字和默认
 运行 `cargo run -p lumatune --example check_box` 可试用双态、三态、禁用、RTL 和全选汇总。单项通过 `check-state` 提供状态。程序设值会通知对应状态回调。指针、空格和 UI Automation 激活在状态回调之后发出 `clicked`。
 
 已对照 WinUI Gallery 的 20px 指示框、标签及键盘行为，并在 Windows 浅色实测标签点击、悬停与按下、拖出取消、空格释放、Enter 保持状态、双态数字键盘加减、三态循环、禁用、焦点框和 UI Automation Toggle。加减键按 Slint 字符事件识别，主键盘上的同字符也会触发。勾形与横线取自官方动画几何，Slint 通过水平揭示近似勾形动画，并以无障碍描述表达不确定状态。原生不确定枚举、非默认 `ClickMode`、完整图标动画、触控与读屏播报待补齐。官方模板、动画及 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### RadioButton 和 RadioButtons
+
+运行 `cargo run -p lumatune --example radio_buttons` 可试用独立按钮、禁用项、多列、窄宽换行和 RTL。接入单选组时注册 `RadioButtonsBehavior`，给每个选项提供非空且唯一的 `id`。通过 `selected-index` 或 `select-id()` 设置选中项，通过 `selected-item` 读取选项，通过 `selection-changed` 接收新旧索引。替换选项模型时，本实现按 ID 保留选中项，删除选中项后清除选择。WinUI 替换整个 ItemsSource 时清空选择。
+
+Windows 浅色已用 WinUI Gallery 对照圆形指示器、正常和按下填充、20px 指示器与 32px 控件高度。已实测标签点击、拖出取消、Space、Enter、Tab 回焦、方向键跳过禁用项、Ctrl＋方向键只移动焦点、RTL、长标签换行、重排和删除，以及 UI Automation 的 SelectionItem 和选择容器。列间距将官方的 7px 按项目规则取为 8px。独立按钮的 WinUI GroupName、单选组选项模板、圆点渐变描边、触控和读屏播报仍待补齐。官方模板、布局算法和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### RepeatButton
 
