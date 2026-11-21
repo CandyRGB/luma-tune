@@ -97,6 +97,7 @@ export component NumberBox inherits Rectangle {
     in property <string> header;
     in property <string> description;
     in property <string> placeholder-text;
+    in property <string> accessible-name: root.header != "" ? root.header : root.placeholder-text;
     in property <TextHorizontalAlignment> text-alignment: left;
     in property <Size> popup-viewport;
     in property <NumberBoxSpinPlacement> spin-placement: NumberBoxSpinPlacement.hidden;
@@ -215,6 +216,8 @@ export component NumberBox inherits Rectangle {
         }
     }
 
+    public function set-value(value: NumberBoxValue) { root.apply(value); }
+
     public function commit() {
         let parsed = root.parse-text(root.draft, root.accepts-expression);
         if (parsed.valid) {
@@ -298,7 +301,7 @@ export component NumberBox inherits Rectangle {
                     color: root.text-color;
 
                     accessible-role: spinbox;
-                    accessible-label: root.header != "" ? root.header : root.placeholder-text;
+                    accessible-label: root.accessible-name;
                     accessible-placeholder-text: root.placeholder-text;
                     accessible-enabled: root.enabled;
                     accessible-value: self.text;
