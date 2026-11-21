@@ -3,6 +3,7 @@ import { Palette } from "std-widgets.slint";
 export component TextBoxField inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> editing;
+    in property <bool> hovered;
     in property <color> accent: Palette.accent-background;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
 
@@ -13,7 +14,8 @@ export component TextBoxField inherits Rectangle {
         ? @linear-gradient(180deg, #ffffff14 96%, #ffffff8a 100%)
         : @linear-gradient(180deg, #0000000f 96%, #00000073 100%);
     background: !root.enabled ? (root.dark ? #ffffff0a : #f9f9f94d)
-        : root.editing ? (root.dark ? #1e1e1eb3 : #ffffff) : Palette.control-background;
+        : root.editing ? (root.dark ? #1e1e1eb3 : #ffffff)
+        : root.hovered ? (root.dark ? #ffffff0f : #f9f9f980) : Palette.control-background;
 
     Rectangle {
         visible: root.editing;

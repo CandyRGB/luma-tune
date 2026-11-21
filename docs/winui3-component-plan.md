@@ -374,7 +374,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | TextBlock | ✅ | `Text` |
-| TextBox / LineEdit | 🟡 | `LineEdit` |
+| TextBox / LineEdit | 🚧 | `components/text/text_box.slint`，复用 Slint 文本编辑，提供 WinUI 字段样式、单行和多行行为 |
 | PasswordBox | 🚧 | `components/text/password_box.slint`，支持掩码字符、Peek／Hidden／Visible 和密码命令菜单 |
 | TextCommandBarFlyout | 🚧 | `components/text/text_command_bar_flyout.slint`，根据文本控件、选区、剪贴板和编辑历史显示命令。 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
@@ -392,6 +392,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example auto_suggest_box` 可试用 AutoSuggestBox，附加 `-- --above` 可将编辑器放在窗口底部，触发建议列表向上展开。已验证键盘选择、Esc 和 Tab 恢复原始文本、Enter 和鼠标提交、搜索图标提交、禁用建议文本预览、清空、禁用和异步筛选。Windows UI Automation 已实测编辑框类型与设值、展开状态和列表项类型。共享输入框样式后复验了 NumberBox 的键鼠交互和长文本光标滚动。[Microsoft AutoSuggestBox 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/auto-suggest-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/AutoSuggestBox_Partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/AutoSuggestBox/AutoSuggestBox_themeresources.xaml)
 
 建议弹层当前在父容器内绘制，使用 Acrylic 的纯色回退。跨窗口与父容器裁剪、建议项模板、IME 候选窗避让、手柄和读屏播报仍待补齐或验证。
+
+#### TextBox
+
+运行 `cargo run -p lumatune --example text_box` 可试用普通输入、标题与占位符、只读格式和自适应高度的多行文本。宿主注册 `TextBoxBehavior` 后可启用 UTF-16 最大输入长度。输入视口跟随光标滚动，窄字段、只读字段和多行字段隐藏清除按钮。示例通过现有 TextCommandBarFlyout 提供上下文命令。编辑器处理撤销与重做快捷键，菜单里的可用状态由宿主提供。
+
+已与 Windows 浅色 Gallery 对照 64×32px 的空白字段、输入后宽度变化、聚焦线、清除按钮和占位区域。实测单行 Enter、多行换行与滚动、宽度限制、只读和禁用、RTL、菜单选区恢复及 Windows UI Automation 编辑角色与设值。TextBox 复用 Slint 的输入法提示。WinUI 的系统拼写检查、手写视图和自定义标题模板仍有差异。模板、核心实现和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 #### PasswordBox
 
