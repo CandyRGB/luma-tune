@@ -374,8 +374,8 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | TextBlock | ✅ | `Text` |
-| TextBox / LineEdit | 🟡 | `LineEdit`；password 需掩码封装 |
-| PasswordBox | 🔨 | 掩码封装 |
+| TextBox / LineEdit | 🟡 | `LineEdit` |
+| PasswordBox | 🚧 | `components/text/password_box.slint`，支持掩码字符、Peek／Hidden／Visible 和密码命令菜单 |
 | TextCommandBarFlyout | 🚧 | `components/text/text_command_bar_flyout.slint`，根据文本控件、选区、剪贴板和编辑历史显示命令。 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
@@ -392,6 +392,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example auto_suggest_box` 可试用 AutoSuggestBox，附加 `-- --above` 可将编辑器放在窗口底部，触发建议列表向上展开。已验证键盘选择、Esc 和 Tab 恢复原始文本、Enter 和鼠标提交、搜索图标提交、禁用建议文本预览、清空、禁用和异步筛选。Windows UI Automation 已实测编辑框类型与设值、展开状态和列表项类型。共享输入框样式后复验了 NumberBox 的键鼠交互和长文本光标滚动。[Microsoft AutoSuggestBox 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/auto-suggest-box) · [WinUI 控件实现](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/AutoSuggestBox_Partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/AutoSuggestBox/AutoSuggestBox_themeresources.xaml)
 
 建议弹层当前在父容器内绘制，使用 Acrylic 的纯色回退。跨窗口与父容器裁剪、建议项模板、IME 候选窗避让、手柄和读屏播报仍待补齐或验证。
+
+#### PasswordBox
+
+运行 `cargo run -p lumatune --example password_box` 可试用标题、占位符、掩码字符、显隐模式、禁用和窄宽状态。宿主注册 `PasswordBoxBehavior` 后可使用自定义掩码与 UTF-16 最大输入长度。Peek 只在当前聚焦期间从空值录入文本后出现，按住按钮或 Alt+F8 显示，松开与失焦恢复掩码。已有密码或较窄字段不出现 Peek 按钮。Windows 的禁止显示密码策略用于 Peek 模式。
+
+已与 Windows 浅色 Gallery 对照 300×32px 字段、聚焦线、掩码与按住显示的位置。实测按住和释放、Alt+F8、重新聚焦、限制输入、自定义掩码及 Visible。Windows UI Automation 在显示期间仍报告密码角色，Value 和 Text 提供程序未读出内容。已验证复制和剪切快捷键不写入 Windows 剪贴板，模拟剪贴板回归覆盖粘贴、截断和取消。文本命令栏示例已接入 PasswordBox，菜单沿用密码字段命令集。WinUI 的系统 PIN 输入范围、原生读屏提示及内存加密仍有差异。模板、核心实现和 Gallery 示例已保存到 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |

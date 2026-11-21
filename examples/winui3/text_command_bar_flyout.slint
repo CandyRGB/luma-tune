@@ -6,9 +6,10 @@ import { ContextFlyoutArea } from "../../apps/lumatune/ui/components/dialogs-fly
 import { FlyoutCloseReason, FlyoutRect, TextCommand, TextCommandBarFlyout, TextCommandTarget }
     from "../../apps/lumatune/ui/components/text/text_command_bar_flyout.slint";
 import { ScrollingTextInput, TextBoxField } from "../../apps/lumatune/ui/components/text/text_box_field.slint";
+import { PasswordBox, PasswordBoxBehavior, PasswordEdit, PasswordMask } from "../../apps/lumatune/ui/components/text/password_box.slint";
 
 export { AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
-    CommandBarLayout, CommandBarOverflowButtonVisibility }
+    CommandBarLayout, CommandBarOverflowButtonVisibility, PasswordBoxBehavior, PasswordEdit, PasswordMask }
 
 export struct TextEditSnapshot {
     text: string,
@@ -25,7 +26,6 @@ component DemoTextField inherits ContextFlyoutArea {
     in-out property <string> text <=> input.text;
     in property <string> label;
     in property <bool> read-only;
-    in property <bool> password;
     out property <bool> focused: input.has-focus;
     out property <bool> selected: root.text != "" && root.selection.anchor != root.selection.cursor;
     out property <DemoSelection> selection: { anchor: max(0, input.anchor-position-byte-offset),
@@ -51,9 +51,9 @@ component DemoTextField inherits ContextFlyoutArea {
     public function run-command(command: TextCommand) {
         if (command == TextCommand.select-all) {
             input.select-all();
-        } else if (command == TextCommand.copy && !root.password) {
+        } else if (command == TextCommand.copy) {
             input.copy();
-        } else if (command == TextCommand.cut && !root.read-only && !root.password) {
+        } else if (command == TextCommand.cut && !root.read-only) {
             input.cut();
         } else if (command == TextCommand.paste && !root.read-only) {
             input.paste();
@@ -74,10 +74,9 @@ component DemoTextField inherits ContextFlyoutArea {
                 height: parent.height;
                 color: Palette.foreground;
                 read-only: root.read-only;
-                input-type: root.password ? InputType.password : InputType.text;
                 accessible-role: text-input;
                 accessible-label: root.label;
-                accessible-value: root.password ? "" : root.text;
+                accessible-value: root.text;
                 edited => { root.edited(root.snapshot); }
                 key-pressed(event) => { return root.editor-key-pressed(event); }
             }
@@ -101,11 +100,12 @@ export component TextCommandBarFlyoutExample inherits Window {
     private property <TextCommandTarget> target;
     private property <DemoSelection> menu-selection;
     private property <bool> editor-focused: root.target == TextCommandTarget.text-box ? normal.focused
-        : root.target == TextCommandTarget.text-block ? read-only.focused : password.focused;
+        : root.target == TextCommandTarget.text-block ? read-only.focused : password.has-focus;
     private property <DemoSelection> live-selection: root.target == TextCommandTarget.text-box ? normal.selection
-        : root.target == TextCommandTarget.text-block ? read-only.selection : password.selection;
+        : root.target == TextCommandTarget.text-block ? read-only.selection
+        : { anchor: password.selection-anchor, cursor: password.selection-cursor };
     private property <bool> has-editor-text: root.target == TextCommandTarget.text-box ? normal.text != ""
-        : root.target == TextCommandTarget.text-block ? read-only.text != "" : password.text != "";
+        : root.target == TextCommandTarget.text-block ? read-only.text != "" : password.password != "";
     private property <DemoSelection> command-selection: root.editor-focused ? root.live-selection : root.menu-selection;
 
     changed live-selection => {
@@ -120,7 +120,7 @@ export component TextCommandBarFlyoutExample inherits Window {
     function apply-selection() {
         if (root.target == TextCommandTarget.text-box) { normal.select-range(root.menu-selection); }
         else if (root.target == TextCommandTarget.text-block) { read-only.select-range(root.menu-selection); }
-        else { password.select-range(root.menu-selection); }
+        else { password.set-selection-offsets(root.menu-selection.anchor, root.menu-selection.cursor); }
     }
 
     function change-history(reapply: bool) {
@@ -205,11 +205,10 @@ export component TextCommandBarFlyoutExample inherits Window {
                 }
             }
             Text { text: "Password"; }
-            password := DemoTextField {
+            password := PasswordBox {
                 height: 32px;
-                label: "Password";
-                text: "example";
-                password: true;
+                accessible-name: "Password";
+                password: "example";
                 context-requested(anchor) => {
                     root.prepare(TextCommandTarget.password-box);
                     flyout.show-context(anchor);
@@ -244,8 +243,9 @@ export component TextCommandBarFlyoutExample inherits Window {
                     read-only.select-range(root.command-selection);
                     read-only.run-command(command);
                 } else {
-                    password.select-range(root.command-selection);
-                    password.run-command(command);
+                    password.set-selection-offsets(root.command-selection.anchor, root.command-selection.cursor);
+                    if command == TextCommand.paste { password.paste(); }
+                    else if command == TextCommand.select-all { password.select-all(); }
                 }
                 root.menu-selection = root.live-selection;
                 root.clipboard-has-text = root.has-clipboard-text();

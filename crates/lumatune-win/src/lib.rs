@@ -3,6 +3,7 @@ pub mod calendar;
 pub mod contrast;
 pub mod display;
 pub mod foreground;
+pub mod password_reveal;
 pub mod presets;
 pub mod ramp;
 pub mod settings;

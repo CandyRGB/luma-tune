@@ -3,6 +3,7 @@ import { Palette } from "std-widgets.slint";
 export component TextBoxField inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> editing;
+    in property <color> accent: Palette.accent-background;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
 
     height: 32px;
@@ -21,7 +22,7 @@ export component TextBoxField inherits Rectangle {
         width: parent.width - 4px;
         height: 2px;
         border-radius: 1px;
-        background: Palette.accent-background;
+        background: root.accent;
     }
 
     @children

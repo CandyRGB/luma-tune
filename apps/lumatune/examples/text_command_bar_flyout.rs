@@ -1,5 +1,7 @@
 #[path = "../src/command_bar.rs"]
 mod command_bar;
+#[path = "../src/password_box.rs"]
+mod password_box;
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -7,12 +9,12 @@ slint::slint! {
     import {
         AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
         CommandBarLayout, CommandBarOverflowButtonVisibility, TextCommandBarFlyoutExample,
-        TextEditSnapshot,
+        TextEditSnapshot, PasswordBoxBehavior, PasswordEdit, PasswordMask,
     } from "../../examples/winui3/text_command_bar_flyout.slint";
     export {
         AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
         CommandBarLayout, CommandBarOverflowButtonVisibility, TextCommandBarFlyoutExample,
-        TextEditSnapshot,
+        TextEditSnapshot, PasswordBoxBehavior, PasswordEdit, PasswordMask,
     }
 }
 
@@ -32,6 +34,7 @@ impl History {
 fn main() -> Result<(), slint::PlatformError> {
     let window = TextCommandBarFlyoutExample::new()?;
     command_bar::install(window.global::<CommandBarBehavior>());
+    password_box::install(window.global::<PasswordBoxBehavior>());
     window.on_has_clipboard_text(|| {
         arboard::Clipboard::new()
             .and_then(|mut clipboard| clipboard.get_text())
