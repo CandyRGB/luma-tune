@@ -254,7 +254,7 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 | NavigationView | 🚧 | 独立 `components/navigation/navigation_view.slint`，支持自适应窗格、目录层级和顶部溢出 |
 | TabView（可增删/关闭） | 🚧 | 独立 `components/navigation/tab_view.slint`，支持可组合页签内容、三种宽度、滚动、关闭和排序 |
 | Pivot | 🚧 | `components/navigation/pivot.slint`，支持标题、侧边插槽、单选页签和触摸切页 |
-| SelectorBar | 🔨 | |
+| SelectorBar | 🚧 | `components/navigation/selector_bar.slint`，支持文字与图标、单选、独立焦点和横向滚动 |
 
 ### BreadcrumbBar
 
@@ -285,6 +285,12 @@ Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬
 运行 `cargo run -p lumatune --example pivot` 可试用 Gallery 的邮件页签示例及窄栏、RTL、锁定和动态条目。宿主注册 `PivotBehavior` 并提供唯一的条目 ID，用 `selected-id` 切页，按有效的 `selected-index` 渲染正文。标题和两侧附加内容可用命名插槽替换。
 
 Windows 浅色已对照 48px 标题栏、标题与正文位置、24px 页签文字及选中线。已按原生宽栏实测首尾边界、方向键、Home / End、Ctrl+Tab 和 Ctrl+PageDown。Slint 示例另外验证了窄栏指针按钮、移除与禁用项、RTL、锁定、内容区快捷键、UI Automation SelectionItem 和 Windows 触摸输入。选中线按偶数尺寸从 3px 取整为 4px，字体测量使部分页签略窄。窄栏目前按固定顺序滚动标题，待核对原生动态标题布局与触摸惯性。页签头模板、页面加载和卸载事件及读屏仍待补齐。模板和 Gallery 示例已存入 `.refs/WinUI/`。
+
+### SelectorBar
+
+运行 `cargo run -p lumatune --example selector_bar` 可试用 Gallery 的文件筛选、页面切换和颜色集合示例。宿主注册 `SelectorBarBehavior`，用唯一 ID 标识条目。初始可无选中项，焦点首次进入时自动选中获得焦点的可用项。方向键直接切换，Ctrl+方向键只移动焦点，Enter 或空格提交。Tab 前后重新进入时回到上次获得焦点的可用项。
+
+已在 Windows 浅色对照 Gallery 的 40px 条目高度、文字和图标位置、焦点框及选中条颜色。实测了左右键与首尾键、焦点回访、程序和无障碍选中、禁用、重排、删除、RTL、窄栏滚轮和触摸拖动。拖动滚动不改选，轻点可选择露出的条目。选中条高度按偶数约定由 3px 取 4px。图标使用仓库中的 Fluent SVG，原生 `ItemContainer.Child` 自定义内容、完整 UI Automation 滚动模式和读屏仍待补齐。Gallery 页面示例即时切换。官方模板、行为源码和示例已存入 `.refs/WinUI/`。
 
 ### Status & info
 | 控件 | 现状 | 备注 |
