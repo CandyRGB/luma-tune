@@ -22,6 +22,8 @@ export component ButtonInput inherits Rectangle {
 
     private property <bool> pointer-focus;
     private property <bool> pointer-armed;
+    private property <int> pressed-finger;
+    private property <bool> released-inside;
     private property <string> held-key;
 
     forward-focus: keyboard;
@@ -57,22 +59,26 @@ export component ButtonInput inherits Rectangle {
                 root.held-key = "";
                 root.pointer-focus = true;
                 root.pointer-armed = true;
+                root.pressed-finger = event.touch-finger-id;
+                root.released-inside = false;
                 keyboard.focus();
                 if root.click-mode == ButtonClickMode.press {
                     root.clicked();
                 }
             }
-            if event.kind == PointerEventKind.cancel
-                || (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                let activate = root.released-inside && root.pointer-armed
+                    && root.pressed-finger == event.touch-finger-id && root.click-mode == ButtonClickMode.release;
                 root.pointer-armed = false;
+                root.released-inside = false;
+                if activate { root.clicked(); }
+            } else if event.kind == PointerEventKind.cancel {
+                root.pointer-armed = false;
+                root.released-inside = false;
             }
         }
-        clicked => {
-            if root.pointer-armed && root.click-mode == ButtonClickMode.release {
-                root.pointer-armed = false;
-                root.clicked();
-            }
-        }
+        // TouchArea reports the hit before delivering the release's finger ID.
+        clicked => { root.released-inside = true; }
     }
 
     keyboard := FocusScope {

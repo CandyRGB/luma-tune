@@ -324,7 +324,7 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 | PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
 | AnnotatedScrollBar | 🚧 | `components/scrolling/annotated_scroll_bar.slint`，支持标记、详细提示、拖动、连发箭头及滚动联动 |
 | PagerControl | 🚧 | `components/scrolling/pager_control.slint`，支持自动、下拉、数字输入和页码按钮模式 |
-| SemanticZoom | 🔨 | |
+| SemanticZoom | 🚧 | `components/scrolling/semantic_zoom.slint`，支持详情与分组概览、定位映射和焦点恢复 |
 
 运行 `cargo run -p lumatune --example pips_pager` 可切换横向、纵向、RTL、有限或无限页数，以及始终显示、悬停或键盘聚焦时显示、折叠三种箭头策略。有限页数可循环翻页。当前页会在可见范围内居中，靠近首尾时对齐边缘。方向键移动焦点，Enter、空格与鼠标点击提交选择。超出范围的有限页索引会归入可用范围。
 
@@ -341,6 +341,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example pager_control` 可试用有限和无限页数、显示模式、边界按钮及 RTL。页码索引从零起算，界面从一显示。自动模式在 10 页切换为数字输入，负页数表示无限页，收起总页数和末页按钮。边界隐藏保留箭头的位置，始终隐藏会回收位置。宿主注册 `PagerControlBehavior` 和下拉、数字框所需的行为，将焦点遍历发往控件所在的窗口。四个导航按钮先更新选中页，再发各自的回调。
 
 已与 Windows 浅色 Gallery 对照 40px 导航按钮、64px 数字框、页码按钮和选中线。实测 9／10 页切换、数值提交与取整、下拉选择、首尾禁用与保留间距、方向键移动焦点、按钮面板的三段省略号、无限页、RTL 和 UI Automation Invoke。原生 5px 间距按项目约定取 6px。无限下拉沿用原生的 100 个选项，自动模式可用数字输入继续翻页。极大页码的数字框受 Slint 单精度限制。原生按钮样式对象、菜单自动化角色、手柄和读屏仍待补齐。模板、源码和 Gallery 示例已存入 `.refs/WinUI/`。
+
+#### SemanticZoom
+
+运行 `cargo run -p lumatune --example semantic_zoom` 可试用分组详情、概览、锁定、RTL 和可选缩小按钮。示例从 `.refs/WinUI/` 读取 Gallery 控件目录，缓存缺失时仍可使用内置分组。宿主通过 `zoomed-in-view` 和 `zoomed-out-view` 插槽提供视图，以稳定条目和分组键实现 `location-at` 与 `map-destination`，并在 `focus-destination` 中滚动和聚焦目标。自带滚动容器的插槽可先把 Ctrl+滚轮交给 `handle-wheel`。
+
+已与 Windows 浅色 Gallery 对照分组标题、双列详情和概览列表，实测鼠标切换、Ctrl+-、Ctrl++、Ctrl+滚轮、双指缩放、定位和焦点恢复。Slint 在双指手势结束后提交切换。原生实时缩放过渡、触控板捏合、平台返回键自动接入和 UI Automation Toggle 模式仍有差异。
 
 ### Menus & toolbars
 | 控件 | 现状 | 备注 |
