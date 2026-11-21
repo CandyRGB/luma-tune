@@ -3,41 +3,16 @@ import { ButtonSurface } from "button_surface.slint";
 
 export { ButtonClickMode }
 
-export component RepeatButton inherits Rectangle {
-    in property <string> text;
-    in property <string> accessible-name: root.text;
-    in property <bool> enabled: true;
-    in property <ButtonClickMode> click-mode: ButtonClickMode.press;
+export component RepeatButtonInput inherits ButtonInput {
     in property <duration> delay: 500ms;
     in property <duration> interval: 33ms;
-    out property <bool> has-focus: input.has-focus;
-    out property <color> foreground: surface.foreground;
-    callback clicked();
+    callback repeated();
+    click-mode: ButtonClickMode.press;
 
     private property <bool> delay-elapsed;
     private property <bool> hold-active: root.enabled && root.visible && (root.click-mode == ButtonClickMode.hover
-        ? input.has-hover : input.pointer-held || input.space-held);
-    private property <bool> can-repeat: root.hold-active && (input.has-hover || input.space-held);
-
-    border-radius: 4px;
-    min-width: surface.min-width;
-    min-height: surface.min-height;
-    preferred-width: surface.preferred-width;
-    preferred-height: surface.preferred-height;
-    horizontal-stretch: 0;
-    vertical-stretch: 0;
-    forward-focus: input;
-
-    accessible-role: button;
-    accessible-label: root.accessible-name;
-    accessible-enabled: root.enabled;
-    accessible-action-default => { root.emit-click(); }
-
-    function emit-click() {
-        if root.enabled && root.visible {
-            root.clicked();
-        }
-    }
+        ? root.has-hover : root.pointer-held || root.space-held);
+    private property <bool> can-repeat: root.hold-active && (root.has-hover || root.space-held);
 
     changed hold-active => {
         if root.hold-active {
@@ -66,7 +41,7 @@ export component RepeatButton inherits Rectangle {
                 root.delay-elapsed = true;
                 if root.can-repeat {
                     next-repeat.start();
-                    root.emit-click();
+                    root.repeated();
                 }
             }
         }
@@ -77,10 +52,42 @@ export component RepeatButton inherits Rectangle {
         running: false;
         triggered => {
             if root.can-repeat {
-                root.emit-click();
+                root.repeated();
             } else {
                 self.stop();
             }
+        }
+    }
+}
+
+export component RepeatButton inherits Rectangle {
+    in property <string> text;
+    in property <string> accessible-name: root.text;
+    in property <bool> enabled: true;
+    in property <ButtonClickMode> click-mode: ButtonClickMode.press;
+    in property <duration> delay: 500ms;
+    in property <duration> interval: 33ms;
+    out property <bool> has-focus: input.has-focus;
+    out property <color> foreground: surface.foreground;
+    callback clicked();
+
+    border-radius: 4px;
+    min-width: surface.min-width;
+    min-height: surface.min-height;
+    preferred-width: surface.preferred-width;
+    preferred-height: surface.preferred-height;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    forward-focus: input;
+
+    accessible-role: button;
+    accessible-label: root.accessible-name;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.emit-click(); }
+
+    function emit-click() {
+        if root.enabled && root.visible {
+            root.clicked();
         }
     }
 
@@ -93,10 +100,13 @@ export component RepeatButton inherits Rectangle {
         @children
     }
 
-    input := ButtonInput {
+    input := RepeatButtonInput {
         click-mode: root.click-mode;
+        delay: root.delay;
+        interval: root.interval;
         enabled: root.enabled && root.visible;
         clicked => { root.emit-click(); }
+        repeated => { root.emit-click(); }
     }
 
     if root.enabled && input.keyboard-focused: ButtonFocusVisual {

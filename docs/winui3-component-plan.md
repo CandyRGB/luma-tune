@@ -322,13 +322,19 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 | --- | --- | --- |
 | ScrollView / ScrollViewer | ✅ | `ScrollView` |
 | PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
-| AnnotatedScrollBar | 🔨 | |
+| AnnotatedScrollBar | 🚧 | `components/scrolling/annotated_scroll_bar.slint`，支持标记、详细提示、拖动、连发箭头及滚动联动 |
 | PagerControl | 🔨 | |
 | SemanticZoom | 🔨 | |
 
 运行 `cargo run -p lumatune --example pips_pager` 可切换横向、纵向、RTL、有限或无限页数，以及始终显示、悬停或键盘聚焦时显示、折叠三种箭头策略。有限页数可循环翻页。当前页会在可见范围内居中，靠近首尾时对齐边缘。方向键移动焦点，Enter、空格与鼠标点击提交选择。超出范围的有限页索引会归入可用范围。
 
 Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标、键盘、循环、无限分页、减少页数时的回退、空页和禁用。UI Automation 已读到分页点的名称和选中态。Slint 使用列表和可选择条目表达分页状态，WinUI 使用 Menu 自动化角色与选择提供程序。WinUI 样式模板替换、读屏播报和手柄仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPager.idl) · [自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPagerAutomationPeer.cpp)
+
+#### AnnotatedScrollBar
+
+运行 `cargo run -p lumatune --example annotated_scroll_bar` 可试用 Gallery 色块集合、轨道高度切换和滚动同步。宿主注册 `AnnotatedScrollBarBehavior`，按偏移升序传入标签，把当前滚动位置绑定到 `value`，并在 `scroll-requested` 中应用新位置。标签位置按整个内容范围计算，重叠时按原生顺序优先保留靠下的标签，并尽量保留首项。详细提示可以请求到视口底部所对应的内容偏移。宿主可在 `scrolling` 中取消单次请求。
+
+已与 Windows 浅色 Gallery 对照 30px 指示条、颜色、箭头与标签位置及浮动提示的锚点。实测按下跳转、拖动、触摸释放、取消、滚轮和键盘通过正文反向同步、箭头连发与 UI Automation Invoke、缩短轨道和 RTL。指示条由 3px 取整为 4px。箭头默认步进为首次使用时视口高度的八分之一。示例用回调连接 Slint 滚动视口，原生组合线程滚动、连续惯性、自定义标签模板、跨窗口详情提示与读屏仍待补齐。模板、源码和 Gallery 示例已保存在 `.refs/WinUI/`。
 
 ### Menus & toolbars
 | 控件 | 现状 | 备注 |
