@@ -238,8 +238,14 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 | --- | --- | --- |
 | Grid / StackPanel / RelativePanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
 | Expander | 🚧 | `components/layout/expander.slint`，支持文本标题和可组合内容、向上/向下展开 |
-| SplitView | 🔨 | 抽屉 + 遮罩 |
+| SplitView | 🚧 | `components/layout/split_view.slint`，含四种窗格模式、左右放置、内容插槽与可取消的轻触关闭 |
 | VariableSizedWrapGrid / WrapPanel | 🟡 | 可用布局近似 |
+
+#### SplitView
+
+运行 `cargo run -p lumatune --example split_view` 可切换四种模式、窗格方向和遮罩。通过 `pane`、`content` 命名插槽承载内容。内联模式让正文为窗格腾出空间，覆盖模式将窗格叠在正文上，紧凑覆盖模式仍保留紧凑栏。紧凑态只裁剪窗格视口，内部按展开宽度布局。窗格外点击、Escape 和大小变化触发的关闭可以在 `pane-closing` 中取消，显式关闭会发送同一通知并完成关闭。
+
+已对照本地官方模板和 Windows 浅色 Gallery，检查内联示例的 400 × 300 区域、256 宽窗格、正文换行及面板底色。已实测四种模式、左右放置和 RTL、Tab 循环、Escape 与焦点恢复、遮罩拦截、关闭取消及 UI Automation 的遮罩调用。嵌入时由宿主接入 `SplitViewBehavior.traverse-focus` 和 `restore-focus`。组件边界外的关闭请求可由宿主转给 `dismiss-pane()`。原生覆盖层的整窗命中、自动测量窗格宽度、窗格 UIA Window 角色和示例图标字形仍有差异。
 
 ### Navigation
 | 控件 | 现状 | 备注 |
