@@ -1,5 +1,5 @@
 import { Palette } from "std-widgets.slint";
-import { Button } from "../basic-input/button.slint";
+import { PickerPopup } from "picker_popup.slint";
 import { ButtonInput, ButtonFocusVisual } from "../basic-input/button_input.slint";
 import { ButtonSurface } from "../basic-input/button_surface.slint";
 import { PickerWheel, PickerWheelRow } from "picker_wheel.slint";
@@ -50,7 +50,6 @@ export component DatePicker inherits Rectangle {
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <int> draft;
     private property <int> reported;
-    private property <int> column;
     private property <bool> was-open;
     private property <bool> open-state: popup.is-open;
     private property <DatePickerOptions> options: {
@@ -71,14 +70,6 @@ export component DatePicker inherits Rectangle {
         : { date: root.draft, initial: 0, rtl: root.rtl, columns: [] };
     private property <int> effective-date: root.committed.date;
     private property <length> border-gap: 1px;
-    private property <length> popup-height: root.popup-viewport.height > 0px ? min(398px, root.popup-viewport.height) : 398px;
-    private property <length> popup-width: root.popup-viewport.width > 0px ? min(root.width, root.popup-viewport.width) : root.width;
-    private property <length> wheel-height: max(0px, root.popup-height - 42px);
-    private property <length> popup-x: root.popup-viewport.width <= 0px ? 0px : clamp(0px,
-        -root.absolute-position.x, root.popup-viewport.width - root.absolute-position.x - root.popup-width);
-    private property <length> aligned-y: field.y + field.height / 2 - root.wheel-height / 2;
-    private property <length> popup-y: root.popup-viewport.height <= 0px ? root.aligned-y : clamp(root.aligned-y,
-        -root.absolute-position.y, root.popup-viewport.height - root.absolute-position.y - root.popup-height);
 
     min-width: 132px;
     preferred-width: 296px;
@@ -112,7 +103,6 @@ export component DatePicker inherits Rectangle {
     public function open-picker() {
         if root.enabled && root.visible && !root.is-open && root.committed.columns.length > 0 {
             root.draft = root.committed.initial;
-            root.column = 0;
             input.focus();
             popup.show();
         }
@@ -220,93 +210,28 @@ export component DatePicker inherits Rectangle {
         }
     }
 
-    popup := PopupWindow {
-        x: root.popup-x;
-        y: root.popup-y;
-        width: root.popup-width;
-        height: root.popup-height;
-        close-policy: close-on-click-outside;
-        forward-focus: keys;
+    popup := PickerPopup {
+        viewport: root.popup-viewport;
+        anchor-x: root.absolute-position.x;
+        anchor-y: root.absolute-position.y;
+        anchor-width: root.width;
+        field-middle: field.y + field.height / 2;
+        column-count: root.pending.columns.length;
+        accent: root.accent;
+        accepted => { root.accept-date(); }
+        dismissed => { root.close-picker(); }
+        step(index, amount) => { root.step(index, amount); }
 
-        keys := FocusScope {
-            width: parent.width;
-            height: parent.height;
-            focus-on-click: false;
-            key-pressed(event) => {
-                let key = event.text;
-                if key == Key.Escape { root.close-picker(); return accept; }
-                if key == Key.Return || (event.modifiers.alt && (key == Key.UpArrow || key == Key.DownArrow)) {
-                    root.accept-date(); return accept;
-                }
-                if key == Key.LeftArrow || key == Key.RightArrow {
-                    root.column = clamp(root.column + (key == Key.LeftArrow ? -1 : 1), 0, max(0, root.pending.columns.length - 1));
-                    return accept;
-                }
-                if key == Key.Tab {
-                    let next = root.column + (event.modifiers.shift ? -1 : 1);
-                    if next >= 0 && next < root.pending.columns.length { root.column = next; return accept; }
-                    return reject;
-                }
-                if key == Key.UpArrow || key == Key.DownArrow || key == Key.PageUp || key == Key.PageDown {
-                    root.step(root.column, key == Key.UpArrow ? -1 : key == Key.DownArrow ? 1 : key == Key.PageUp ? -5 : 5);
-                    return accept;
-                }
-                return reject;
-            }
-
-            Rectangle {
-                width: parent.width;
-                height: parent.height;
-                border-radius: 8px;
-                border-width: 1px;
-                border-color: root.dark ? #ffffff20 : #00000022;
-                background: root.dark ? #292929 : #f9f9f9;
-                clip: true;
-
-                Rectangle {
-                    x: 4px;
-                    y: round((root.wheel-height - 40px) / 4px) * 2px;
-                    width: max(0px, parent.width - 8px);
-                    height: 40px;
-                    border-radius: 4px;
-                    background: root.accent;
-                }
-                HorizontalLayout {
-                    x: 0px;
-                    y: 0px;
-                    width: parent.width;
-                    height: root.wheel-height;
-                    for col[i] in root.pending.columns: PickerWheel {
-                        horizontal-stretch: col.part == DatePickerPart.month ? 132 : 78;
-                        label: root.title(col.part);
-                        rows: col.rows;
-                        align-start: col.part == DatePickerPart.month;
-                        rtl: root.pending.rtl;
-                        divider-visible: i > 0;
-                        focused: keys.has-focus && i == root.column;
-                        activate => { root.column = i; keys.focus(); }
-                        step(amount) => { root.step(i, amount); }
-                    }
-                }
-
-                HorizontalLayout {
-                    y: root.wheel-height;
-                    width: parent.width;
-                    height: 42px;
-                    padding: 4px;
-                    spacing: 4px;
-                    Button {
-                        accessible-name: @tr("Accept");
-                        clicked => { root.accept-date(); }
-                        Image { source: @image-url("../../icons/checkmark_16_regular.svg"); width: 16px; height: 16px; colorize: parent.foreground; accessible-role: none; }
-                    }
-                    Button {
-                        accessible-name: @tr("Dismiss");
-                        clicked => { root.close-picker(); }
-                        Image { source: @image-url("../../icons/dismiss_16_regular.svg"); width: 16px; height: 16px; colorize: parent.foreground; accessible-role: none; }
-                    }
-                }
-            }
+        for col[i] in root.pending.columns: PickerWheel {
+            horizontal-stretch: col.part == DatePickerPart.month ? 132 : 78;
+            label: root.title(col.part);
+            rows: col.rows;
+            align-start: col.part == DatePickerPart.month;
+            rtl: root.pending.rtl;
+            divider-visible: i > 0;
+            focused: popup.focused-column == i;
+            activate => { popup.activate-column(i); }
+            step(amount) => { root.step(i, amount); }
         }
     }
 }

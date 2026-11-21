@@ -7,6 +7,7 @@ pub mod presets;
 pub mod ramp;
 pub mod settings;
 pub mod state;
+pub mod time_format;
 
 pub use display::Display;
 pub use ramp::Session;
