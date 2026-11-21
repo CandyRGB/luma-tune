@@ -253,7 +253,7 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 | BreadcrumbBar | 🚧 | 支持宽度折叠、隐藏路径弹层、键盘导航和 RTL，已接入主窗口页眉 |
 | NavigationView | 🚧 | 独立 `components/navigation/navigation_view.slint`，支持自适应窗格、目录层级和顶部溢出 |
 | TabView（可增删/关闭） | 🚧 | 独立 `components/navigation/tab_view.slint`，支持可组合页签内容、三种宽度、滚动、关闭和排序 |
-| Pivot | 🔨 | 可用 `TabWidget` 近似 |
+| Pivot | 🚧 | `components/navigation/pivot.slint`，支持标题、侧边插槽、单选页签和触摸切页 |
 | SelectorBar | 🔨 | |
 
 ### BreadcrumbBar
@@ -279,6 +279,12 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 Windows 浅色已验证三种宽度、窗口缩放、滚动按钮和滚轮、悬停关闭、中键关闭、选中项关闭后的回退、鼠标和 Alt+Shift+方向键重排、拖出页签条的回调、方向键跳过禁用项、Ctrl+Tab / Ctrl+Shift+Tab、Ctrl+F4、首尾插槽和 RTL。Windows UI Automation 已确认页签和按钮类型、选中状态和禁用状态。
 
 待补齐原生跨窗口拖放和撕出、页签头模板、标签和关闭提示、触控与手柄。内容面使用纯色回退。悬停关闭模式为隐藏的关闭按钮保留布局空间，Equal 模式关闭后会立即重排。对照文件存放在 `.refs/WinUI/microsoft-ui-xaml/controls/dev/TabView/` 和 `.refs/WinUI/WinUI-Gallery/WinUIGallery/Samples/TabView/`。
+
+### Pivot
+
+运行 `cargo run -p lumatune --example pivot` 可试用 Gallery 的邮件页签示例及窄栏、RTL、锁定和动态条目。宿主注册 `PivotBehavior` 并提供唯一的条目 ID，用 `selected-id` 切页，按有效的 `selected-index` 渲染正文。标题和两侧附加内容可用命名插槽替换。
+
+Windows 浅色已对照 48px 标题栏、标题与正文位置、24px 页签文字及选中线。已按原生宽栏实测首尾边界、方向键、Home / End、Ctrl+Tab 和 Ctrl+PageDown。Slint 示例另外验证了窄栏指针按钮、移除与禁用项、RTL、锁定、内容区快捷键、UI Automation SelectionItem 和 Windows 触摸输入。选中线按偶数尺寸从 3px 取整为 4px，字体测量使部分页签略窄。窄栏目前按固定顺序滚动标题，待核对原生动态标题布局与触摸惯性。页签头模板、页面加载和卸载事件及读屏仍待补齐。模板和 Gallery 示例已存入 `.refs/WinUI/`。
 
 ### Status & info
 | 控件 | 现状 | 备注 |
