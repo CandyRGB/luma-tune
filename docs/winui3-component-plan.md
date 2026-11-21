@@ -354,7 +354,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | MenuBar / MenuBarItem | 🟡 | 公开有 `MenuBar` |
 | CommandBar / AppBarButton / AppBarToggleButton / AppBarSeparator | 🚧 | `components/menus-toolbars/command_bar.slint` 与 `app_bar_button.slint`，支持主次命令、动态溢出、自定义内容和附属菜单。 |
 | CommandBarFlyout | 🚧 | `components/menus-toolbars/command_bar_flyout.slint`，复用 AppBar 元素并支持标准、瞬态和指针移远关闭模式。 |
-| SwipeControl | 🔨 | |
+| SwipeControl | 🚧 | `components/menus-toolbars/swipe_control.slint`，支持双向 Reveal 或 Execute、触点匹配及操作回调 |
 
 运行 `cargo run -p lumatune --example command_bar` 可试用命令栏。附加 `-- --narrow --bottom` 可查看窄窗口和向上展开，`-- --narrow --ordered` 可查看指定顺序的成组迁移，`-- --app-bar-buttons` 可单独试用三种 AppBar 元素。已验证浅色下的紧凑与最小状态、向上和向下展开、方向键、Esc、外部点击关闭、快捷键、溢出区内滚动和附属菜单。实际调整窗口大小时，切换命令迁入和移出溢出区后保留选中状态。Windows UI Automation 已实测展开、调用和切换。[Microsoft CommandBar 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar) · [WinUI 溢出与键盘源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/CommandBar_Partial.cpp) · [命令栏模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/CommandBar_themeresources.xaml) · [按钮模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/AppBarButton_themeresources.xaml)
 
@@ -363,6 +363,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example command_bar_flyout` 可试用两种打开方式。附加 `-- --edge` 可试用向上展开，`-- --pointer-dismiss` 可试用指针移远关闭，`-- --always-expanded`、`-- --primary-only` 和 `-- --secondary-only` 可试用其余命令布局。浅色已验证标准模式起始焦点、瞬态保留输入焦点、省略号双向切换、Tab 与方向键、外部点击、指针距弹层超过 80px 后关闭、上下文键和附属菜单。执行次命令可关闭浮层并恢复到调用方指定的焦点。Windows UI Automation 已实测展开、切换和调用。[Microsoft CommandBarFlyout 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 键盘逻辑](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/CommandBarFlyoutCommandBar.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/CommandBarFlyout_themeresources.xaml)
 
 当前浮层随宿主窗口绘制，使用 Acrylic 的纯色回退。宿主通过 `restore-focus` 指定恢复元素，用 `CommandBarFlyoutKeyScope` 处理瞬态下的 Esc。原生菜单自动化角色、跨窗口定位、自定义命令容器、触屏和手柄仍待补齐或验收。
+
+#### SwipeControl
+
+运行 `cargo run -p lumatune --example swipe_control` 可试用横向和纵向滑动、执行后保持打开、渐变和位图图标。附加 `-- --scroll-list` 可在十二行列表里复验滑动操作与触屏滚动。宿主通过内容插槽和各侧的 `SwipeItems` 提供内容与操作，同一控件选择横轴或纵轴。每个 Execute 侧接收一项操作。`close()` 可关闭保持打开的 Execute。宿主可在点到控件之外或同组其他项开始滑动时调用 `dismiss()`，以保留该状态。
+
+已对照 Windows 浅色 Gallery 的 500×68px 示例、68px 操作项、图标和标签的排列，以及 Execute 跨过阈值前后的配色。实测长短滑动、反向关闭、松手单次执行、第二指加入后的取消、同组关闭、列表滚动和删除。示例额外支持 Ctrl+方向键、Tab 和 Esc，展开的操作可通过 Windows UI Automation Invoke 调用。内容插槽里的交互子控件优先接收指针输入。WinUI 组合线程的速度投影、触控板手势、窗口级自动外点关闭及读屏播报仍有差异。模板、行为源码、Gallery 示例和位图已保存到 `.refs/WinUI/`。
 
 ### Text
 | 控件 | 现状 | 备注 |
