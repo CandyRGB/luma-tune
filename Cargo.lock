@@ -2583,6 +2583,8 @@ dependencies = [
  "serde_json",
  "windows",
  "windows-collections",
+ "windows-core",
+ "windows-numerics",
 ]
 
 [[package]]

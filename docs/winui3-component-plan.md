@@ -379,7 +379,8 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | TextCommandBarFlyout | 🚧 | `components/text/text_command_bar_flyout.slint`，根据文本控件、选区、剪贴板和编辑历史显示命令。 |
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
-| RichTextBlock / RichEditBox | ⚠️ | 富文本支持弱 |
+| RichTextBlock / RichTextBlockOverflow | 🚧 | 段落与行内格式、文本高亮、跨容器续排、键鼠选区和链接 |
+| RichEditBox | ⚠️ | 富文本编辑及文档接口待实现 |
 
 运行 `cargo run -p lumatune --example text_command_bar_flyout` 可试用可编辑文本、只读文本和密码输入框。右键、菜单键和 Shift+F10 打开上下文菜单，“Show selection tools” 演示选区工具栏。浅色已验证选区在菜单夺取焦点后仍可见，Esc 后恢复编辑焦点，次命令执行后收起，以及撤销、重做和系统剪贴板上的 Unicode 剪切、复制和粘贴。只读示例仅显示复制和全选，密码示例仅显示可用的粘贴和全选。Windows UI Automation 已验证调用全选和展开次命令。[Microsoft 文档及截图](https://learn.microsoft.com/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 命令规则](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp)
 
@@ -404,6 +405,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example password_box` 可试用标题、占位符、掩码字符、显隐模式、禁用和窄宽状态。宿主注册 `PasswordBoxBehavior` 后可使用自定义掩码与 UTF-16 最大输入长度。Peek 只在当前聚焦期间从空值录入文本后出现，按住按钮或 Alt+F8 显示，松开与失焦恢复掩码。已有密码或较窄字段不出现 Peek 按钮。Windows 的禁止显示密码策略用于 Peek 模式。
 
 已与 Windows 浅色 Gallery 对照 300×32px 字段、聚焦线、掩码与按住显示的位置。实测按住和释放、Alt+F8、重新聚焦、限制输入、自定义掩码及 Visible。Windows UI Automation 在显示期间仍报告密码角色，Value 和 Text 提供程序未读出内容。已验证复制和剪切快捷键不写入 Windows 剪贴板，模拟剪贴板回归覆盖粘贴、截断和取消。文本命令栏示例已接入 PasswordBox，菜单沿用密码字段命令集。WinUI 的系统 PIN 输入范围、原生读屏提示及内存加密仍有差异。模板、核心实现和 Gallery 示例已保存到 `.refs/WinUI/`。
+
+#### RichTextBlock
+
+运行 `cargo run -p lumatune --example rich_text_block` 可试用简单段落、粗体和斜体、链接、行内图像、连续分栏及文本高亮。宿主注册 `RichTextBehavior` 并提供段落与行内格式。DirectWrite 按各容器的宽度换行，完整的行依序放入容器。绘制、选区和指针定位共用该排版结果，位置和文本高亮范围使用 UTF-16 偏移。最后一个容器仍有溢出时可读取剩余文本。选区跨容器时按文档顺序复制，链接激活和剪贴板交给宿主。示例接入共享文本命令栏的复制和全选。
+
+已对照本地 WinUI Gallery 的浅色正文、格式化文字、链接及三栏两端对齐。100% 和 125% 缩放下实测链接点击、绿色拖选、Ctrl+A、Shift+方向键、右键及 Shift+F10 的命令菜单、跨列选区、最后一列的溢出状态、RTL 及黄、红、蓝三种范围高亮。Windows 排版回归测试覆盖不同宽度的续排、1.25 倍位图及行内图像度量。Slint 将链接暴露为可调用按钮。WinUI 原生 Hyperlink、UI Automation TextPattern、手柄和触摸选择、自定义行内控件及独立控件间的溢出连接仍有差异。官方控件源码和示例已保存在 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |
