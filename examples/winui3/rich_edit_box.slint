@@ -1,0 +1,169 @@
+import { Button as StandardButton, ComboBox, Palette } from "std-widgets.slint";
+import { Button, ButtonStyle } from "../../apps/lumatune/ui/components/basic-input/button.slint";
+import { RichEditBox, RichEditCommand, RichEditGeometry, RichEditState } from "../../apps/lumatune/ui/components/text/rich_edit_box.slint";
+import { TextBox } from "../../apps/lumatune/ui/components/text/text_box.slint";
+
+export { RichEditCommand, RichEditGeometry, RichEditState }
+
+component ToolButton inherits Button {
+    in property <image> icon;
+    preferred-width: 40px;
+    preferred-height: 32px;
+    appearance: ButtonStyle.subtle;
+    Image {
+        width: 16px;
+        height: 16px;
+        source: root.icon;
+        colorize: root.foreground;
+        accessible-role: none;
+    }
+}
+
+export component RichEditBoxExample inherits Window {
+    title: "RichEditBox";
+    default-font-family: "Segoe UI Variable Text";
+    background: #f3f3f3;
+    min-width: 548px;
+    preferred-width: 848px;
+    min-height: 506px;
+    preferred-height: 560px;
+
+    in property <color> accent: #005fb8;
+    in property <RichEditState> simple-state;
+    in property <RichEditState> custom-state;
+    in property <string> status;
+    out property <RichEditGeometry> simple-geometry: simple.geometry;
+    out property <RichEditGeometry> custom-geometry: custom.geometry;
+
+    callback simple-command(RichEditCommand);
+    callback custom-command(RichEditCommand);
+    callback open-document();
+    callback save-document();
+    callback find-next(string);
+    callback apply-color(color, bool);
+
+    private property <bool> read-only;
+    private property <[color]> font-colors: [transparent, red, orange, yellow, green, blue, indigo, violet, gray];
+
+    // Native children hand focus back at the boundary of each editor.
+    public function traverse-from-editor(simple-editor: bool, backward: bool) {
+        if simple-editor {
+            if backward { read-only-button.focus(); }
+            else if root.read-only { save-button.focus(); }
+            else { open-button.focus(); }
+        } else if backward {
+            if root.read-only { save-button.focus(); }
+            else { underline-button.focus(); }
+        } else {
+            find.focus();
+        }
+    }
+
+    VerticalLayout {
+        x: 24px;
+        y: 20px;
+        width: parent.width - 48px;
+        height: parent.height - 40px;
+        spacing: 12px;
+        alignment: start;
+
+        Text { text: "A simple text editor using RichEditBox."; font-size: 16px; font-weight: 600; }
+        simple := RichEditBox {
+            height: 32px;
+            accent: root.accent;
+            state: root.simple-state;
+            command(value) => { root.simple-command(value); }
+        }
+
+        Text { text: "A custom editor with RichEditBox."; font-size: 16px; font-weight: 600; }
+        HorizontalLayout {
+            height: 32px;
+            spacing: 8px;
+            open-button := ToolButton {
+                accessible-name: "Open file";
+                icon: @image-url("../../apps/lumatune/ui/icons/folder_open_16_regular.svg");
+                enabled: !root.read-only;
+                clicked => { root.open-document(); }
+            }
+            save-button := ToolButton {
+                accessible-name: "Save file";
+                icon: @image-url("../../apps/lumatune/ui/icons/save_16_regular.svg");
+                clicked => { root.save-document(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            ToolButton {
+                accessible-name: "Bold";
+                accessible-checkable: true;
+                accessible-checked: root.custom-state.bold;
+                icon: @image-url("../../apps/lumatune/ui/icons/text_bold_16_regular.svg");
+                enabled: !root.read-only;
+                appearance: root.custom-state.bold ? ButtonStyle.accent : ButtonStyle.subtle;
+                accent: root.accent;
+                clicked => { root.custom-command(RichEditCommand.bold); }
+            }
+            ToolButton {
+                accessible-name: "Italic";
+                accessible-checkable: true;
+                accessible-checked: root.custom-state.italic;
+                icon: @image-url("../../apps/lumatune/ui/icons/text_italic_16_regular.svg");
+                enabled: !root.read-only;
+                appearance: root.custom-state.italic ? ButtonStyle.accent : ButtonStyle.subtle;
+                accent: root.accent;
+                clicked => { root.custom-command(RichEditCommand.italic); }
+            }
+            underline-button := ToolButton {
+                accessible-name: "Underline";
+                accessible-checkable: true;
+                accessible-checked: root.custom-state.underlined;
+                icon: @image-url("../../apps/lumatune/ui/icons/text_underline_16_regular.svg");
+                enabled: !root.read-only;
+                appearance: root.custom-state.underlined ? ButtonStyle.accent : ButtonStyle.subtle;
+                accent: root.accent;
+                clicked => { root.custom-command(RichEditCommand.underline); }
+            }
+        }
+
+        custom := RichEditBox {
+            height: 200px;
+            accent: root.accent;
+            state: root.custom-state;
+            read-only: root.read-only;
+            command(value) => { root.custom-command(value); }
+        }
+
+        HorizontalLayout {
+            height: 32px;
+            spacing: 8px;
+            Text { text: "Find:"; vertical-alignment: center; }
+            find := TextBox {
+                width: 224px;
+                accessible-name: "Find text";
+                placeholder-text: "Enter search text";
+                accent: root.accent;
+                context-enabled: false;
+                accepted => { root.find-next(self.text); }
+            }
+            StandardButton { text: "Find next"; enabled: find.text != ""; clicked => { root.find-next(find.text); } }
+            Rectangle { horizontal-stretch: 1; }
+            ComboBox {
+                width: 110px;
+                accessible-label: "Font color";
+                enabled: !root.read-only;
+                model: ["Automatic", "Red", "Orange", "Yellow", "Green", "Blue", "Indigo", "Violet", "Gray"];
+                selected(value) => {
+                    if self.current-index >= 0 {
+                        root.apply-color(root.font-colors[self.current-index], self.current-index == 0);
+                    }
+                }
+            }
+            read-only-button := StandardButton { text: "Read-only"; checkable: true; checked <=> root.read-only; }
+        }
+
+        Text {
+            text: root.status;
+            height: 20px;
+            overflow: elide;
+            color: Palette.foreground;
+        }
+    }
+}

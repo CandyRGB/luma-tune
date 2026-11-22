@@ -380,7 +380,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichTextBlockOverflow | 🚧 | 段落与行内格式、文本高亮、跨容器续排、键鼠选区和链接 |
-| RichEditBox | ⚠️ | 富文本编辑及文档接口待实现 |
+| RichEditBox | 🚧 | 原生 Rich Edit 文档、格式命令、选区、撤销重做、RTF 与查找 |
 
 运行 `cargo run -p lumatune --example text_command_bar_flyout` 可试用可编辑文本、只读文本和密码输入框。右键、菜单键和 Shift+F10 打开上下文菜单，“Show selection tools” 演示选区工具栏。浅色已验证选区在菜单夺取焦点后仍可见，Esc 后恢复编辑焦点，次命令执行后收起，以及撤销、重做和系统剪贴板上的 Unicode 剪切、复制和粘贴。只读示例仅显示复制和全选，密码示例仅显示可用的粘贴和全选。Windows UI Automation 已验证调用全选和展开次命令。[Microsoft 文档及截图](https://learn.microsoft.com/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 命令规则](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp)
 
@@ -411,6 +411,12 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 运行 `cargo run -p lumatune --example rich_text_block` 可试用简单段落、粗体和斜体、链接、行内图像、连续分栏及文本高亮。宿主注册 `RichTextBehavior` 并提供段落与行内格式。DirectWrite 按各容器的宽度换行，完整的行依序放入容器。绘制、选区和指针定位共用该排版结果，位置和文本高亮范围使用 UTF-16 偏移。最后一个容器仍有溢出时可读取剩余文本。选区跨容器时按文档顺序复制，链接激活和剪贴板交给宿主。示例接入共享文本命令栏的复制和全选。
 
 已对照本地 WinUI Gallery 的浅色正文、格式化文字、链接及三栏两端对齐。100% 和 125% 缩放下实测链接点击、绿色拖选、Ctrl+A、Shift+方向键、右键及 Shift+F10 的命令菜单、跨列选区、最后一列的溢出状态、RTL 及黄、红、蓝三种范围高亮。Windows 排版回归测试覆盖不同宽度的续排、1.25 倍位图及行内图像度量。Slint 将链接暴露为可调用按钮。WinUI 原生 Hyperlink、UI Automation TextPattern、手柄和触摸选择、自定义行内控件及独立控件间的溢出连接仍有差异。官方控件源码和示例已保存在 `.refs/WinUI/`。
+
+#### RichEditBox
+
+运行 `cargo run -p lumatune --example rich_edit_box` 可试用简单编辑框和带工具栏的编辑器，附加 `-- --sample-text` 可预填包含中文和 Emoji 的文本。Slint 复用文本字段边框，Windows Rich Edit 子窗口负责输入、选择、滚动和文档。宿主可访问 UTF-16 选区、切换粗体、斜体和下划线、设置前景色和使用系统剪贴板。示例通过文件对话框读写 RTF，查找可从当前选区继续并回绕。打开时先在独立编辑器中解析 RTF，保存时在目标目录写完临时文件再替换。
+
+浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、选择格式、右键菜单、撤销重做、只读、查找、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。WinUI 的浮动文本命令栏、同时高亮所有查找结果、MathML、占位符和从 Slint 无障碍树发现原生编辑区仍待处理。源码和示例已保存在 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |

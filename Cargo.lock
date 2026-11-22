@@ -2560,9 +2560,11 @@ dependencies = [
  "arboard",
  "lumatune-core",
  "lumatune-win",
+ "raw-window-handle",
  "serde_json",
  "slint",
  "slint-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -4040,6 +4042,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",
