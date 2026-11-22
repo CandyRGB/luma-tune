@@ -41,15 +41,21 @@ export global FlyoutLayout {
     }
 
     public pure function place-submenu(target: FlyoutRect, bounds: FlyoutRect, size: Size) -> FlyoutRect {
+        return self.place-submenu-on-side(target, bounds, size, false);
+    }
+
+    public pure function place-submenu-on-side(target: FlyoutRect, bounds: FlyoutRect, size: Size, prefer-left: bool) -> FlyoutRect {
         let width = min(size.width, self.even-limit(bounds.width));
         let height = min(size.height, self.even-limit(bounds.height));
         let overlap = 4px;
         let right = target.x + target.width;
         let left-space = target.x - bounds.x;
         let right-space = bounds.x + bounds.width - right;
-        let x = width <= right-space ? right - overlap
-            : width < left-space ? target.x - width + overlap
-            : bounds.x + bounds.width - width;
+        let x = prefer-left
+            ? (width <= left-space ? target.x - width + overlap
+                : width < right-space ? right - overlap : bounds.x)
+            : (width <= right-space ? right - overlap
+                : width < left-space ? target.x - width + overlap : bounds.x + bounds.width - width);
         let y = height <= bounds.y + bounds.height - target.y ? target.y
             : height <= target.y + target.height - bounds.y ? target.y + target.height - height
             : bounds.y;

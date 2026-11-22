@@ -99,7 +99,9 @@ export component FlyoutPresenter inherits Rectangle {
 
     callback scrolled();
     in property <bool> cascading;
+    in property <bool> cascade-left;
     in property <bool> positioned-at-point;
+    in property <Point> placement-offsets: { x: 4px, y: 4px };
 
     private property <bool> full: !root.positioned-at-point && root.placement == FlyoutPlacement.full;
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
@@ -113,11 +115,11 @@ export component FlyoutPresenter inherits Rectangle {
             self.full ? self.bounds.height : round(max(root.presenter-min-height, content.preferred-height) / 2px) * 2px),
     };
     private property <FlyoutRect> geometry: root.cascading
-        ? FlyoutLayout.place-submenu(root.anchor, self.bounds, self.desired-size)
+        ? FlyoutLayout.place-submenu-on-side(root.anchor, self.bounds, self.desired-size, root.cascade-left)
         : root.positioned-at-point
         ? FlyoutLayout.place-at-point({ x: root.anchor.x, y: root.anchor.y }, self.bounds, self.desired-size)
-        : FlyoutLayout.place(root.placement, root.anchor, self.bounds, self.desired-size,
-            { width: root.presenter-min-width, height: root.presenter-min-height });
+        : FlyoutLayout.place-with-offsets(root.placement, root.anchor, self.bounds, self.desired-size,
+            { width: root.presenter-min-width, height: root.presenter-min-height }, root.placement-offsets);
 
     x: self.geometry.x;
     y: self.geometry.y;

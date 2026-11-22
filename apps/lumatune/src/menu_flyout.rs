@@ -8,6 +8,29 @@ pub fn install(behavior: MenuFlyoutBehavior<'_>) {
     behavior.on_accessible_index(accessible_index);
     behavior.on_trim_levels(trim_levels);
     behavior.on_next_item(next_item);
+    behavior.on_index_of(|items, id| {
+        items.model_tracker().track_row_count_changes();
+        (0..items.row_count())
+            .find(|&index| {
+                items
+                    .row_data_tracked(index)
+                    .is_some_and(|item| item.id == id)
+            })
+            .map_or(-1, |index| index as i32)
+    });
+    behavior.on_access_key(|items, text| {
+        let key = text.to_lowercase();
+        items.model_tracker().track_row_count_changes();
+        (0..items.row_count())
+            .filter_map(|index| items.row_data_tracked(index).map(|item| (index, item)))
+            .find(|(_, item)| {
+                item.parent_id.is_empty()
+                    && item.kind == MenuFlyoutItemKind::Submenu
+                    && !item.disabled
+                    && item.shortcut.to_parts().eq(["Alt", key.as_str()])
+            })
+            .map_or(-1, |(index, _)| index as i32)
+    });
     behavior.on_has_icons(|items| any_row(items, |item| item.icon.size().width > 0));
     behavior.on_has_checks(|items| {
         any_row(items, |item| {

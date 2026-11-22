@@ -373,10 +373,18 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 ### Menus & toolbars
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| MenuBar / MenuBarItem | 🟡 | 公开有 `MenuBar` |
+| MenuBar / MenuBarItem | 🚧 | `components/menus-toolbars/menu_bar.slint`，含标题、悬停切换、级联菜单、访问键和范围快捷键 |
 | CommandBar / AppBarButton / AppBarToggleButton / AppBarSeparator | 🚧 | `components/menus-toolbars/command_bar.slint` 与 `app_bar_button.slint`，支持主次命令、动态溢出、自定义内容和附属菜单。 |
 | CommandBarFlyout | 🚧 | `components/menus-toolbars/command_bar_flyout.slint`，复用 AppBar 元素并支持标准、瞬态和指针移远关闭模式。 |
 | SwipeControl | 🚧 | `components/menus-toolbars/swipe_control.slint`，支持双向 Reveal 或 Execute、触点匹配及操作回调 |
+
+#### MenuBar
+
+运行 `cargo run -p lumatune --example menu_bar` 可试用 File、Edit、Help 和级联命令。菜单栏和弹层使用同一个带稳定 ID 的平面菜单模型，顶层条目为子菜单标题。将菜单栏放在宿主内容上层并传入窗口视口，使用 `MenuBarAccelerators` 包裹需要访问键及快捷键的区域。
+
+已对照原生 WinUI Gallery 的 40px 菜单栏、32px 标题、标题间距、下方贴边及 40px 命令步距。浅色 100% 和 125% 下实测鼠标按下、悬停切换、外点关闭、方向键、Escape 后恢复焦点、Alt 访问键、输入框内快捷键、禁用和 RTL 级联。Windows UI Automation 已验证展开、顶层切换与活动标题失效时收起。Slint 以 Group 与 Button 暴露菜单栏和标题。原生 MenuBar/MenuItem 角色、`ExpandCollapse.Collapse` 转发、Alt 键提示、触屏及跨窗口弹层仍待补齐。[官方模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/MenuBar/MenuBarItem.xaml) · [键鼠行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/MenuBar/MenuBarItem.cpp)
+
+#### CommandBar
 
 运行 `cargo run -p lumatune --example command_bar` 可试用命令栏。附加 `-- --narrow --bottom` 可查看窄窗口和向上展开，`-- --narrow --ordered` 可查看指定顺序的成组迁移，`-- --app-bar-buttons` 可单独试用三种 AppBar 元素。已验证浅色下的紧凑与最小状态、向上和向下展开、方向键、Esc、外部点击关闭、快捷键、溢出区内滚动和附属菜单。实际调整窗口大小时，切换命令迁入和移出溢出区后保留选中状态。Windows UI Automation 已实测展开、调用和切换。[Microsoft CommandBar 规范](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/command-bar) · [WinUI 溢出与键盘源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/CommandBar_Partial.cpp) · [命令栏模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/CommandBar_themeresources.xaml) · [按钮模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/AppBarButton_themeresources.xaml)
 
