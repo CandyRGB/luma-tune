@@ -141,7 +141,8 @@ Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、
 | --- | --- | --- |
 | ListView | ✅ | |
 | GridView | 🚧 | `components/collections/grid_view.slint`，支持自适应行列、四种选择模式、拖动重排和视口虚拟化 |
-| ItemsRepeater | 🚧 | `components/collections/items_repeater.slint`，提供 StackLayout、UniformGridLayout、FlowLayout 和自定义位置，支持宿主模板和视口虚拟化 |
+| ItemsRepeater | 🚧 | `components/collections/items_repeater.slint`，提供 StackLayout、UniformGridLayout、FlowLayout、LinedFlowLayout 和自定义位置，支持宿主模板和视口虚拟化 |
+| ItemsView / ItemContainer | 🚧 | `components/collections/items_view.slint`、`item_container.slint`，支持三种 Gallery 布局、四种选择模式、独立条目调用和自定义内容 |
 | TreeView | 🚧 | `components/collections/tree_view.slint`，支持层级、三态多选、懒加载、拖放重排和视口虚拟化 |
 | FlipView | 🚧 | `components/collections/flip_view.slint`，支持横纵分页、选择、鼠标、键盘和触控翻页 |
 
@@ -164,6 +165,14 @@ FemtoVG 正常裁切照片圆角，Slint 1.18.1 的软件渲染会保留图片�
 Windows 浅色对照了 Gallery 三条色条的强调色、底色、24px 高度和 8px 间距。官方 425px 色条槽宽按项目规则取 426px。实测增删至空、横纵方向、RTL、窄宽换行、对齐、可变尺寸、按索引跳转和自定义排列。10,000 项纵向列表在首尾各创建 8 个条目。已验证滚动及移除首项后仍在缓存内的开关保留选中态。
 
 条目尺寸由宿主提供，自定义布局通过坐标模型接入。内置布局预计算整批几何，然后按视口及缓存创建元素。WinUI 的逐项测量、元素生命周期事件、元素池、离屏焦点与锚点保持仍待补齐。官方行为源码与 Gallery 示例已存入 `.refs/WinUI/`。
+
+#### ItemsView / ItemContainer
+
+运行 `cargo run -p lumatune --example items_view` 可查看基本列表、可换布局和选择与调用三个场景。宿主注册 `ItemsViewBehavior` 与 `ItemsRepeaterBehavior`，为每行提供非空唯一键和启用状态，在 `for rect in view.realized` 中提供 ItemContainer 及自定义内容。控件公开当前索引、所选键、选择与调用事件、范围选择、反选、视口位置查询和按索引滚动。LinedFlowLayout 根据条目宽高比与统一行高排列，支持项目最小宽度、行与列间距、填充及 RTL。
+
+Windows 浅色对照了 Gallery 基本示例的 220×400px 视口、200×140px 条目和 4px 图片内边距，以及模板的强调色选择边框、内描边、悬停和按下色、20px 多选复选框。按偶数取整约定，3px 外框取 4px，5px 布局间距取 6px。Slint 在 100% 和 125% 实测了鼠标选择、双击和 Enter 调用、Space、Shift/Ctrl 选区、禁用调用、三种布局切换、RTL 及 10,000 项末尾定位。末尾测试创建了 10 个条目。Windows UI Automation 已验证 List、ListItem 和单选互斥。
+
+LinedFlowLayout 的全局行划分优化、晚到的尺寸信息和行锁定，ScrollView 原生滚动物理与外接滚动控制器，原生 Invoke、ScrollItem 和读屏播报，触控和手柄仍待补齐。软件渲染时贴视口的焦点框和多选框可能裁切，照片标题与喜欢数使用本地样例数据。官方模板、选择行为和 Gallery 示例已存入 `.refs/WinUI/`。[WinUI ItemContainer 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ItemContainer/ItemContainer.xaml) · [Gallery ItemsView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ItemsView/ItemsViewPage.xaml)
 
 #### FlipView
 

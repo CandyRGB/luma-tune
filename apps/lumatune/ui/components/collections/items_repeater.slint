@@ -9,7 +9,7 @@ export struct ItemsRepeaterPlacement {
     height: length,
 }
 
-export enum ItemsRepeaterLayout { stack, uniform-grid, flow, custom }
+export enum ItemsRepeaterLayout { stack, uniform-grid, flow, custom, lined-flow }
 export enum ItemsRepeaterJustification { start, center, end, space-around, space-between, space-evenly }
 export enum ItemsRepeaterStretch { none, fill, uniform }
 
@@ -72,6 +72,7 @@ export component ItemsRepeater inherits Rectangle {
     in property <float> vertical-cache-length: 2;
 
     out property <[ItemsRepeaterPlacement]> realized;
+    out property <[ItemsRepeaterPlacement]> placements: geometry.placements;
     out property <length> extent-width: geometry.width;
     out property <length> extent-height: geometry.height;
 

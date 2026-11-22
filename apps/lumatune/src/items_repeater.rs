@@ -121,8 +121,9 @@ fn arrange(
     let count = count.max(0) as usize;
     let stack = options.kind == ItemsRepeaterLayout::Stack;
     let uniform = options.kind == ItemsRepeaterLayout::UniformGrid;
+    let lined = options.kind == ItemsRepeaterLayout::LinedFlow;
     let axes = Axes {
-        main_is_x: stack == (options.orientation == Orientation::Horizontal),
+        main_is_x: !lined && stack == (options.orientation == Orientation::Horizontal),
     };
     let mut model = GeometryModel {
         placements: Vec::with_capacity(count),
@@ -152,6 +153,16 @@ fn arrange(
             placement.height = nonnegative(placement.height);
             model.placements.push(placement);
         }
+    } else if lined {
+        arrange_lined(
+            &mut model,
+            &sizes,
+            &options,
+            count,
+            viewport_width,
+            cross_gap,
+            main_gap,
+        );
     } else if count > 0 {
         sizes.model_tracker().track_row_count_changes();
         let mut limit = if options.max_items_per_line > 0 {
@@ -268,6 +279,102 @@ fn justify(
         } else {
             item.x += shift;
         }
+    }
+}
+
+fn arrange_lined(
+    model: &mut GeometryModel,
+    sizes: &ModelRc<ItemsRepeaterSize>,
+    options: &ItemsRepeaterLayoutOptions,
+    count: usize,
+    viewport: f32,
+    item_gap: f32,
+    line_gap: f32,
+) {
+    let height = even(nonnegative(options.item_size.height)).max(2.0);
+    let minimum = even(nonnegative(options.item_size.width)).max(2.0);
+    sizes.model_tracker().track_row_count_changes();
+    let widths = (0..count)
+        .map(|index| {
+            sizes.model_tracker().track_row_data_changes(index);
+            let Some(size) = sizes.row_data(index) else {
+                return minimum;
+            };
+            let ratio = if size.height > 0.0 {
+                size.width / size.height
+            } else {
+                1.0
+            };
+            even(nonnegative(ratio) * height).max(minimum)
+        })
+        .collect::<Vec<_>>();
+    let mut first = 0;
+    let mut y = 0.0;
+    while first < count {
+        let mut end = first + 1;
+        let mut natural_width = widths[first];
+        while let Some(&next) = widths.get(end) {
+            let proposed = natural_width + item_gap + next;
+            let min_width = (end - first + 1) as f32 * minimum + (end - first) as f32 * item_gap;
+            if viewport > 0.0
+                && (min_width > viewport
+                    || proposed > viewport
+                        && (options.stretch == ItemsRepeaterStretch::None
+                            || proposed - viewport > viewport - natural_width))
+            {
+                break;
+            }
+            natural_width = proposed;
+            end += 1;
+        }
+        let fill = options.stretch != ItemsRepeaterStretch::None
+            && viewport >= minimum
+            && (end < count || natural_width > viewport);
+        let available = if fill {
+            viewport - (end - first - 1) as f32 * item_gap
+        } else {
+            natural_width - (end - first - 1) as f32 * item_gap
+        };
+        let weight = widths[first..end]
+            .iter()
+            .map(|width| width - minimum)
+            .sum::<f32>();
+        let spare = (available - (end - first) as f32 * minimum).max(0.0);
+        let mut x = 0.0;
+        let mut distributed = 0.0;
+        let mut cumulative = 0.0;
+        for (offset, &natural) in widths[first..end].iter().enumerate() {
+            let width = if fill {
+                cumulative += if weight > 0.0 {
+                    (natural - minimum) / weight
+                } else {
+                    1.0 / (end - first) as f32
+                };
+                let edge = even(cumulative * spare);
+                let width = minimum + edge - distributed;
+                distributed = edge;
+                width
+            } else {
+                natural
+            };
+            model
+                .placements
+                .push(model.axes.place(first + offset, y, x, height, width));
+            x += width + item_gap;
+        }
+        justify(
+            &mut model.placements[first..end],
+            model.axes,
+            (viewport - x + item_gap).max(0.0),
+            options.justification,
+        );
+        model.lines.push(Line {
+            rows: first..end,
+            start: y,
+            end: y + height,
+        });
+        y += height + line_gap;
+        first = end;
     }
 }
 
