@@ -295,11 +295,19 @@ Windows 浅色已对照 48px 标题栏、标题与正文位置、24px 页签文�
 ### Status & info
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持宽窄布局、自定义内容和可区分来源的可取消关闭 |
+| InfoBar（可关提示条） | 🚧 | `components/status-info/info_bar.slint`，支持自适应排布、操作按钮插槽、自定义内容和可取消的关闭事件 |
 | InfoBadge（角标） | 🚧 | `components/status-info/info_badge.slint`，支持点、计数、字形与图像，并可附在导航条目上 |
 | ProgressBar | 🚧 | `components/status-info/progress_bar.slint`，支持确定和不确定模式、暂停与错误 |
 | ProgressRing（环形） | 🚧 | `components/status-info/progress_ring.slint`，支持确定与不确定模式、范围、配色和停用 |
 | ToolTip | 🟡 | 基础可用，样式弱 |
+
+#### InfoBar
+
+运行 `cargo run -p lumatune --example info_bar` 可试用四种严重度、普通按钮、超链接、纯内容提示条及关闭取消。组件默认收起，由宿主设置 `open`。标题、消息和操作位根据测量宽度排成一行或多行，操作组件在切换时保留实例。默认内容插槽单独布局，只有内容时放在首行。超链接操作通过 `action-is-hyperlink` 使用 WinUI 的缩进。
+
+Windows 浅色 100% 和 125% 已实测四种配色、常规与堆叠布局、长消息、两种操作、RTL、图标与关闭按钮显隐、悬停提示、键鼠激活、可取消关闭和重新打开。原生 Gallery 已通过 UI Automation 对照普通按钮、长消息堆叠和超链接位置。Slint 的 Windows UI Automation 提供 Region、分级 LiveSetting 和关闭按钮 Invoke。WinUI 提供 StatusBar 角色与独立的打开、关闭通知，实际读屏播报、原生通知语义和 Acrylic 提示底材仍待验收或实现。[官方模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/InfoBar/InfoBar.xaml) · [布局算法](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/InfoBar/InfoBarPanel.cpp)
+
+#### InfoBadge
 
 运行 `cargo run -p lumatune --example info_badge` 可试用强调色和五种状态色、4×4 点状徽标、16px 高的计数、状态字形和自定义图像。非负 `value` 优先显示数字，负值使用图标或点状状态。自定义图像可保留原色。导航条目通过 `badge` 提供可见性、内容和状态描述，顶部布局会按徽标宽度重新计算。
 
@@ -454,7 +462,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 ## 复刻优先级（实用 + Slint 缺）
 
 1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态、鼠标键盘、关闭生命周期已验证，待完成原生视觉和读屏对照）
-2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证常用交互及关闭事件，待补自定义操作按钮）
+2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证操作位、布局切换和关闭事件，待验收读屏与原生通知）
 3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
 4. 🚧 CommandBar（menus-toolbars，已验证主次命令、动态溢出和独立 AppBar 元素）
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
