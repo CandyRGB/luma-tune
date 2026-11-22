@@ -2560,6 +2560,7 @@ dependencies = [
  "arboard",
  "lumatune-core",
  "lumatune-win",
+ "quick-xml",
  "raw-window-handle",
  "serde_json",
  "slint",

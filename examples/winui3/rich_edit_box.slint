@@ -1,4 +1,4 @@
-import { Button as StandardButton, ComboBox, Palette } from "std-widgets.slint";
+import { Button as StandardButton, ComboBox, Palette, TextEdit } from "std-widgets.slint";
 import { Button, ButtonStyle } from "../../apps/lumatune/ui/components/basic-input/button.slint";
 import { AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
     CommandBarLayout, CommandBarOverflowButtonVisibility } from "../../apps/lumatune/ui/components/menus-toolbars/command_bar.slint";
@@ -39,8 +39,11 @@ export component RichEditBoxExample inherits Window {
     in property <RichEditState> simple-state;
     in property <RichEditState> custom-state;
     in property <string> status;
-    out property <RichEditGeometry> simple-geometry: simple.geometry;
-    out property <RichEditGeometry> custom-geometry: custom.geometry;
+    in property <bool> math-samples;
+    in property <bool> math-ready;
+    in property <string> math-ml;
+    out property <RichEditGeometry> simple-geometry: root.math-samples ? math-input.geometry : simple.geometry;
+    out property <RichEditGeometry> custom-geometry: root.math-samples ? math-document.geometry : custom.geometry;
     out property <FlyoutRect> menu-bounds: menu.panel-bounds;
     out property <bool> menu-open: menu.is-open;
     out property <bool> menu-tracks-pointer: menu.is-open && root.selection-menu && !menu.is-expanded;
@@ -54,6 +57,7 @@ export component RichEditBoxExample inherits Window {
     callback apply-color(color, bool);
     callback menu-command(bool, TextCommand);
     callback restore-menu-focus(bool);
+    callback set-sample-formula();
 
     private property <bool> read-only;
     private property <bool> menu-simple;
@@ -88,6 +92,17 @@ export component RichEditBoxExample inherits Window {
 
     // Native children hand focus back at the boundary of each editor.
     public function traverse-from-editor(simple-editor: bool, backward: bool) {
+        if root.math-samples {
+            if simple-editor {
+                if backward { formula-button.focus(); }
+                else { root.custom-command(RichEditCommand.focus); }
+            } else if backward {
+                root.simple-command(RichEditCommand.focus);
+            } else {
+                math-code.focus();
+            }
+            return;
+        }
         if simple-editor {
             if backward { read-only-button.focus(); }
             else if root.read-only { save-button.focus(); }
@@ -107,6 +122,7 @@ export component RichEditBoxExample inherits Window {
         height: parent.height - 40px;
         spacing: 12px;
         alignment: start;
+        visible: !root.math-samples;
 
         Text { text: "A simple text editor using RichEditBox."; font-size: 16px; font-weight: 600; }
         simple := RichEditBox {
@@ -209,6 +225,64 @@ export component RichEditBoxExample inherits Window {
             height: 20px;
             overflow: elide;
             color: Palette.foreground;
+        }
+    }
+
+    VerticalLayout {
+        x: 24px;
+        y: 20px;
+        width: min(724px, parent.width - 48px);
+        height: parent.height - 40px;
+        visible: root.math-samples;
+        spacing: 16px;
+        alignment: start;
+
+        Text { text: "Math mode"; font-size: 16px; font-weight: 600; }
+        Text {
+            text: "Enter UnicodeMath, for example 4^2 or 1/2.";
+            wrap: word-wrap;
+        }
+        math-input := RichEditBox {
+            height: 80px;
+            enabled: root.math-ready;
+            accent: root.accent;
+            state: root.simple-state;
+            command(value) => { root.simple-command(value); }
+        }
+        Text { text: "Working with MathML"; font-size: 16px; font-weight: 600; }
+        math-document := RichEditBox {
+            height: 80px;
+            enabled: root.math-ready;
+            accent: root.accent;
+            state: root.custom-state;
+            command(value) => { root.custom-command(value); }
+        }
+        Text { text: "MathML Code"; font-weight: 600; }
+        math-code := TextEdit {
+            accessible-label: "MathML Code";
+            read-only: true;
+            font-family: "Consolas";
+            font-size: 14px;
+            text: root.math-ml == "" ? "<!-- No MathML content -->" : root.math-ml;
+            min-height: 100px;
+            preferred-height: 140px;
+            vertical-stretch: 1;
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            formula-button := Button {
+                text: "Set sample formula";
+                appearance: ButtonStyle.accent;
+                accent: root.accent;
+                enabled: root.math-ready;
+                clicked => { root.set-sample-formula(); }
+            }
+            Text {
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                text: root.status;
+                overflow: elide;
+            }
         }
     }
 

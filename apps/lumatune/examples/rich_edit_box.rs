@@ -13,6 +13,10 @@ use lumatune_win::{
     accent::light_accent_text_colors,
     rich_edit::{Edit, EditorRequest, Effect, Placement, RichEdit},
 };
+use quick_xml::{
+    Reader, Writer,
+    events::{BytesText, Event},
+};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{Color, ComponentHandle, Timer, TimerMode};
 
@@ -26,11 +30,17 @@ slint::slint! {
         CommandBarLayout, CommandBarOverflowButtonVisibility }
 }
 
+const SAMPLE_FORMULA: &str = r#"<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>x</mi><mo>∈</mo><mi>P</mi><mfenced><mi>A</mi></mfenced>
+  <mo>↔</mo><mi>x</mi><mo>⊆</mo><mi>A</mi>
+</math>"#;
+
 struct MountedEditor {
     editor: RichEdit,
     geometry: Option<RichEditGeometry>,
     scale: f32,
     has_text: bool,
+    math_fits_one_line: bool,
 }
 
 impl MountedEditor {
@@ -42,6 +52,7 @@ impl MountedEditor {
             geometry: None,
             scale: 0.0,
             has_text: false,
+            math_fits_one_line: true,
         }
     }
 
@@ -49,9 +60,10 @@ impl MountedEditor {
         &mut self,
         geometry: RichEditGeometry,
         scale: f32,
-    ) -> Result<RichEditState, Box<dyn Error>> {
+    ) -> Result<(RichEditState, bool), Box<dyn Error>> {
         let previous = self.geometry.as_ref();
-        if previous != Some(&geometry) || self.scale != scale {
+        let geometry_changed = previous != Some(&geometry) || self.scale != scale;
+        if geometry_changed {
             let px = |logical: f32| (logical * scale).round() as i32;
             if self.scale != scale {
                 self.editor.set_scale(scale)?;
@@ -98,11 +110,12 @@ impl MountedEditor {
             self.geometry = Some(geometry);
             self.scale = scale;
         }
-        if self.editor.take_text_changed() {
+        let document_changed = self.editor.take_text_changed();
+        if document_changed {
             self.has_text = self.editor.has_text();
         }
         let selection = self.editor.selection();
-        Ok(RichEditState {
+        let state = RichEditState {
             has_focus: self.editor.has_focus(),
             has_text: self.has_text,
             has_selection: selection.start != selection.end,
@@ -111,7 +124,29 @@ impl MountedEditor {
             bold: self.editor.effect_active(Effect::Bold),
             italic: self.editor.effect_active(Effect::Italic),
             underlined: self.editor.effect_active(Effect::Underline),
-        })
+        };
+        Ok((state, document_changed || geometry_changed))
+    }
+}
+
+fn format_math_ml(xml: &str) -> Option<String> {
+    let mut reader = Reader::from_str(xml);
+    let mut writer = Writer::new_with_indent(Vec::new(), b' ', 2);
+    loop {
+        match reader.read_event().ok()? {
+            Event::Eof => return String::from_utf8(writer.into_inner()).ok(),
+            Event::GeneralRef(reference) => {
+                // Keep references inline with the surrounding MathML token text.
+                let text = match reference.resolve_char_ref().ok()? {
+                    Some(character) => {
+                        BytesText::new(character.encode_utf8(&mut [0; 4])).into_owned()
+                    }
+                    None => BytesText::from_escaped(format!("&{};", reference.decode().ok()?)),
+                };
+                writer.write_event(Event::Text(text)).ok()?;
+            }
+            event => writer.write_event(event).ok()?,
+        }
     }
 }
 
@@ -182,14 +217,25 @@ fn tick(ui: &RichEditBoxExample, slot: &RefCell<MountedEditor>, simple: bool) {
         ui.get_custom_geometry()
     };
     match host.update(geometry, ui.window().scale_factor()) {
-        Ok(state) if simple => {
+        Ok((state, _)) if simple => {
             if ui.get_simple_state() != state {
                 ui.set_simple_state(state);
             }
         }
-        Ok(state) => {
+        Ok((state, refresh_math)) => {
             if ui.get_custom_state() != state {
                 ui.set_custom_state(state);
+            }
+            if ui.get_math_samples() {
+                // Native line layout may finish after the text change notification.
+                let fits_one_line = host.editor.math_fits_one_line();
+                if refresh_math || host.math_fits_one_line != fits_one_line {
+                    host.math_fits_one_line = fits_one_line;
+                    match host.editor.math_ml() {
+                        Ok(xml) => ui.set_math_ml(format_math_ml(&xml).unwrap_or(xml).into()),
+                        Err(error) => ui.set_status(error.to_string().into()),
+                    }
+                }
             }
         }
         Err(error) => ui.set_status(error.to_string().into()),
@@ -294,16 +340,36 @@ impl MountedPair {
 fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, Box<dyn Error>> {
     let simple = Rc::new(RefCell::new(MountedEditor::new(RichEdit::new(parent)?)));
     let custom = Rc::new(RefCell::new(MountedEditor::new(RichEdit::new(parent)?)));
-    simple
-        .borrow()
-        .editor
-        .set_accessible_name("Simple text editor")?;
-    custom
-        .borrow()
-        .editor
-        .set_accessible_name("Custom rich text editor")?;
-    if std::env::args_os().any(|arg| arg == "--sample-text") {
-        custom.borrow().editor.set_text("Apply a format to a selection, then save the document as RTF.\nThe editor preserves Unicode, including 中文 and 😀.")?;
+    if ui.get_math_samples() {
+        for (host, name) in [(&simple, "UnicodeMath editor"), (&custom, "MathML editor")] {
+            let host = host.borrow();
+            host.editor.set_math_mode(true)?;
+            host.editor.set_default_font("Cambria Math", 16.0);
+            host.editor.set_accessible_name(name)?;
+        }
+        let host = custom.clone();
+        let weak = ui.as_weak();
+        ui.on_set_sample_formula(move || {
+            if let (Some(ui), Ok(host)) = (weak.upgrade(), host.try_borrow()) {
+                match host.editor.set_math_ml(SAMPLE_FORMULA) {
+                    Ok(()) => ui.set_status("".into()),
+                    Err(error) => ui.set_status(error.to_string().into()),
+                }
+            }
+        });
+        ui.set_math_ready(true);
+    } else {
+        simple
+            .borrow()
+            .editor
+            .set_accessible_name("Simple text editor")?;
+        custom
+            .borrow()
+            .editor
+            .set_accessible_name("Custom rich text editor")?;
+        if std::env::args_os().any(|arg| arg == "--sample-text") {
+            custom.borrow().editor.set_text("Apply a format to a selection, then save the document as RTF.\nThe editor preserves Unicode, including 中文 and 😀.")?;
+        }
     }
 
     let host = simple.clone();
@@ -417,6 +483,7 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
 
 fn main() -> Result<(), Box<dyn Error>> {
     let ui = RichEditBoxExample::new()?;
+    ui.set_math_samples(std::env::args_os().any(|arg| arg == "--math"));
     command_bar::install(ui.global::<CommandBarBehavior>());
     if let Ok(accent) = light_accent_text_colors() {
         let [red, green, blue] = accent.tertiary;
@@ -468,4 +535,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     slint::run_event_loop()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_math_ml;
+
+    #[test]
+    fn math_ml_preview_keeps_operators_inline() {
+        let text = format_math_ml("<math><mo>&#x2208;</mo><mo>&lt;</mo></math>").unwrap();
+        assert_eq!(text, "<math>\n  <mo>∈</mo>\n  <mo>&lt;</mo>\n</math>");
+    }
 }

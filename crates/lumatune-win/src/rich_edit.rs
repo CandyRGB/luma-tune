@@ -8,6 +8,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use windows::UI::Text::{RichEditMathMode, RichEditTextDocument};
 use windows::Win32::Foundation::{
     COLORREF, E_FAIL, E_INVALIDARG, FreeLibrary, HMODULE, HWND, LPARAM, LRESULT, POINT, RECT,
     RPC_E_CHANGED_MODE, WPARAM,
@@ -35,9 +36,9 @@ use windows::Win32::UI::Controls::Dialogs::{
 };
 use windows::Win32::UI::Controls::RichEdit::*;
 use windows::Win32::UI::Controls::{
-    EM_CANUNDO, EM_CHARFROMPOS, EM_EMPTYUNDOBUFFER, EM_GETFIRSTVISIBLELINE, EM_GETRECT,
-    EM_LINEINDEX, EM_POSFROMCHAR, EM_REPLACESEL, EM_SCROLLCARET, EM_SETREADONLY, EM_SETRECT,
-    EM_UNDO,
+    EM_CANUNDO, EM_CHARFROMPOS, EM_EMPTYUNDOBUFFER, EM_GETFIRSTVISIBLELINE, EM_GETLINECOUNT,
+    EM_GETRECT, EM_LINEINDEX, EM_POSFROMCHAR, EM_REPLACESEL, EM_SCROLLCARET, EM_SETREADONLY,
+    EM_SETRECT, EM_UNDO,
 };
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -60,9 +61,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HideCaret, ShowCaret, WM_GETTEXTLENGTH, WM_IME_ENDCOMPOSITION, WM_IME_STARTCOMPOSITION,
     WM_KILLFOCUS, WM_PAINT, WM_PRINTCLIENT, WM_SETFOCUS,
 };
-use windows::core::{Error, GUID, IUnknown, Interface, PCWSTR, PWSTR, Result, w};
+use windows::core::{BSTR, Error, GUID, IUnknown, Interface, PCWSTR, PWSTR, Result, w};
 
 const UTF16: u32 = 1200;
+// Rich Edit's documented GetText2/SetText2 format flags are absent from tom.h.
+const TOM_CONVERT_MATH_ML: i32 = 0x0001_0000;
+const TOM_GET_UTF16: i32 = 0x0002_0000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Selection {
@@ -436,6 +440,7 @@ impl Drop for RichEditLibrary {
 pub struct RichEdit {
     window: HWND,
     read_only: bool,
+    math_mode: Cell<bool>,
     events: Box<EditorEvents>,
     menu_clip: Cell<Option<MenuClip>>,
     _library: RichEditLibrary,
@@ -483,6 +488,7 @@ impl RichEdit {
         let editor = Self {
             window,
             read_only: false,
+            math_mode: Cell::new(false),
             events,
             menu_clip: Cell::new(None),
             _library: library,
@@ -683,6 +689,71 @@ impl RichEdit {
     pub fn set_read_only(&mut self, read_only: bool) {
         self.message(EM_SETREADONLY, usize::from(read_only), 0);
         self.read_only = read_only;
+    }
+
+    /// Like RichEditBox, changing math mode clears the document and its undo history.
+    pub fn set_math_mode(&self, enabled: bool) -> Result<()> {
+        if self.math_mode.get() == enabled {
+            return Ok(());
+        }
+        let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+        document
+            .cast::<RichEditTextDocument>()?
+            .SetMathMode(if enabled {
+                RichEditMathMode::MathOnly
+            } else {
+                RichEditMathMode::NoMath
+            })?;
+        self.math_mode.set(enabled);
+        self.set_text("")
+    }
+
+    /// Export a single displayed line of math as MathML.
+    pub fn math_ml(&self) -> Result<String> {
+        if !self.math_fits_one_line() {
+            return Ok(String::new());
+        }
+        self.math_ml_for_story()
+    }
+
+    pub fn math_fits_one_line(&self) -> bool {
+        self.message(EM_GETLINECOUNT, 0, 0) <= 1
+    }
+
+    fn math_ml_for_story(&self) -> Result<String> {
+        let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+        let content = unsafe { document.Range2(self.text_length() as i32, 0)? };
+        let xml = unsafe { content.GetText2(TOM_CONVERT_MATH_ML | TOM_GET_UTF16)? };
+        Ok(String::from_utf16_lossy(&xml))
+    }
+
+    /// Replace a math document after Rich Edit successfully parses the supplied MathML.
+    pub fn set_math_ml(&self, math_ml: &str) -> io::Result<()> {
+        let staged = self.new_hidden_sibling()?;
+        staged.set_math_mode(true).map_err(io::Error::other)?;
+
+        let mut format = char_format();
+        self.message(
+            EM_GETCHARFORMAT,
+            SCF_DEFAULT as usize,
+            &mut format as *mut CHARFORMAT2W as isize,
+        );
+        staged.apply_format(SCF_DEFAULT, &format);
+        let document = text_document(staged.window).ok_or(io::ErrorKind::Unsupported)?;
+        let range = unsafe { document.Range2(0, 0) }.map_err(io::Error::other)?;
+        unsafe { range.SetText2(TOM_CONVERT_MATH_ML, &BSTR::from(math_ml)) }
+            .map_err(io::Error::other)?;
+        if staged
+            .math_ml_for_story()
+            .map_err(io::Error::other)?
+            .is_empty()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Expected a MathML equation",
+            ));
+        }
+        self.replace_document_rtf(&staged.export_rtf()?)
     }
 
     pub fn set_background(&self, rgb: [u8; 3]) {
@@ -1126,11 +1197,17 @@ impl RichEdit {
         }
         // Native stream-in can report an error after partially replacing a document.
         // Parse with an invisible sibling before changing the active document and its history.
+        self.new_hidden_sibling()?.stream_in(bytes)?;
+        self.replace_document_rtf(bytes)
+    }
+
+    fn new_hidden_sibling(&self) -> io::Result<Self> {
         let parent =
             NonZeroIsize::new(self.events.parent.0 as isize).ok_or(io::ErrorKind::InvalidInput)?;
-        Self::new(parent)
-            .map_err(io::Error::other)?
-            .stream_in(bytes)?;
+        Self::new(parent).map_err(io::Error::other)
+    }
+
+    fn replace_document_rtf(&self, bytes: &[u8]) -> io::Result<()> {
         let backup = self.export_rtf()?;
         let selection = self.selection();
         if let Err(error) = self.stream_in(bytes) {
@@ -1500,6 +1577,42 @@ mod tests {
         assert_eq!(unclipped, RGN_ERROR);
         assert_eq!(editor.selection(), selection);
         assert_eq!(editor.text(), "First second");
+    }
+
+    #[test]
+    fn math_mode_builds_unicode_math_and_replaces_equations_from_math_ml() {
+        let parent = TestWindow::new();
+        let editor = parent.editor();
+        editor.set_math_mode(true).unwrap();
+
+        for key in "4^2 ".chars() {
+            editor.message(WM_CHAR, key as usize, 0);
+        }
+        let power = editor.math_ml().unwrap();
+        assert!(power.contains("<mml:msup>"), "{power}");
+
+        editor
+            .set_math_ml(
+                r#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mfrac><mi>x</mi><mi>y</mi></mfrac></math>"#,
+            )
+            .unwrap();
+        let fraction = editor.math_ml().unwrap();
+        assert!(fraction.contains("<mml:mfrac>"), "{fraction}");
+        assert!(!fraction.contains("<mml:msup>"));
+        let selection = Selection { start: 1, end: 3 };
+        editor.set_selection(selection);
+        assert!(editor.set_math_ml("Not MathML").is_err());
+        assert_eq!(editor.math_ml().unwrap(), fraction);
+        assert_eq!(editor.selection(), selection);
+
+        editor.set_math_mode(false).unwrap();
+        assert!(!editor.has_text());
+        assert!(!editor.can_undo());
+        assert!(editor.math_ml().unwrap().is_empty());
+        for key in "4^2 ".chars() {
+            editor.message(WM_CHAR, key as usize, 0);
+        }
+        assert_eq!(editor.text(), "4^2 ");
     }
 
     #[test]
