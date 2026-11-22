@@ -40,6 +40,7 @@ export component RichEditBoxExample inherits Window {
     callback open-document();
     callback save-document();
     callback find-next(string);
+    callback highlight-matches(string);
     callback apply-color(color, bool);
 
     private property <bool> read-only;
@@ -70,6 +71,7 @@ export component RichEditBoxExample inherits Window {
         Text { text: "A simple text editor using RichEditBox."; font-size: 16px; font-weight: 600; }
         simple := RichEditBox {
             height: 32px;
+            placeholder-text: "Enter text";
             accent: root.accent;
             state: root.simple-state;
             command(value) => { root.simple-command(value); }
@@ -125,6 +127,7 @@ export component RichEditBoxExample inherits Window {
 
         custom := RichEditBox {
             height: 200px;
+            placeholder-text: "Enter rich text";
             accent: root.accent;
             state: root.custom-state;
             read-only: root.read-only;
@@ -142,6 +145,8 @@ export component RichEditBoxExample inherits Window {
                 accent: root.accent;
                 context-enabled: false;
                 accepted => { root.find-next(self.text); }
+                edited(value) => { root.highlight-matches(value); }
+                changed has-focus => { root.highlight-matches(self.has-focus ? self.text : ""); }
             }
             StandardButton { text: "Find next"; enabled: find.text != ""; clicked => { root.find-next(find.text); } }
             Rectangle { horizontal-stretch: 1; }

@@ -10,6 +10,8 @@ export struct RichEditGeometry {
     visible: bool,
     read-only: bool,
     fill: color,
+    placeholder: string,
+    placeholder-ink: color,
 }
 
 export struct RichEditState {
@@ -29,6 +31,7 @@ export enum RichEditCommand { focus, cut, copy, paste, select-all, undo, redo, b
 export component RichEditBox inherits Rectangle {
     in property <string> header;
     in property <string> description;
+    in property <string> placeholder-text;
     in property <bool> enabled: true;
     in property <bool> read-only;
     in property <bool> editor-visible: true;
@@ -42,7 +45,9 @@ export component RichEditBox inherits Rectangle {
         enabled: root.enabled,
         visible: root.visible && root.editor-visible,
         read-only: root.read-only,
-        fill: root.state.has-focus ? white : #fcfcfc,
+        fill: root.state.has-focus ? white : root.enabled ? #fcfcfc : #f6f6f6,
+        placeholder: root.placeholder-text,
+        placeholder-ink: root.enabled ? #606060 : #9d9d9d,
     };
     callback command(RichEditCommand);
 

@@ -74,6 +74,13 @@ impl MountedEditor {
             if previous.is_none_or(|old| old.fill != geometry.fill) {
                 self.editor.set_background(rgb(geometry.fill));
             }
+            if previous.is_none_or(|old| old.placeholder != geometry.placeholder) {
+                self.editor.set_placeholder(&geometry.placeholder)?;
+            }
+            if previous.is_none_or(|old| old.placeholder_ink != geometry.placeholder_ink) {
+                self.editor
+                    .set_placeholder_color(rgb(geometry.placeholder_ink));
+            }
             if previous.is_none_or(|old| old.enabled != geometry.enabled) {
                 self.editor.set_enabled(geometry.enabled);
             }
@@ -246,6 +253,18 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
     ui.on_save_document(move || {
         if let (Some(ui), Ok(host)) = (weak.upgrade(), host.try_borrow_mut()) {
             show_status(&ui, save_file(&host.editor));
+        }
+    });
+    let host = custom.clone();
+    let weak = ui.as_weak();
+    ui.on_highlight_matches(move |needle| {
+        if let (Some(ui), Ok(host)) = (weak.upgrade(), host.try_borrow()) {
+            match host.editor.highlight_matches(&needle) {
+                Ok(_) if needle.is_empty() => ui.set_status("".into()),
+                Ok(1) => ui.set_status("1 match".into()),
+                Ok(count) => ui.set_status(format!("{count} matches").into()),
+                Err(error) => ui.set_status(error.to_string().into()),
+            }
         }
     });
     let host = custom.clone();

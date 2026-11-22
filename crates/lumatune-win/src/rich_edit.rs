@@ -1,5 +1,5 @@
 //! A thread-bound host for Windows Rich Edit. Positions are UTF-16 document offsets.
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
@@ -12,22 +12,31 @@ use windows::Win32::Foundation::{
     COLORREF, E_FAIL, E_INVALIDARG, FreeLibrary, HMODULE, HWND, LPARAM, LRESULT, POINT, RECT,
     RPC_E_CHANGED_MODE, WPARAM,
 };
-use windows::Win32::Graphics::Gdi::ClientToScreen;
+use windows::Win32::Graphics::Gdi::{
+    AC_SRC_OVER, AlphaBlend, BLENDFUNCTION, COLOR_HIGHLIGHT, ClientToScreen,
+    CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush, DT_NOPREFIX,
+    DT_WORDBREAK, DeleteDC, DeleteObject, DrawTextW, FillRect, GetDC, GetSysColor, HDC, HGDIOBJ,
+    InvalidateRect, LOGFONTW, ReleaseDC, RestoreDC, SaveDC, SelectObject, SetBkMode, SetTextColor,
+    TRANSPARENT,
+};
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
     CoUninitialize,
 };
 use windows::Win32::System::LibraryLoader::{LOAD_LIBRARY_SEARCH_SYSTEM32, LoadLibraryExW};
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::Accessibility::{CLSID_AccPropServices, IAccPropServices, PROPID_ACC_NAME};
+use windows::Win32::UI::Accessibility::{
+    CLSID_AccPropServices, IAccPropServices, PROPID_ACC_HELP, PROPID_ACC_NAME,
+};
 use windows::Win32::UI::Controls::Dialogs::{
     CommDlgExtendedError, FR_DOWN, GetOpenFileNameW, GetSaveFileNameW, OFN_EXPLORER,
     OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST, OPENFILENAMEW,
 };
 use windows::Win32::UI::Controls::RichEdit::*;
 use windows::Win32::UI::Controls::{
-    EM_CANUNDO, EM_EMPTYUNDOBUFFER, EM_POSFROMCHAR, EM_REPLACESEL, EM_SCROLLCARET, EM_SETREADONLY,
-    EM_SETRECT, EM_UNDO,
+    EM_CANUNDO, EM_CHARFROMPOS, EM_EMPTYUNDOBUFFER, EM_GETFIRSTVISIBLELINE, EM_GETRECT,
+    EM_LINEINDEX, EM_POSFROMCHAR, EM_REPLACESEL, EM_SCROLLCARET, EM_SETREADONLY, EM_SETRECT,
+    EM_UNDO,
 };
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -43,7 +52,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_CHAR, WM_CLEAR, WM_COMMAND, WM_CONTEXTMENU, WM_COPY, WM_CUT, WM_KEYDOWN, WM_LBUTTONDOWN,
     WM_PASTE, WM_SETTEXT, WS_CHILD, WS_CLIPSIBLINGS, WS_TABSTOP, WS_VSCROLL,
 };
-use windows::core::{Error, PCWSTR, PWSTR, Result, w};
+use windows::Win32::UI::WindowsAndMessaging::{
+    HideCaret, ShowCaret, WM_GETTEXTLENGTH, WM_IME_ENDCOMPOSITION, WM_IME_STARTCOMPOSITION,
+    WM_KILLFOCUS, WM_PAINT, WM_PRINTCLIENT, WM_SETFOCUS,
+};
+use windows::core::{Error, GUID, IUnknown, Interface, PCWSTR, PWSTR, Result, w};
 
 const UTF16: u32 = 1200;
 
@@ -103,6 +116,59 @@ struct EditorEvents {
     parent: HWND,
     changed: Cell<bool>,
     request: Cell<Option<EditorRequest>>,
+    placeholder: RefCell<Placeholder>,
+    composing: Cell<bool>,
+    search_matches: RefCell<Vec<Selection>>,
+}
+
+struct Placeholder {
+    text: Vec<u16>,
+    ink: COLORREF,
+    family: [u16; 32],
+    logical_size: f32,
+    scale: f32,
+}
+
+impl Placeholder {
+    fn new(scale: f32) -> Self {
+        Self {
+            text: Vec::new(),
+            ink: color_ref([96, 96, 96]),
+            family: [0; 32],
+            logical_size: 14.0,
+            scale,
+        }
+    }
+
+    fn draw(&mut self, dc: HDC, mut bounds: RECT) {
+        if dc.is_invalid() || bounds.left >= bounds.right || bounds.top >= bounds.bottom {
+            return;
+        }
+        let font = LOGFONTW {
+            lfHeight: -(self.logical_size * self.scale).round().max(1.0) as i32,
+            lfWeight: 400,
+            lfFaceName: self.family,
+            ..Default::default()
+        };
+        // Preserve the DC state and release the font after deselecting it.
+        unsafe {
+            let saved = SaveDC(dc);
+            if saved == 0 {
+                return;
+            }
+            let font = CreateFontIndirectW(&font);
+            if !font.is_invalid() {
+                SelectObject(dc, HGDIOBJ(font.0));
+            }
+            SetBkMode(dc, TRANSPARENT);
+            SetTextColor(dc, self.ink);
+            DrawTextW(dc, &mut self.text, &mut bounds, DT_NOPREFIX | DT_WORDBREAK);
+            let _ = RestoreDC(dc, saved);
+            if !font.is_invalid() {
+                let _ = DeleteObject(HGDIOBJ(font.0));
+            }
+        }
+    }
 }
 
 impl EditorEvents {
@@ -112,6 +178,11 @@ impl EditorEvents {
             parent,
             changed: Cell::new(true),
             request: Cell::new(None),
+            placeholder: RefCell::new(Placeholder::new(
+                unsafe { GetDpiForWindow(window) } as f32 / 96.0,
+            )),
+            composing: Cell::new(false),
+            search_matches: RefCell::default(),
         });
         let key = (&*events as *const Self) as usize;
         // The boxed state stays put and both subclass hooks are removed before it is freed.
@@ -123,6 +194,48 @@ impl EditorEvents {
             }
         }
         Ok(events)
+    }
+
+    fn invalidate_content(&self) {
+        let _ = unsafe { InvalidateRect(Some(self.window), None, false) };
+    }
+
+    fn clear_matches(&self) {
+        if let Ok(mut matches) = self.search_matches.try_borrow_mut()
+            && !matches.is_empty()
+        {
+            matches.clear();
+            self.invalidate_content();
+        }
+    }
+
+    fn draws_placeholder(&self) -> bool {
+        if self.composing.get() || self.placeholder.borrow().text.is_empty() {
+            return false;
+        }
+        (unsafe { SendMessageW(self.window, WM_GETTEXTLENGTH, None, None) }).0 == 0
+    }
+
+    fn paint_decorations(&self, dc: HDC, placeholder: bool, highlight: bool) {
+        if dc.is_invalid() {
+            return;
+        }
+        let mut bounds = RECT::default();
+        // Fetch the current native formatting rect, including changes to margins and scrolling.
+        unsafe {
+            SendMessageW(
+                self.window,
+                EM_GETRECT,
+                None,
+                Some(LPARAM(&mut bounds as *mut RECT as isize)),
+            );
+        }
+        if placeholder && let Ok(mut cue) = self.placeholder.try_borrow_mut() {
+            cue.draw(dc, bounds);
+        }
+        if highlight && let Ok(matches) = self.search_matches.try_borrow() {
+            paint_matches(self.window, dc, bounds, &matches);
+        }
     }
 }
 
@@ -150,6 +263,7 @@ unsafe extern "system" fn parent_event(
         && (wparam.0 >> 16) as u16 == EN_CHANGE as u16
     {
         events.changed.set(true);
+        events.clear_matches();
     }
     if msg == WM_LBUTTONDOWN && unsafe { GetFocus() } == events.window {
         let _ = unsafe { SetFocus(Some(hwnd)) };
@@ -166,6 +280,41 @@ unsafe extern "system" fn editor_event(
     data: usize,
 ) -> LRESULT {
     let events = unsafe { &*(data as *const EditorEvents) };
+    if msg == WM_SETFOCUS {
+        events.clear_matches();
+    }
+    if msg == WM_IME_STARTCOMPOSITION || msg == WM_IME_ENDCOMPOSITION || msg == WM_KILLFOCUS {
+        let composing = msg == WM_IME_STARTCOMPOSITION;
+        if events.composing.replace(composing) != composing {
+            events.invalidate_content();
+        }
+    }
+    if msg == WM_PAINT || msg == WM_PRINTCLIENT {
+        let placeholder = events.draws_placeholder();
+        let highlight = !events.search_matches.borrow().is_empty();
+        if !placeholder && !highlight {
+            return unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+        }
+        if msg == WM_PRINTCLIENT {
+            let result = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+            events.paint_decorations(HDC(wparam.0 as *mut _), placeholder, highlight);
+            return result;
+        }
+        // Draw over fresh native pixels to avoid tint accumulating after partial repaints.
+        events.invalidate_content();
+        // The native caret is drawn above the hint. Balance HideCaret only when it succeeds.
+        let hidden = unsafe { HideCaret(Some(hwnd)) }.is_ok();
+        let result = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+        let dc = unsafe { GetDC(Some(hwnd)) };
+        if !dc.is_invalid() {
+            events.paint_decorations(dc, placeholder, highlight);
+            unsafe { ReleaseDC(Some(hwnd), dc) };
+        }
+        if hidden {
+            let _ = unsafe { ShowCaret(Some(hwnd)) };
+        }
+        return result;
+    }
     if msg == WM_CONTEXTMENU {
         let x = lparam.0 as i16 as i32;
         let y = (lparam.0 >> 16) as i16 as i32;
@@ -347,11 +496,30 @@ impl RichEdit {
             .round()
             .clamp(17.0, 65535.0) as usize;
         self.message(EM_SETZOOM, zoom, 1024);
+        self.events.placeholder.borrow_mut().scale = scale;
+        self.events.invalidate_content();
         Ok(())
     }
 
     pub fn set_accessible_name(&self, name: &str) -> Result<()> {
-        let name = terminated(name)?;
+        self.set_accessible_string(PROPID_ACC_NAME, &terminated(name)?)
+    }
+
+    pub fn set_placeholder(&self, text: &str) -> Result<()> {
+        let mut wide = terminated(text)?;
+        let result = self.set_accessible_string(PROPID_ACC_HELP, &wide);
+        wide.pop();
+        self.events.placeholder.borrow_mut().text = wide;
+        self.events.invalidate_content();
+        result
+    }
+
+    pub fn set_placeholder_color(&self, rgb: [u8; 3]) {
+        self.events.placeholder.borrow_mut().ink = color_ref(rgb);
+        self.events.invalidate_content();
+    }
+
+    fn set_accessible_string(&self, property: GUID, value: &[u16]) -> Result<()> {
         let init = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
         if init != RPC_E_CHANGED_MODE {
             init.ok()?;
@@ -363,8 +531,8 @@ impl RichEdit {
                 self.window,
                 OBJID_CLIENT.0 as u32,
                 CHILDID_SELF,
-                PROPID_ACC_NAME,
-                PCWSTR(name.as_ptr()),
+                property,
+                PCWSTR(value.as_ptr()),
             )
         })();
         if init.is_ok() {
@@ -387,6 +555,11 @@ impl RichEdit {
             offset += ch.len_utf16();
         }
         self.apply_format(SCF_DEFAULT, &format);
+        let mut placeholder = self.events.placeholder.borrow_mut();
+        placeholder.family = format.Base.szFaceName;
+        placeholder.logical_size = format.Base.yHeight as f32 / 15.0;
+        drop(placeholder);
+        self.events.invalidate_content();
     }
 
     pub fn text(&self) -> String {
@@ -429,6 +602,7 @@ impl RichEdit {
         }
         self.message(EM_EMPTYUNDOBUFFER, 0, 0);
         self.events.changed.set(true);
+        self.events.clear_matches();
         Ok(())
     }
 
@@ -666,6 +840,10 @@ impl RichEdit {
             return None;
         }
         let needle = terminated(needle).ok()?;
+        self.find_wide(&needle, start)
+    }
+
+    fn find_wide(&self, needle: &[u16], start: i32) -> Option<Selection> {
         let mut query = FINDTEXTEXW {
             chrg: CHARRANGE {
                 cpMin: start.max(0),
@@ -687,6 +865,28 @@ impl RichEdit {
 
     pub fn reveal_selection(&self) {
         self.message(EM_SCROLLCARET, 0, 0);
+    }
+
+    /// Highlight non-overlapping search matches without editing the document or its undo stack.
+    pub fn highlight_matches(&self, needle: &str) -> Result<usize> {
+        let needle = terminated(needle)?;
+        let mut matches = Vec::new();
+        if needle.len() > 1 {
+            let mut next = 0;
+            while let Some(selection) = self.find_wide(&needle, next) {
+                if selection.end <= next {
+                    break;
+                }
+                matches.push(selection);
+                next = selection.end;
+            }
+        }
+        let count = matches.len();
+        if *self.events.search_matches.borrow() != matches {
+            *self.events.search_matches.borrow_mut() = matches;
+            self.events.invalidate_content();
+        }
+        Ok(count)
     }
 
     fn selection_format(&self) -> CHARFORMAT2W {
@@ -732,6 +932,7 @@ impl RichEdit {
         }
         self.message(EM_EMPTYUNDOBUFFER, 0, 0);
         self.events.changed.set(true);
+        self.events.clear_matches();
         Ok(())
     }
 
@@ -792,6 +993,161 @@ fn char_format() -> CHARFORMAT2W {
     let mut format = CHARFORMAT2W::default();
     format.Base.cbSize = size_of::<CHARFORMAT2W>() as u32;
     format
+}
+
+fn text_document(window: HWND) -> Option<ITextDocument2> {
+    let mut pointer = std::ptr::null_mut::<std::ffi::c_void>();
+    if unsafe {
+        SendMessageW(
+            window,
+            EM_GETOLEINTERFACE,
+            None,
+            Some(LPARAM(&mut pointer as *mut _ as isize)),
+        )
+    }
+    .0 == 0
+        || pointer.is_null()
+    {
+        return None;
+    }
+    // EM_GETOLEINTERFACE returns an owned COM reference.
+    unsafe { IUnknown::from_raw(pointer) }.cast().ok()
+}
+
+fn paint_matches(window: HWND, dc: HDC, viewport: RECT, matches: &[Selection]) {
+    let Some(document) = text_document(window) else {
+        return;
+    };
+    let line_of = |offset| unsafe {
+        SendMessageW(
+            window,
+            EM_EXLINEFROMCHAR,
+            None,
+            Some(LPARAM(offset as isize)),
+        )
+        .0
+    };
+    let line_start = |line| unsafe {
+        SendMessageW(window, EM_LINEINDEX, Some(WPARAM(line as usize)), None).0 as i32
+    };
+    let probe = POINT {
+        x: viewport.left,
+        y: viewport.bottom - 1,
+    };
+    let last_visible = unsafe {
+        SendMessageW(
+            window,
+            EM_CHARFROMPOS,
+            None,
+            Some(LPARAM(&probe as *const _ as isize)),
+        )
+        .0
+    };
+    let first = unsafe { SendMessageW(window, EM_GETFIRSTVISIBLELINE, None, None) }.0;
+    let last = line_of(last_visible as i32).max(first);
+    let mut rectangles = Vec::new();
+    let first_offset = line_start(first);
+    let first_match = matches.partition_point(|range| range.end <= first_offset);
+    for range in &matches[first_match..] {
+        let past_start = line_of(range.start);
+        if past_start > last {
+            break;
+        }
+        let through_end = line_of(range.end - 1);
+        for line in past_start.max(first)..=through_end.min(last) {
+            let start = if line == past_start {
+                range.start
+            } else {
+                line_start(line)
+            };
+            let end = if line == through_end {
+                range.end
+            } else {
+                line_start(line + 1)
+            };
+            if start < 0 || end <= start {
+                continue;
+            }
+            let Ok(slice) = (unsafe { document.Range2(end, start) }) else {
+                continue;
+            };
+            let mut bounds = RECT::default();
+            let mut hit = 0;
+            if unsafe {
+                slice.GetRect(
+                    tomClientCoord.0 | tomAllowOffClient.0,
+                    &mut bounds.left,
+                    &mut bounds.top,
+                    &mut bounds.right,
+                    &mut bounds.bottom,
+                    &mut hit,
+                )
+            }
+            .is_err()
+            {
+                continue;
+            }
+            bounds.left = bounds.left.max(viewport.left);
+            bounds.right = bounds.right.min(viewport.right);
+            bounds.top = bounds.top.max(viewport.top);
+            bounds.bottom = bounds.bottom.min(viewport.bottom);
+            if bounds.right > bounds.left && bounds.bottom > bounds.top {
+                rectangles.push(bounds);
+            }
+        }
+    }
+    tint_matches(dc, &rectangles);
+}
+
+fn tint_matches(dc: HDC, rectangles: &[RECT]) {
+    if rectangles.is_empty() {
+        return;
+    }
+    unsafe {
+        let source = CreateCompatibleDC(Some(dc));
+        if source.is_invalid() {
+            return;
+        }
+        let bitmap = CreateCompatibleBitmap(dc, 1, 1);
+        let brush = CreateSolidBrush(COLORREF(GetSysColor(COLOR_HIGHLIGHT)));
+        if !bitmap.is_invalid() && !brush.is_invalid() {
+            let old = SelectObject(source, HGDIOBJ(bitmap.0));
+            FillRect(
+                source,
+                &RECT {
+                    left: 0,
+                    top: 0,
+                    right: 1,
+                    bottom: 1,
+                },
+                brush,
+            );
+            let blend = BLENDFUNCTION {
+                BlendOp: AC_SRC_OVER as u8,
+                SourceConstantAlpha: 96,
+                ..Default::default()
+            };
+            for rect in rectangles {
+                let _ = AlphaBlend(
+                    dc,
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    source,
+                    0,
+                    0,
+                    1,
+                    1,
+                    blend,
+                );
+            }
+            SelectObject(source, old);
+        }
+        let _ = DeleteObject(HGDIOBJ(brush.0));
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(source);
+    }
 }
 
 fn color_ref([r, g, b]: [u8; 3]) -> COLORREF {
@@ -892,6 +1248,45 @@ mod tests {
         fn drop(&mut self) {
             let _ = unsafe { DestroyWindow(self.0) };
         }
+    }
+
+    #[test]
+    fn placeholder_follows_document_emptiness_without_becoming_document_content() {
+        let parent = TestWindow::new();
+        let editor = parent.editor();
+        let before = editor.export_rtf().unwrap();
+        editor.set_placeholder("Enter text & 输入").unwrap();
+        assert!(editor.events.draws_placeholder());
+        assert_eq!(editor.text(), "");
+        assert_eq!(editor.export_rtf().unwrap(), before);
+        assert!(!editor.can_undo());
+
+        editor.replace_selection("a").unwrap();
+        assert!(!editor.events.draws_placeholder());
+        editor.execute(Edit::Undo);
+        assert!(editor.events.draws_placeholder());
+        editor.set_placeholder("").unwrap();
+        assert!(!editor.events.draws_placeholder());
+    }
+
+    #[test]
+    fn search_highlights_leave_rtf_selection_style_and_history_intact() {
+        let parent = TestWindow::new();
+        let editor = parent.editor();
+        editor.set_text("one two 😀 one").unwrap();
+        let selection = Selection { start: 4, end: 7 };
+        editor.set_selection(selection);
+        editor.set_selection_color(Some([0x48, 0x2b, 0x78]));
+        let before = editor.export_rtf().unwrap();
+        let undo = editor.can_undo();
+        assert_eq!(editor.highlight_matches("ONE").unwrap(), 2);
+        assert_eq!(before, editor.export_rtf().unwrap());
+        assert_eq!(editor.highlight_matches("two").unwrap(), 1);
+        assert_eq!(editor.highlight_matches("").unwrap(), 0);
+        assert_eq!(editor.selection(), selection);
+        assert_eq!(editor.selection_color(), Some([0x48, 0x2b, 0x78]));
+        assert_eq!(editor.can_undo(), undo);
+        assert_eq!(before, editor.export_rtf().unwrap());
     }
 
     #[test]
