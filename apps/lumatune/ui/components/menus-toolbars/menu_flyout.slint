@@ -281,6 +281,9 @@ component MenuFlyoutRow inherits Rectangle {
 }
 
 component MenuFlyoutPanel inherits FlyoutPresenter {
+    out property <FlyoutRect> panel-bounds: {
+        x: root.absolute-position.x, y: root.absolute-position.y, width: root.width, height: root.height,
+    };
     in property <[MenuFlyoutItem]> items;
     in property <[MenuFlyoutItem]> all-items;
     in property <bool> active;
@@ -497,6 +500,7 @@ export component MenuFlyout inherits Rectangle {
     in property <FlyoutRect> anchor;
     in property <FlyoutPlacement> placement: FlyoutPlacement.top;
     out property <bool> is-open: overlay.is-open;
+    out property <FlyoutRect> panel-bounds: root.is-open ? root.first-panel-bounds : {};
     callback opening();
     callback opened <=> overlay.opened;
     callback closing <=> overlay.closing;
@@ -504,6 +508,7 @@ export component MenuFlyout inherits Rectangle {
     callback invoked(MenuFlyoutItem);
 
     private property <[MenuFlyoutLevel]> levels;
+    private property <FlyoutRect> first-panel-bounds;
     private property <MenuFlyoutPositionMode> position-mode;
     private property <FlyoutRect> override-anchor;
 
@@ -558,6 +563,7 @@ export component MenuFlyout inherits Rectangle {
         opening => {
             root.opening();
             root.levels = [{}];
+            root.first-panel-bounds = {};
         }
         MenuFlyoutAccelerators {
             width: root.width;
@@ -576,6 +582,9 @@ export component MenuFlyout inherits Rectangle {
                 expanded-owner: self.active ? "" : root.levels[index + 1].owner;
                 items: MenuFlyoutBehavior.items-for(root.items, level.owner);
                 all-items: root.items;
+                changed panel-bounds => {
+                    if (index == 0) { root.first-panel-bounds = self.panel-bounds; }
+                }
                 open-child(owner, anchor) => { root.open-child(index, owner, anchor); }
                 move-child(anchor) => {
                     if (index + 1 < root.levels.length) {

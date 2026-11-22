@@ -380,7 +380,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichTextBlockOverflow | 🚧 | 段落与行内格式、文本高亮、跨容器续排、键鼠选区和链接 |
-| RichEditBox | 🚧 | 原生 Rich Edit 文档、浮动文本命令栏、UnicodeMath 与 MathML、RTF、格式、撤销、占位符与查找高亮 |
+| RichEditBox | 🚧 | 原生 Rich Edit 文档、浮动文本命令栏、拼写更正、UnicodeMath 与 MathML、RTF、格式、撤销、占位符与查找高亮 |
 
 运行 `cargo run -p lumatune --example text_command_bar_flyout` 可试用可编辑文本、只读文本和密码输入框。右键、菜单键和 Shift+F10 打开上下文菜单，“Show selection tools” 演示选区工具栏。浅色已验证选区在菜单夺取焦点后仍可见，Esc 后恢复编辑焦点，次命令执行后收起，以及撤销、重做和系统剪贴板上的 Unicode 剪切、复制和粘贴。只读示例仅显示复制和全选，密码示例仅显示可用的粘贴和全选。Windows UI Automation 已验证调用全选和展开次命令。[Microsoft 文档及截图](https://learn.microsoft.com/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 命令规则](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp)
 
@@ -424,7 +424,11 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 
 Windows 11 24H2 浅色主题下，100% 和 125% 缩放均实测了分式、上标、导入替换、实时导出及长公式换行后清空预览。也通过原生 UI Automation 核对了两个数学编辑区的名称和 TextPattern。回归测试覆盖无效 MathML 保留正文与选区、退出数学模式恢复普通文本输入，以及预览内数学符号的缩进。
 
-浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、浮动命令栏、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。触摸和笔的选区入口、拼写建议及从 Slint 无障碍树发现原生编辑区仍待处理。已裁切的弹层轮廓之外由原生窗口绘制，弹层阴影不能叠在该部分正文上。源码和示例已保存在 `.refs/WinUI/`。
+普通编辑区使用 Windows 拼写服务。可用的更正放在「Spelling」子菜单中，打开错词的上下文菜单时自动展开。更正前核对 UTF-16 范围内的原文，使已过期的建议失效。更正可以撤销。运行 `cargo run -p lumatune --example rich_edit_box -- --spelling` 可试用错词标记和更正，示例优先选用已安装的 en-US 词典，其次使用系统拼音词典。显式选词典时，示例按原生排版范围绘制红色波浪线。[WinUI 拼写菜单实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/native/text/Controls/TextBoxBase.cpp#L5517-L5646) · [Windows 拼写检查选项](https://learn.microsoft.com/en-us/windows/win32/controls/em-setlangoptions)
+
+浅色 100% 和 125% 下用本机拼音词典实测 `beijng` 的红线、鼠标和键盘打开子菜单、替换为 `Beijing`、还原焦点及撤销。回归测试还核对了表情符号后的 UTF-16 范围、过期建议，以及命令栏与子菜单同时覆盖原生编辑区时的裁切。当前系统只安装了拼音词典，en-US 拼写结果待在装有该词典的系统上复验。
+
+浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、浮动命令栏、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。触摸和笔的选区入口、添加到字典、忽略拼写提示、停止自动更正及从 Slint 无障碍树发现原生编辑区仍待处理。已裁切的弹层轮廓之外由原生窗口绘制，弹层阴影不能叠在该部分正文上。源码和示例已保存在 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |

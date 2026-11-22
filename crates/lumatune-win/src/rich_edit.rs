@@ -13,17 +13,21 @@ use windows::Win32::Foundation::{
     COLORREF, E_FAIL, E_INVALIDARG, FreeLibrary, HMODULE, HWND, LPARAM, LRESULT, POINT, RECT,
     RPC_E_CHANGED_MODE, WPARAM,
 };
+use windows::Win32::Globalization::{
+    CORRECTIVE_ACTION_DELETE, CORRECTIVE_ACTION_GET_SUGGESTIONS, CORRECTIVE_ACTION_REPLACE,
+    ISpellChecker, ISpellCheckerFactory, LCIDToLocaleName, SpellCheckerFactory,
+};
 use windows::Win32::Graphics::Gdi::{
     AC_SRC_OVER, AlphaBlend, BLENDFUNCTION, COLOR_HIGHLIGHT, ClientToScreen, CombineRgn,
-    CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateRectRgn,
+    CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreatePen, CreateRectRgn,
     CreateRoundRectRgn, CreateSolidBrush, DT_NOPREFIX, DT_WORDBREAK, DeleteDC, DeleteObject,
-    DrawTextW, FillRect, GetDC, GetSysColor, HDC, HGDIOBJ, InvalidateRect, LOGFONTW, RGN_DIFF,
-    RGN_ERROR, ReleaseDC, RestoreDC, SaveDC, ScreenToClient, SelectObject, SetBkMode, SetTextColor,
-    SetWindowRgn, TRANSPARENT,
+    DrawTextW, FillRect, GetDC, GetSysColor, HDC, HGDIOBJ, InvalidateRect, LOGFONTW, LineTo,
+    MoveToEx, PS_SOLID, RGN_DIFF, RGN_ERROR, ReleaseDC, RestoreDC, SaveDC, ScreenToClient,
+    SelectObject, SetBkMode, SetTextColor, SetWindowRgn, TRANSPARENT,
 };
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
-    CoUninitialize,
+    CoTaskMemFree, CoUninitialize,
 };
 use windows::Win32::System::LibraryLoader::{LOAD_LIBRARY_SEARCH_SYSTEM32, LoadLibraryExW};
 use windows::Win32::System::Threading::GetCurrentThreadId;
@@ -113,6 +117,12 @@ pub struct Placement {
     pub padding_y: i32,
 }
 
+pub struct SpellingMenu {
+    range: Selection,
+    original: Vec<u16>,
+    pub replacements: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum EditorRequest {
     ContextMenu { x: i32, y: i32 },
@@ -125,7 +135,7 @@ pub enum EditorRequest {
 #[derive(Clone, Copy, PartialEq)]
 struct MenuClip {
     editor_size: [i32; 2],
-    cutout: [i32; 4],
+    cutouts: [Option<[i32; 4]>; 2],
     diameter: i32,
 }
 
@@ -140,6 +150,7 @@ struct EditorEvents {
     placeholder: RefCell<Placeholder>,
     composing: Cell<bool>,
     search_matches: RefCell<Vec<Selection>>,
+    spelling_marks: RefCell<Vec<Selection>>,
 }
 
 struct Placeholder {
@@ -207,6 +218,7 @@ impl EditorEvents {
             )),
             composing: Cell::new(false),
             search_matches: RefCell::default(),
+            spelling_marks: RefCell::default(),
         });
         let key = (&*events as *const Self) as usize;
         // The boxed state stays put and both subclass hooks are removed before it is freed.
@@ -258,7 +270,12 @@ impl EditorEvents {
             cue.draw(dc, bounds);
         }
         if highlight && let Ok(matches) = self.search_matches.try_borrow() {
-            paint_matches(self.window, dc, bounds, &matches);
+            tint_matches(dc, &visible_range_bounds(self.window, bounds, &matches));
+        }
+        if let Ok(marks) = self.spelling_marks.try_borrow()
+            && !marks.is_empty()
+        {
+            underline_spelling(dc, &visible_range_bounds(self.window, bounds, &marks));
         }
     }
 }
@@ -316,7 +333,7 @@ unsafe extern "system" fn editor_event(
     if msg == WM_PAINT || msg == WM_PRINTCLIENT {
         let placeholder = events.draws_placeholder();
         let highlight = !events.search_matches.borrow().is_empty();
-        if !placeholder && !highlight {
+        if !placeholder && !highlight && events.spelling_marks.borrow().is_empty() {
             return unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
         }
         if msg == WM_PRINTCLIENT {
@@ -440,6 +457,8 @@ impl Drop for RichEditLibrary {
 pub struct RichEdit {
     window: HWND,
     read_only: bool,
+    spelling_enabled: bool,
+    spelling_locale: Option<Vec<u16>>,
     math_mode: Cell<bool>,
     events: Box<EditorEvents>,
     menu_clip: Cell<Option<MenuClip>>,
@@ -488,6 +507,8 @@ impl RichEdit {
         let editor = Self {
             window,
             read_only: false,
+            spelling_enabled: false,
+            spelling_locale: None,
             math_mode: Cell::new(false),
             events,
             menu_clip: Cell::new(None),
@@ -577,6 +598,147 @@ impl RichEdit {
         self.screen_to_parent(self.context_screen_point(x, y)?)
     }
 
+    pub fn set_spelling_enabled(&mut self, enabled: bool) {
+        self.spelling_enabled = enabled;
+        self.sync_native_spelling();
+        self.events.changed.set(true);
+    }
+
+    fn sync_native_spelling(&self) {
+        let enabled = self.spelling_enabled && self.spelling_locale.is_none();
+        self.message(
+            EM_SETEDITSTYLE,
+            if enabled {
+                SES_CTFALLOWPROOFING as usize
+            } else {
+                0
+            },
+            SES_CTFALLOWPROOFING as isize,
+        );
+        let flags = self.message(EM_GETLANGOPTIONS, 0, 0) & !(IMF_SPELLCHECKING as isize);
+        let spell = if enabled {
+            IMF_SPELLCHECKING as isize
+        } else {
+            0
+        };
+        self.message(EM_SETLANGOPTIONS, 0, flags | spell);
+    }
+
+    pub fn set_default_language(&self, lcid: u32) {
+        let mut format = char_format();
+        format.Base.dwMask = CFM_LCID;
+        format.lcid = lcid;
+        self.apply_format(SCF_DEFAULT, &format);
+    }
+
+    pub fn set_spelling_locale(&mut self, language: &str) -> Result<bool> {
+        let locale = terminated(language)?;
+        if with_spell_checker(PCWSTR(locale.as_ptr()), |_| Ok(()))?.is_none() {
+            return Ok(false);
+        }
+        self.spelling_locale = Some(locale);
+        self.sync_native_spelling();
+        self.events.changed.set(true);
+        Ok(true)
+    }
+
+    /// Draw proofing marks using the explicitly supplied dictionary.
+    pub fn refresh_spelling_marks(&self) -> Result<()> {
+        let next = match &self.spelling_locale {
+            Some(locale) if self.spelling_enabled && !self.read_only && !self.math_mode.get() => {
+                let document =
+                    text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+                let range = unsafe { document.Range2(self.text_length() as i32, 0)? };
+                let text = unsafe { range.GetText2(0)? };
+                with_spell_checker(PCWSTR(locale.as_ptr()), |checker| {
+                    spelling_ranges(checker, &text)
+                })?
+                .unwrap_or_default()
+            }
+            _ => Vec::new(),
+        };
+        let mut current = self.events.spelling_marks.borrow_mut();
+        if *current != next {
+            *current = next;
+            drop(current);
+            self.events.invalidate_content();
+        }
+        Ok(())
+    }
+
+    pub fn spelling_at(&self, x: i32, y: i32) -> Result<Option<SpellingMenu>> {
+        if !self.spelling_enabled || self.read_only || self.math_mode.get() {
+            return Ok(None);
+        }
+        let point = if (x, y) == (-1, -1) {
+            None
+        } else {
+            let mut point = POINT { x, y };
+            unsafe { ScreenToClient(self.window, &mut point).ok()? };
+            Some(point)
+        };
+        let position = point.map_or_else(
+            || self.selection().start,
+            |point| self.message(EM_CHARFROMPOS, 0, &point as *const POINT as isize) as i32,
+        );
+        let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+        let hit = unsafe { document.Range2(position, position)? };
+        let language = unsafe { hit.GetFont2()?.GetLanguageID()? };
+        let mut document_locale = [0u16; 85];
+        let locale = if let Some(locale) = self.spelling_locale.as_deref() {
+            locale
+        } else {
+            if unsafe { LCIDToLocaleName(language as u32, Some(&mut document_locale), 0) } == 0 {
+                return Ok(None);
+            }
+            &document_locale
+        };
+        unsafe { hit.Expand(tomParagraph.0)? };
+        let start = unsafe { hit.GetStart()? };
+        let paragraph = unsafe { hit.GetText2(0)? };
+        let menu = with_spell_checker(PCWSTR(locale.as_ptr()), |checker| {
+            spelling_menu(checker, &paragraph, start, position)
+        })?
+        .flatten();
+        if let (Some(point), Some(menu)) = (point, &menu) {
+            let word = unsafe { document.Range2(menu.range.end, menu.range.start)? };
+            let mut bounds = RECT::default();
+            unsafe {
+                word.GetRect(
+                    tomClientCoord.0,
+                    &mut bounds.left,
+                    &mut bounds.top,
+                    &mut bounds.right,
+                    &mut bounds.bottom,
+                    &mut 0,
+                )?;
+            }
+            if !(bounds.left..bounds.right).contains(&point.x)
+                || !(bounds.top..bounds.bottom).contains(&point.y)
+            {
+                return Ok(None);
+            }
+        }
+        Ok(menu)
+    }
+
+    pub fn apply_spelling(&self, menu: &SpellingMenu, index: usize) -> Result<bool> {
+        let Some(replacement) = menu.replacements.get(index) else {
+            return Ok(false);
+        };
+        if !self.spelling_enabled || self.read_only || self.math_mode.get() {
+            return Ok(false);
+        }
+        let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+        let word = unsafe { document.Range2(menu.range.end, menu.range.start)? };
+        if &*unsafe { word.GetText2(0)? } != menu.original.as_slice() {
+            return Ok(false);
+        }
+        self.set_selection(menu.range);
+        self.replace_selection(replacement)?;
+        Ok(true)
+    }
+
     fn screen_to_parent(&self, mut point: POINT) -> Result<[i32; 2]> {
         unsafe { ScreenToClient(self.events.parent, &mut point).ok()? };
         Ok([point.x, point.y])
@@ -617,14 +779,15 @@ impl RichEdit {
     /// Keep the native editor live outside the area drawn by the parent's command bar.
     pub fn set_menu_overlay(
         &self,
-        bounds: Option<[i32; 4]>,
+        bounds: [Option<[i32; 4]>; 2],
         diameter: i32,
         track_pointer: bool,
     ) -> Result<()> {
-        self.events.menu_open.set(bounds.is_some());
+        let open = bounds.iter().any(Option::is_some);
+        self.events.menu_open.set(open);
         self.events.track_pointer.set(track_pointer);
         let mut clip = None;
-        if let Some([left, top, right, bottom]) = bounds {
+        if open {
             let mut window = RECT::default();
             unsafe { GetWindowRect(self.window, &mut window)? };
             let [x, y] = self.screen_to_parent(POINT {
@@ -633,16 +796,20 @@ impl RichEdit {
             })?;
             let width = window.right - window.left;
             let height = window.bottom - window.top;
-            if left < right
-                && top < bottom
-                && left < x + width
-                && right > x
-                && top < y + height
-                && bottom > y
-            {
+            let cutouts = bounds.map(|panel| {
+                let [left, top, right, bottom] = panel?;
+                (left < right
+                    && top < bottom
+                    && left < x + width
+                    && right > x
+                    && top < y + height
+                    && bottom > y)
+                    .then_some([left - x, top - y, right - x, bottom - y])
+            });
+            if cutouts.iter().any(Option::is_some) {
                 clip = Some(MenuClip {
                     editor_size: [width, height],
-                    cutout: [left - x, top - y, right - x, bottom - y],
+                    cutouts,
                     diameter,
                 });
             }
@@ -653,21 +820,27 @@ impl RichEdit {
         unsafe {
             if let Some(clip) = clip {
                 let [width, height] = clip.editor_size;
-                let [left, top, right, bottom] = clip.cutout;
                 let region = CreateRectRgn(0, 0, width, height);
-                let cutout =
-                    CreateRoundRectRgn(left, top, right + 1, bottom + 1, diameter, diameter);
-                let combined = !region.is_invalid()
-                    && !cutout.is_invalid()
-                    && CombineRgn(Some(region), Some(region), Some(cutout), RGN_DIFF) != RGN_ERROR;
-                if !cutout.is_invalid() {
-                    let _ = DeleteObject(HGDIOBJ(cutout.0));
+                if region.is_invalid() {
+                    return Err(Error::from_hresult(E_FAIL));
+                }
+                for [left, top, right, bottom] in clip.cutouts.into_iter().flatten() {
+                    let cutout =
+                        CreateRoundRectRgn(left, top, right + 1, bottom + 1, diameter, diameter);
+                    let combined = !cutout.is_invalid()
+                        && CombineRgn(Some(region), Some(region), Some(cutout), RGN_DIFF)
+                            != RGN_ERROR;
+                    if !cutout.is_invalid() {
+                        let _ = DeleteObject(HGDIOBJ(cutout.0));
+                    }
+                    if !combined {
+                        let _ = DeleteObject(HGDIOBJ(region.0));
+                        return Err(Error::from_hresult(E_FAIL));
+                    }
                 }
                 // A successful SetWindowRgn transfers ownership to the system.
-                if !combined || SetWindowRgn(self.window, Some(region), true) == 0 {
-                    if !region.is_invalid() {
-                        let _ = DeleteObject(HGDIOBJ(region.0));
-                    }
+                if SetWindowRgn(self.window, Some(region), true) == 0 {
+                    let _ = DeleteObject(HGDIOBJ(region.0));
                     return Err(Error::from_hresult(E_FAIL));
                 }
             } else if SetWindowRgn(self.window, None, true) == 0 {
@@ -689,6 +862,9 @@ impl RichEdit {
     pub fn set_read_only(&mut self, read_only: bool) {
         self.message(EM_SETREADONLY, usize::from(read_only), 0);
         self.read_only = read_only;
+        if self.spelling_locale.is_some() {
+            self.events.changed.set(true);
+        }
     }
 
     /// Like RichEditBox, changing math mode clears the document and its undo history.
@@ -1280,6 +1456,110 @@ fn char_format() -> CHARFORMAT2W {
     format
 }
 
+fn with_spell_checker<T>(
+    locale: PCWSTR,
+    run: impl FnOnce(&ISpellChecker) -> Result<T>,
+) -> Result<Option<T>> {
+    let init = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+    if init != RPC_E_CHANGED_MODE {
+        init.ok()?;
+    }
+    let result = (|| unsafe {
+        let factory: ISpellCheckerFactory =
+            CoCreateInstance(&SpellCheckerFactory, None, CLSCTX_INPROC_SERVER)?;
+        if !factory.IsSupported(locale)?.as_bool() {
+            return Ok(None);
+        }
+        run(&factory.CreateSpellChecker(locale)?).map(Some)
+    })();
+    if init.is_ok() {
+        unsafe { CoUninitialize() };
+    }
+    result
+}
+
+fn spelling_menu(
+    checker: &ISpellChecker,
+    paragraph: &BSTR,
+    start: i32,
+    position: i32,
+) -> Result<Option<SpellingMenu>> {
+    let errors = unsafe { checker.ComprehensiveCheck(PCWSTR(paragraph.as_ptr()))? };
+    while let Some(error) = {
+        let mut error = None;
+        unsafe { errors.Next(&mut error).ok()? };
+        error
+    } {
+        let offset = unsafe { error.StartIndex()? } as usize;
+        let length = unsafe { error.Length()? } as usize;
+        let Some(original) = paragraph.get(offset..offset.saturating_add(length)) else {
+            continue;
+        };
+        let range = Selection {
+            start: start + offset as i32,
+            end: start + (offset + length) as i32,
+        };
+        if !(range.start..range.end).contains(&position) {
+            continue;
+        }
+        let replacements = match unsafe { error.CorrectiveAction()? } {
+            CORRECTIVE_ACTION_REPLACE => {
+                vec![read_spelling_string(unsafe { error.Replacement()? })?]
+            }
+            CORRECTIVE_ACTION_DELETE => vec![String::new()],
+            CORRECTIVE_ACTION_GET_SUGGESTIONS => {
+                let word: Vec<u16> = original.iter().copied().chain([0]).collect();
+                let suggestions = unsafe { checker.Suggest(PCWSTR(word.as_ptr()))? };
+                let mut results = Vec::new();
+                for _ in 0..3 {
+                    let mut value = [PWSTR::null()];
+                    let mut fetched = 0;
+                    unsafe { suggestions.Next(&mut value, Some(&mut fetched)).ok()? };
+                    if fetched == 0 {
+                        break;
+                    }
+                    results.push(read_spelling_string(value[0])?);
+                }
+                results
+            }
+            _ => Vec::new(),
+        };
+        return Ok(Some(SpellingMenu {
+            range,
+            original: original.to_vec(),
+            replacements,
+        }));
+    }
+    Ok(None)
+}
+
+fn spelling_ranges(checker: &ISpellChecker, text: &BSTR) -> Result<Vec<Selection>> {
+    let mut ranges = Vec::new();
+    let errors = unsafe { checker.ComprehensiveCheck(PCWSTR(text.as_ptr()))? };
+    while let Some(error) = {
+        let mut error = None;
+        unsafe { errors.Next(&mut error).ok()? };
+        error
+    } {
+        let start = unsafe { error.StartIndex()? } as usize;
+        let end = start.saturating_add(unsafe { error.Length()? } as usize);
+        if start < end && end <= text.len() {
+            ranges.push(Selection {
+                start: start as i32,
+                end: end as i32,
+            });
+        }
+    }
+    ranges.sort_unstable_by_key(|span| (span.start, span.end));
+    Ok(ranges)
+}
+
+fn read_spelling_string(value: PWSTR) -> Result<String> {
+    let string = unsafe { value.to_string() };
+    unsafe { CoTaskMemFree(Some(value.as_ptr().cast())) };
+    Ok(string?)
+}
+
 fn text_document(window: HWND) -> Option<ITextDocument2> {
     let mut pointer = std::ptr::null_mut::<std::ffi::c_void>();
     if unsafe {
@@ -1299,9 +1579,9 @@ fn text_document(window: HWND) -> Option<ITextDocument2> {
     unsafe { IUnknown::from_raw(pointer) }.cast().ok()
 }
 
-fn paint_matches(window: HWND, dc: HDC, viewport: RECT, matches: &[Selection]) {
+fn visible_range_bounds(window: HWND, viewport: RECT, matches: &[Selection]) -> Vec<RECT> {
     let Some(document) = text_document(window) else {
-        return;
+        return Vec::new();
     };
     let line_of = |offset| unsafe {
         SendMessageW(
@@ -1381,7 +1661,30 @@ fn paint_matches(window: HWND, dc: HDC, viewport: RECT, matches: &[Selection]) {
             }
         }
     }
-    tint_matches(dc, &rectangles);
+    rectangles
+}
+
+fn underline_spelling(dc: HDC, rectangles: &[RECT]) {
+    if rectangles.is_empty() {
+        return;
+    }
+    unsafe {
+        let pen = CreatePen(PS_SOLID, 1, color_ref([0xc4, 0x2b, 0x1c]));
+        if pen.is_invalid() {
+            return;
+        }
+        let old = SelectObject(dc, HGDIOBJ(pen.0));
+        for rect in rectangles {
+            let peak = (rect.bottom - 3).max(rect.top);
+            let trough = rect.bottom - 1;
+            let _ = MoveToEx(dc, rect.left, peak, None);
+            for (index, x) in (rect.left + 2..rect.right).step_by(2).enumerate() {
+                let _ = LineTo(dc, x, if index % 2 == 0 { trough } else { peak });
+            }
+        }
+        SelectObject(dc, old);
+        let _ = DeleteObject(HGDIOBJ(pen.0));
+    }
 }
 
 fn tint_matches(dc: HDC, rectangles: &[RECT]) {
@@ -1557,26 +1860,63 @@ mod tests {
         editor.set_selection(selection);
 
         editor
-            .set_menu_overlay(Some([32, 10, 72, 44]), 16, true)
+            .set_menu_overlay([Some([32, 10, 72, 44]), Some([100, 25, 124, 52])], 16, true)
             .unwrap();
         let region = unsafe { CreateRectRgn(0, 0, 0, 0) };
         assert!(!region.is_invalid());
-        let (clipped, covered_text, uncovered_text) = unsafe {
+        let (clipped, covered_text, covered_by_submenu, uncovered_text) = unsafe {
             let kind = GetWindowRgn(editor.window, region);
             let covered = PtInRegion(region, 30, 12).as_bool();
             let uncovered = PtInRegion(region, 10, 12).as_bool();
-            (kind, covered, uncovered)
+            (
+                kind,
+                covered,
+                PtInRegion(region, 96, 20).as_bool(),
+                uncovered,
+            )
         };
-        editor.set_menu_overlay(None, 16, false).unwrap();
+        editor.set_menu_overlay([None, None], 16, false).unwrap();
         let unclipped = unsafe { GetWindowRgn(editor.window, region) };
         let _ = unsafe { DeleteObject(HGDIOBJ(region.0)) };
 
         assert_ne!(clipped, RGN_ERROR);
         assert!(!covered_text);
+        assert!(!covered_by_submenu);
         assert!(uncovered_text);
         assert_eq!(unclipped, RGN_ERROR);
         assert_eq!(editor.selection(), selection);
         assert_eq!(editor.text(), "First second");
+    }
+
+    #[test]
+    fn spelling_replacement_uses_the_native_range_and_rejects_a_stale_word() {
+        let parent = TestWindow::new();
+        let mut editor = parent.editor();
+        let (wrong, expected) = if editor.set_spelling_locale("en-US").unwrap() {
+            ("quik", "quick")
+        } else if editor.set_spelling_locale("zh-Latn-CN-x-ext").unwrap() {
+            ("beijng", "Beijing")
+        } else {
+            return;
+        };
+        editor.set_spelling_enabled(true);
+        let initial = format!("😀 {wrong}.");
+        editor.set_text(&initial).unwrap();
+        editor.set_selection(Selection { start: 4, end: 4 });
+        let menu = editor
+            .spelling_at(-1, -1)
+            .unwrap()
+            .expect("native proofing");
+        let index = menu
+            .replacements
+            .iter()
+            .position(|word| word == expected)
+            .unwrap();
+        assert!(editor.apply_spelling(&menu, index).unwrap());
+        assert_eq!(editor.text(), format!("😀 {expected}."));
+        assert!(!editor.apply_spelling(&menu, index).unwrap());
+        editor.execute(Edit::Undo);
+        assert_eq!(editor.text(), initial);
     }
 
     #[test]

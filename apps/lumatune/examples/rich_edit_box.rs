@@ -1,5 +1,7 @@
 #[path = "../src/command_bar.rs"]
 mod command_bar;
+#[path = "../src/menu_flyout.rs"]
+mod menu_flyout;
 
 use std::cell::{Cell, RefCell};
 use std::error::Error;
@@ -11,21 +13,23 @@ use std::time::Duration;
 
 use lumatune_win::{
     accent::light_accent_text_colors,
-    rich_edit::{Edit, EditorRequest, Effect, Placement, RichEdit},
+    rich_edit::{Edit, EditorRequest, Effect, Placement, RichEdit, SpellingMenu},
 };
 use quick_xml::{
     Reader, Writer,
     events::{BytesText, Event},
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use slint::{Color, ComponentHandle, Timer, TimerMode};
+use slint::{Color, ComponentHandle, ModelRc, Timer, TimerMode, VecModel};
 
 slint::slint! {
     import { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+        MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel,
         AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
         CommandBarLayout, CommandBarOverflowButtonVisibility }
         from "../../examples/winui3/rich_edit_box.slint";
     export { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+        MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel,
         AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
         CommandBarLayout, CommandBarOverflowButtonVisibility }
 }
@@ -41,6 +45,7 @@ struct MountedEditor {
     scale: f32,
     has_text: bool,
     math_fits_one_line: bool,
+    spelling_menu: Option<SpellingMenu>,
 }
 
 impl MountedEditor {
@@ -53,6 +58,7 @@ impl MountedEditor {
             scale: 0.0,
             has_text: false,
             math_fits_one_line: true,
+            spelling_menu: None,
         }
     }
 
@@ -113,6 +119,7 @@ impl MountedEditor {
         let document_changed = self.editor.take_text_changed();
         if document_changed {
             self.has_text = self.editor.has_text();
+            self.editor.refresh_spelling_marks()?;
         }
         let selection = self.editor.selection();
         let state = RichEditState {
@@ -258,18 +265,42 @@ fn handle_editor_request(
     let logical = |physical: i32| physical as f32 / ui.window().scale_factor();
     match request {
         EditorRequest::ContextMenu { x, y } => {
-            let (anchor, can_paste) = {
-                let host = slot.borrow();
-                let [x, y] = host.editor.context_menu_anchor(x, y)?;
+            let (anchor, can_paste, proofing) = {
+                let mut host = slot.borrow_mut();
+                let [anchor_x, anchor_y] = host.editor.context_menu_anchor(x, y)?;
+                host.spelling_menu = match host.editor.spelling_at(x, y) {
+                    Ok(menu) => menu,
+                    Err(error) => {
+                        ui.set_status(error.to_string().into());
+                        None
+                    }
+                };
+                let proofing = host.spelling_menu.as_ref().map_or_else(Vec::new, |menu| {
+                    menu.replacements
+                        .iter()
+                        .enumerate()
+                        .map(|(index, word)| MenuFlyoutItem {
+                            id: index.to_string().into(),
+                            text: if word.is_empty() {
+                                "Delete repeated word".into()
+                            } else {
+                                word.as_str().into()
+                            },
+                            ..Default::default()
+                        })
+                        .collect()
+                });
                 (
                     FlyoutRect {
-                        x: logical(x),
-                        y: logical(y),
+                        x: logical(anchor_x),
+                        y: logical(anchor_y),
                         ..Default::default()
                     },
                     host.editor.can_paste(),
+                    proofing,
                 )
             };
+            ui.set_proofing_items(ModelRc::new(VecModel::from(proofing)));
             ui.invoke_open_editor_menu(simple, false, anchor, can_paste);
             if ui.get_menu_open() {
                 slot.borrow().editor.yield_focus();
@@ -314,18 +345,22 @@ impl MountedPair {
     fn sync_menu(&self, ui: &RichEditBoxExample) {
         let scale = ui.window().scale_factor();
         let px = |logical: f32| (logical * scale).round() as i32;
-        let bounds = ui.get_menu_open().then(|| {
-            let panel = ui.get_menu_bounds();
+        let bounds = |panel: FlyoutRect| {
             [
                 px(panel.x),
                 px(panel.y),
                 px(panel.x + panel.width),
                 px(panel.y + panel.height),
             ]
-        });
+        };
+        let panels = [
+            ui.get_menu_open().then(|| bounds(ui.get_menu_bounds())),
+            ui.get_proofing_open()
+                .then(|| bounds(ui.get_proofing_bounds())),
+        ];
         for slot in [&self.simple, &self.custom] {
             if let Err(error) = slot.borrow().editor.set_menu_overlay(
-                bounds,
+                panels,
                 px(16.0),
                 ui.get_menu_tracks_pointer(),
             ) {
@@ -359,6 +394,8 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
         });
         ui.set_math_ready(true);
     } else {
+        simple.borrow_mut().editor.set_spelling_enabled(true);
+        custom.borrow_mut().editor.set_spelling_enabled(true);
         simple
             .borrow()
             .editor
@@ -367,7 +404,19 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
             .borrow()
             .editor
             .set_accessible_name("Custom rich text editor")?;
-        if std::env::args_os().any(|arg| arg == "--sample-text") {
+        if std::env::args_os().any(|arg| arg == "--spelling") {
+            let mut host = custom.borrow_mut();
+            if host.editor.set_spelling_locale("en-US")? {
+                host.editor.set_default_language(0x0409);
+                host.editor
+                    .set_text("The quik brown fox jumped over the fence.")?;
+            } else if host.editor.set_spelling_locale("zh-Latn-CN-x-ext")? {
+                host.editor.set_default_language(0x0804);
+                host.editor.set_text("beijng")?;
+            } else {
+                ui.set_status("No English or Pinyin spell checker is installed.".into());
+            }
+        } else if std::env::args_os().any(|arg| arg == "--sample-text") {
             custom.borrow().editor.set_text("Apply a format to a selection, then save the document as RTF.\nThe editor preserves Unicode, including 中文 and 😀.")?;
         }
     }
@@ -408,6 +457,23 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
                 .is_some_and(|ui| ui.get_menu_tracks_pointer())
             {
                 host.editor.focus();
+            }
+        }
+    });
+    let simple_proofing = simple.clone();
+    let custom_proofing = custom.clone();
+    let weak = ui.as_weak();
+    ui.on_proofing_command(move |simple, id| {
+        let slot = if simple {
+            &simple_proofing
+        } else {
+            &custom_proofing
+        };
+        if let (Some(ui), Ok(host), Ok(index)) = (weak.upgrade(), slot.try_borrow(), id.parse()) {
+            if let Some(menu) = &host.spelling_menu {
+                if let Err(error) = host.editor.apply_spelling(menu, index) {
+                    ui.set_status(error.to_string().into());
+                }
             }
         }
     });
@@ -485,6 +551,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ui = RichEditBoxExample::new()?;
     ui.set_math_samples(std::env::args_os().any(|arg| arg == "--math"));
     command_bar::install(ui.global::<CommandBarBehavior>());
+    menu_flyout::install(ui.global::<MenuFlyoutBehavior>());
     if let Ok(accent) = light_accent_text_colors() {
         let [red, green, blue] = accent.tertiary;
         ui.set_accent(Color::from_rgb_u8(red, green, blue));

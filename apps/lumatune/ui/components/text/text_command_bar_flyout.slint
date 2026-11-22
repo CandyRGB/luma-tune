@@ -1,6 +1,7 @@
 import { CommandBarAccelerators, CommandBarBehavior } from "../menus-toolbars/command_bar.slint";
 import { CommandBarFlyout, CommandBarFlyoutShowMode, CommandBarItem, CommandBarItemKind,
     FlyoutCloseReason, FlyoutPlacement, FlyoutRect } from "../menus-toolbars/command_bar_flyout.slint";
+import { MenuFlyout, MenuFlyoutItem } from "../menus-toolbars/menu_flyout.slint";
 
 export { FlyoutCloseReason, FlyoutRect }
 export enum TextCommand { cut, copy, paste, undo, redo, select-all, bold, italic, underline }
@@ -24,13 +25,17 @@ export component TextCommandBarFlyout inherits Rectangle {
     in property <bool> underlined;
     in property <bool> rtl;
     in property <bool> mouse-selection;
+    in property <[MenuFlyoutItem]> proofing-items;
     out property <bool> is-open: flyout.is-open;
     out property <bool> is-expanded: flyout.is-expanded;
     out property <FlyoutRect> panel-bounds: flyout.panel-bounds;
+    out property <bool> proofing-open: proofing.is-open;
+    out property <FlyoutRect> proofing-bounds: proofing.panel-bounds;
 
     callback invoked(TextCommand);
     callback restore-focus();
     callback closed(FlyoutCloseReason);
+    callback proofing-invoked(MenuFlyoutItem);
 
     private property <bool> editable: !root.read-only && root.target-kind != TextCommandTarget.text-block;
     private property <bool> password: root.target-kind == TextCommandTarget.password-box;
@@ -44,6 +49,7 @@ export component TextCommandBarFlyout inherits Rectangle {
     private property <bool> show-paste: root.editable && root.can-paste;
     private property <bool> show-undo: root.editable && !root.password && root.can-undo;
     private property <bool> show-redo: root.editable && !root.password && root.can-redo;
+    private property <bool> show-proofing: root.editable && !root.selection-entry && root.proofing-items.length > 0;
     private property <[CommandBarItem]> primary: [
         root.cut-command(!root.clipboard-in-primary),
         root.copy-command(!root.clipboard-in-primary),
@@ -59,6 +65,7 @@ export component TextCommandBarFlyout inherits Rectangle {
             hidden: !root.rich-edit || !root.can-underline },
     ];
     private property <[CommandBarItem]> secondary: [
+        { id: "proofing", label: @tr("Spelling"), has-flyout: true, hidden: !root.show-proofing },
         root.cut-command(root.clipboard-in-primary),
         root.copy-command(root.clipboard-in-primary),
         root.paste-command(root.clipboard-in-primary),
@@ -100,12 +107,14 @@ export component TextCommandBarFlyout inherits Rectangle {
         if (flyout.is-open) { return; }
         root.selection-entry = false;
         flyout.show-for(target, CommandBarFlyoutShowMode.standard);
+        if (root.show-proofing) { flyout.open-secondary-flyout("proofing"); }
     }
 
     public function show-context-at(position: Point) {
         if (flyout.is-open) { return; }
         root.selection-entry = false;
         flyout.show-at(position, CommandBarFlyoutShowMode.standard);
+        if (root.show-proofing) { flyout.open-secondary-flyout("proofing"); }
     }
 
     public function show-selection(target: FlyoutRect) {
@@ -165,7 +174,27 @@ export component TextCommandBarFlyout inherits Rectangle {
             show-primary-labels: false;
             invoked(item) => { root.invoke(item); }
             restore-focus => { root.restore-focus(); }
-            closed(reason) => { root.closed(reason); }
+            closed(reason) => {
+                proofing.hide();
+                root.closed(reason);
+            }
+            open-flyout(item, anchor, overflow) => {
+                if (item.id == "proofing") {
+                    proofing.show-for(anchor);
+                }
+            }
+        }
+
+        proofing := MenuFlyout {
+            width: root.width;
+            height: root.height;
+            z: 3;
+            placement: FlyoutPlacement.right-edge-aligned-top;
+            items: root.proofing-items;
+            invoked(item) => {
+                root.proofing-invoked(item);
+                flyout.hide();
+            }
         }
     }
 }

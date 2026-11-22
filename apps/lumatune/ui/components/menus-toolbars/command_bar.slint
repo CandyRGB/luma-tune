@@ -119,6 +119,7 @@ export component CommandBar inherits Rectangle {
     private property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     private property <bool> visible-open;
     private property <bool> changing;
+    private property <string> pending-secondary-flyout;
     private property <bool> keyboard-focus: true;
     private property <int> primary-index: CommandBarBehavior.next-item(root.arrangement.primary, -1, true);
     private property <int> overflow-index: -1;
@@ -188,6 +189,7 @@ export component CommandBar inherits Rectangle {
     }
 
     public function hide() {
+        root.pending-secondary-flyout = "";
         root.is-open = false;
         root.sync-open();
     }
@@ -199,6 +201,10 @@ export component CommandBar inherits Rectangle {
         } else {
             root.focus-overflow(true);
         }
+    }
+
+    public function open-secondary-flyout(id: string) {
+        root.pending-secondary-flyout = id;
     }
 
     function sync-open() {
@@ -688,6 +694,15 @@ export component CommandBar inherits Rectangle {
                             }
                             focus-requested => { root.select-overflow(index); }
                             clicked => { root.invoke-entry(entry, self.anchor, true); }
+                        }
+                        Timer {
+                            interval: 16ms;
+                            running: root.overflow-visible && entry.item.has-flyout
+                                && entry.item.id != "" && root.pending-secondary-flyout == entry.item.id;
+                            triggered => {
+                                root.pending-secondary-flyout = "";
+                                root.open-flyout(entry.item, row.anchor, true);
+                            }
                         }
                     }
                 }

@@ -3,12 +3,15 @@ import { Button, ButtonStyle } from "../../apps/lumatune/ui/components/basic-inp
 import { AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
     CommandBarLayout, CommandBarOverflowButtonVisibility } from "../../apps/lumatune/ui/components/menus-toolbars/command_bar.slint";
 import { CommandBarFlyoutKeyScope } from "../../apps/lumatune/ui/components/menus-toolbars/command_bar_flyout.slint";
+import { MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel, }
+    from "../../apps/lumatune/ui/components/menus-toolbars/menu_flyout.slint";
 import { RichEditBox, RichEditCommand, RichEditGeometry, RichEditState } from "../../apps/lumatune/ui/components/text/rich_edit_box.slint";
 import { TextBox } from "../../apps/lumatune/ui/components/text/text_box.slint";
 import { FlyoutCloseReason, FlyoutRect, TextCommand, TextCommandBarFlyout, TextCommandTarget }
     from "../../apps/lumatune/ui/components/text/text_command_bar_flyout.slint";
 
 export { RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+    MenuFlyoutBehavior, MenuFlyoutItem, MenuFlyoutItemKind, MenuFlyoutLevel,
     AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
     CommandBarLayout, CommandBarOverflowButtonVisibility }
 
@@ -42,10 +45,13 @@ export component RichEditBoxExample inherits Window {
     in property <bool> math-samples;
     in property <bool> math-ready;
     in property <string> math-ml;
+    in property <[MenuFlyoutItem]> proofing-items;
     out property <RichEditGeometry> simple-geometry: root.math-samples ? math-input.geometry : simple.geometry;
     out property <RichEditGeometry> custom-geometry: root.math-samples ? math-document.geometry : custom.geometry;
     out property <FlyoutRect> menu-bounds: menu.panel-bounds;
     out property <bool> menu-open: menu.is-open;
+    out property <bool> proofing-open: menu.proofing-open;
+    out property <FlyoutRect> proofing-bounds: menu.proofing-bounds;
     out property <bool> menu-tracks-pointer: menu.is-open && root.selection-menu && !menu.is-expanded;
 
     callback simple-command(RichEditCommand);
@@ -57,6 +63,7 @@ export component RichEditBoxExample inherits Window {
     callback apply-color(color, bool);
     callback menu-command(bool, TextCommand);
     callback restore-menu-focus(bool);
+    callback proofing-command(bool, string);
     callback set-sample-formula();
 
     private property <bool> read-only;
@@ -289,7 +296,7 @@ export component RichEditBoxExample inherits Window {
     CommandBarFlyoutKeyScope {
         width: parent.width;
         height: parent.height;
-        dismiss-enabled: menu.is-open;
+        dismiss-enabled: menu.is-open && !menu.proofing-open;
         dismiss => { menu.dismiss(FlyoutCloseReason.escape); }
 
         menu := TextCommandBarFlyout {
@@ -306,6 +313,8 @@ export component RichEditBoxExample inherits Window {
             bold: root.menu-state.bold;
             italic: root.menu-state.italic;
             underlined: root.menu-state.underlined;
+            proofing-items: root.proofing-items;
+            proofing-invoked(item) => { root.proofing-command(root.menu-simple, item.id); }
             invoked(action) => { root.menu-command(root.menu-simple, action); }
             restore-focus => {
                 if root.restoring-focus {

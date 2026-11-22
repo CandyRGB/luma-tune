@@ -84,6 +84,10 @@ export component CommandBarFlyout inherits Rectangle {
         root.dismiss(FlyoutCloseReason.programmatic);
     }
 
+    public function open-secondary-flyout(id: string) {
+        if (root.is-open) { bar.open-secondary-flyout(id); }
+    }
+
     public function set-expanded(expanded: bool) {
         if (root.is-open) {
             if (expanded && bar.overflow-count > 0) {
