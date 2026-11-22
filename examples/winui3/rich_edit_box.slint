@@ -1,9 +1,16 @@
 import { Button as StandardButton, ComboBox, Palette } from "std-widgets.slint";
 import { Button, ButtonStyle } from "../../apps/lumatune/ui/components/basic-input/button.slint";
+import { AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
+    CommandBarLayout, CommandBarOverflowButtonVisibility } from "../../apps/lumatune/ui/components/menus-toolbars/command_bar.slint";
+import { CommandBarFlyoutKeyScope } from "../../apps/lumatune/ui/components/menus-toolbars/command_bar_flyout.slint";
 import { RichEditBox, RichEditCommand, RichEditGeometry, RichEditState } from "../../apps/lumatune/ui/components/text/rich_edit_box.slint";
 import { TextBox } from "../../apps/lumatune/ui/components/text/text_box.slint";
+import { FlyoutCloseReason, FlyoutRect, TextCommand, TextCommandBarFlyout, TextCommandTarget }
+    from "../../apps/lumatune/ui/components/text/text_command_bar_flyout.slint";
 
-export { RichEditCommand, RichEditGeometry, RichEditState }
+export { RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+    AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
+    CommandBarLayout, CommandBarOverflowButtonVisibility }
 
 component ToolButton inherits Button {
     in property <image> icon;
@@ -34,6 +41,9 @@ export component RichEditBoxExample inherits Window {
     in property <string> status;
     out property <RichEditGeometry> simple-geometry: simple.geometry;
     out property <RichEditGeometry> custom-geometry: custom.geometry;
+    out property <FlyoutRect> menu-bounds: menu.panel-bounds;
+    out property <bool> menu-open: menu.is-open;
+    out property <bool> menu-tracks-pointer: menu.is-open && root.selection-menu && !menu.is-expanded;
 
     callback simple-command(RichEditCommand);
     callback custom-command(RichEditCommand);
@@ -42,9 +52,39 @@ export component RichEditBoxExample inherits Window {
     callback find-next(string);
     callback highlight-matches(string);
     callback apply-color(color, bool);
+    callback menu-command(bool, TextCommand);
+    callback restore-menu-focus(bool);
 
     private property <bool> read-only;
+    private property <bool> menu-simple;
+    private property <bool> selection-menu;
+    private property <bool> menu-can-paste;
+    private property <bool> restoring-focus: true;
+    private property <RichEditState> menu-state: root.menu-simple ? root.simple-state : root.custom-state;
     private property <[color]> font-colors: [transparent, red, orange, yellow, green, blue, indigo, violet, gray];
+
+    public function open-editor-menu(simple-editor: bool, selection: bool, anchor: FlyoutRect, can-paste: bool) {
+        root.dismiss-editor-menu(false);
+        root.menu-simple = simple-editor;
+        root.selection-menu = selection;
+        root.menu-can-paste = can-paste;
+        if selection {
+            menu.show-selection(anchor);
+        } else {
+            menu.show-context-at({ x: anchor.x, y: anchor.y });
+        }
+    }
+
+    public function dismiss-editor-menu(escape: bool) {
+        // An outside native click already controls which editor receives focus.
+        root.restoring-focus = escape;
+        menu.dismiss(escape ? FlyoutCloseReason.escape : FlyoutCloseReason.light-dismiss);
+        root.restoring-focus = true;
+    }
+
+    public function track-editor-pointer(x: length, y: length) {
+        menu.track-pointer({ x: x, y: y });
+    }
 
     // Native children hand focus back at the boundary of each editor.
     public function traverse-from-editor(simple-editor: bool, backward: bool) {
@@ -169,6 +209,35 @@ export component RichEditBoxExample inherits Window {
             height: 20px;
             overflow: elide;
             color: Palette.foreground;
+        }
+    }
+
+    CommandBarFlyoutKeyScope {
+        width: parent.width;
+        height: parent.height;
+        dismiss-enabled: menu.is-open;
+        dismiss => { menu.dismiss(FlyoutCloseReason.escape); }
+
+        menu := TextCommandBarFlyout {
+            width: parent.width;
+            height: parent.height;
+            target-kind: TextCommandTarget.rich-edit-box;
+            mouse-selection: true;
+            read-only: !root.menu-simple && root.read-only;
+            has-text: root.menu-state.has-text;
+            has-selection: root.menu-state.has-selection;
+            can-paste: root.menu-can-paste;
+            can-undo: root.menu-state.can-undo;
+            can-redo: root.menu-state.can-redo;
+            bold: root.menu-state.bold;
+            italic: root.menu-state.italic;
+            underlined: root.menu-state.underlined;
+            invoked(action) => { root.menu-command(root.menu-simple, action); }
+            restore-focus => {
+                if root.restoring-focus {
+                    root.restore-menu-focus(root.menu-simple);
+                }
+            }
         }
     }
 }

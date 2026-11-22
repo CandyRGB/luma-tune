@@ -1,3 +1,6 @@
+#[path = "../src/command_bar.rs"]
+mod command_bar;
+
 use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::fs;
@@ -14,9 +17,13 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{Color, ComponentHandle, Timer, TimerMode};
 
 slint::slint! {
-    import { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState }
+    import { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+        AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
+        CommandBarLayout, CommandBarOverflowButtonVisibility }
         from "../../examples/winui3/rich_edit_box.slint";
-    export { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState }
+    export { RichEditBoxExample, RichEditCommand, RichEditGeometry, RichEditState, FlyoutRect, TextCommand,
+        AppBarLabelPosition, CommandBarBehavior, CommandBarEntry, CommandBarItem, CommandBarItemKind,
+        CommandBarLayout, CommandBarOverflowButtonVisibility }
 }
 
 struct MountedEditor {
@@ -29,6 +36,7 @@ struct MountedEditor {
 impl MountedEditor {
     fn new(editor: RichEdit) -> Self {
         editor.set_default_font("Segoe UI Variable Text", 14.0);
+        editor.enable_selection_menu();
         Self {
             editor,
             geometry: None,
@@ -186,24 +194,101 @@ fn tick(ui: &RichEditBoxExample, slot: &RefCell<MountedEditor>, simple: bool) {
         }
         Err(error) => ui.set_status(error.to_string().into()),
     }
-    match host.editor.take_request() {
-        Some(EditorRequest::ContextMenu { x, y }) => {
-            if let Err(error) = host.editor.show_context_menu(x, y) {
-                ui.set_status(error.to_string().into());
+    let request = host.editor.take_request();
+    drop(host);
+    if let Some(request) = request
+        && let Err(error) = handle_editor_request(ui, slot, simple, request)
+    {
+        ui.set_status(error.to_string().into());
+    }
+}
+
+fn handle_editor_request(
+    ui: &RichEditBoxExample,
+    slot: &RefCell<MountedEditor>,
+    simple: bool,
+    request: EditorRequest,
+) -> Result<(), Box<dyn Error>> {
+    let logical = |physical: i32| physical as f32 / ui.window().scale_factor();
+    match request {
+        EditorRequest::ContextMenu { x, y } => {
+            let (anchor, can_paste) = {
+                let host = slot.borrow();
+                let [x, y] = host.editor.context_menu_anchor(x, y)?;
+                (
+                    FlyoutRect {
+                        x: logical(x),
+                        y: logical(y),
+                        ..Default::default()
+                    },
+                    host.editor.can_paste(),
+                )
+            };
+            ui.invoke_open_editor_menu(simple, false, anchor, can_paste);
+            if ui.get_menu_open() {
+                slot.borrow().editor.yield_focus();
             }
         }
-        Some(EditorRequest::Traverse { backward }) => {
-            host.editor.yield_focus();
-            drop(host);
+        EditorRequest::SelectionMenu { x, y } => {
+            let (anchor, can_paste) = {
+                let host = slot.borrow();
+                let [x, y, height] = host.editor.selection_menu_anchor(x, y)?;
+                (
+                    FlyoutRect {
+                        x: logical(x),
+                        y: logical(y),
+                        height: logical(height),
+                        ..Default::default()
+                    },
+                    host.editor.can_paste(),
+                )
+            };
+            ui.invoke_open_editor_menu(simple, true, anchor, can_paste);
+        }
+        EditorRequest::PointerMoved { x, y } => {
+            let [x, y] = slot.borrow().editor.pointer_in_parent(x, y)?;
+            ui.invoke_track_editor_pointer(logical(x), logical(y));
+        }
+        EditorRequest::DismissMenu { escape } => ui.invoke_dismiss_editor_menu(escape),
+        EditorRequest::Traverse { backward } => {
+            ui.invoke_dismiss_editor_menu(false);
+            slot.borrow().editor.yield_focus();
             ui.invoke_traverse_from_editor(simple, backward);
         }
-        None => {}
     }
+    Ok(())
 }
 
 struct MountedPair {
     simple: Rc<RefCell<MountedEditor>>,
     custom: Rc<RefCell<MountedEditor>>,
+}
+
+impl MountedPair {
+    fn sync_menu(&self, ui: &RichEditBoxExample) {
+        let scale = ui.window().scale_factor();
+        let px = |logical: f32| (logical * scale).round() as i32;
+        let bounds = ui.get_menu_open().then(|| {
+            let panel = ui.get_menu_bounds();
+            [
+                px(panel.x),
+                px(panel.y),
+                px(panel.x + panel.width),
+                px(panel.y + panel.height),
+            ]
+        });
+        for slot in [&self.simple, &self.custom] {
+            if let Err(error) = slot.borrow().editor.set_menu_overlay(
+                bounds,
+                px(16.0),
+                ui.get_menu_tracks_pointer(),
+            ) {
+                ui.invoke_dismiss_editor_menu(false);
+                ui.set_status(error.to_string().into());
+                break;
+            }
+        }
+    }
 }
 
 fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, Box<dyn Error>> {
@@ -232,6 +317,46 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
         if let Ok(host) = host.try_borrow() {
             command(&host.editor, action);
         }
+    });
+    let simple_menu = simple.clone();
+    let custom_menu = custom.clone();
+    let weak = ui.as_weak();
+    ui.on_menu_command(move |simple, action| {
+        let slot = if simple { &simple_menu } else { &custom_menu };
+        let action = match action {
+            TextCommand::Cut => Edit::Cut,
+            TextCommand::Copy => Edit::Copy,
+            TextCommand::Paste => Edit::Paste,
+            TextCommand::Undo => Edit::Undo,
+            TextCommand::Redo => Edit::Redo,
+            TextCommand::SelectAll => Edit::SelectAll,
+            TextCommand::Bold => Edit::Toggle(Effect::Bold),
+            TextCommand::Italic => Edit::Toggle(Effect::Italic),
+            TextCommand::Underline => Edit::Toggle(Effect::Underline),
+        };
+        if let Ok(host) = slot.try_borrow() {
+            host.editor.execute(action);
+            // Transient commands leave keyboard input at the native editor.
+            if weak
+                .upgrade()
+                .is_some_and(|ui| ui.get_menu_tracks_pointer())
+            {
+                host.editor.focus();
+            }
+        }
+    });
+    let simple_menu = simple.clone();
+    let custom_menu = custom.clone();
+    let weak = ui.as_weak();
+    ui.on_restore_menu_focus(move |simple| {
+        let slot = if simple { &simple_menu } else { &custom_menu }.clone();
+        let weak = weak.clone();
+        // Slint moves focus as it removes the active command from the scene.
+        Timer::single_shot(Duration::ZERO, move || {
+            if weak.upgrade().is_some_and(|ui| !ui.get_menu_open()) {
+                slot.borrow().editor.focus();
+            }
+        });
     });
     let host = custom.clone();
     ui.on_apply_color(move |color, automatic| {
@@ -292,6 +417,7 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
 
 fn main() -> Result<(), Box<dyn Error>> {
     let ui = RichEditBoxExample::new()?;
+    command_bar::install(ui.global::<CommandBarBehavior>());
     if let Ok(accent) = light_accent_text_colors() {
         let [red, green, blue] = accent.tertiary;
         ui.set_accent(Color::from_rgb_u8(red, green, blue));
@@ -337,6 +463,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Some(pair) = &*mounted {
             tick(&ui, &pair.simple, true);
             tick(&ui, &pair.custom, false);
+            pair.sync_menu(&ui);
         }
     });
     slint::run_event_loop()?;

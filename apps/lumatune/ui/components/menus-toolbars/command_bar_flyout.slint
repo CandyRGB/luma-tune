@@ -32,6 +32,7 @@ export component CommandBarFlyout inherits Rectangle {
     in property <bool> show-primary-labels: true;
     out property <bool> is-open;
     out property <bool> is-expanded: bar.is-open && bar.overflow-count > 0;
+    out property <FlyoutRect> panel-bounds: root.is-open ? root.geometry : {};
 
     callback opening();
     callback opened();
@@ -135,7 +136,7 @@ export component CommandBarFlyout inherits Rectangle {
     }
 
     // The native transient pointer mode uses the distance to the presenter's bounds.
-    function check-pointer(x: length, y: length) {
+    public function track-pointer(x: length, y: length) {
         if (!root.dismiss-on-pointer-move) { return; }
         let horizontal = max(0px, max(root.geometry.x - x, x - root.geometry.x - root.geometry.width)) / 1px;
         let vertical = max(0px, max(root.geometry.y - y, y - root.geometry.y - root.geometry.height)) / 1px;
@@ -151,7 +152,7 @@ export component CommandBarFlyout inherits Rectangle {
             clicked => { root.dismiss(FlyoutCloseReason.light-dismiss); }
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.move) {
-                    root.check-pointer(self.mouse-x, self.mouse-y);
+                    root.track-pointer(self.mouse-x, self.mouse-y);
                 }
             }
         }

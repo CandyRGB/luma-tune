@@ -380,7 +380,7 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 | NumberBox | 🚧 | `components/text/number_box.slint`，支持隐藏、内联与紧凑步进，以及表达式、空值、范围和验证模式。 |
 | AutoSuggestBox（建议下拉） | 🚧 | `components/text/auto_suggest_box.slint`，支持异步筛选、键鼠选择、文本预览及查询提交。 |
 | RichTextBlock / RichTextBlockOverflow | 🚧 | 段落与行内格式、文本高亮、跨容器续排、键鼠选区和链接 |
-| RichEditBox | 🚧 | 原生 Rich Edit 文档、格式命令、选区、撤销重做、RTF、占位符与全文查找高亮 |
+| RichEditBox | 🚧 | 原生 Rich Edit 文档、浮动文本命令栏、选区、格式、撤销重做、RTF、占位符与查找高亮 |
 
 运行 `cargo run -p lumatune --example text_command_bar_flyout` 可试用可编辑文本、只读文本和密码输入框。右键、菜单键和 Shift+F10 打开上下文菜单，“Show selection tools” 演示选区工具栏。浅色已验证选区在菜单夺取焦点后仍可见，Esc 后恢复编辑焦点，次命令执行后收起，以及撤销、重做和系统剪贴板上的 Unicode 剪切、复制和粘贴。只读示例仅显示复制和全选，密码示例仅显示可用的粘贴和全选。Windows UI Automation 已验证调用全选和展开次命令。[Microsoft 文档及截图](https://learn.microsoft.com/windows/apps/develop/ui/controls/command-bar-flyout) · [WinUI 命令规则](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp)
 
@@ -418,7 +418,9 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 
 空文档在原生排版区域显示占位符，聚焦时仍可见，输入后隐藏。原生子窗口通过 UI Automation HelpText 提供占位提示。查找框聚焦时显示全部匹配，更新查询或移开焦点时清除旧标记。标记按原生文本范围位置绘制，实测匹配跨换行时两行都显示标记。选区、文档格式、撤销记录和 RTF 保持原样。当前用系统高亮色半透明叠加，Gallery 使用实色背景并交换文字色。[Microsoft 文档中的文本范围几何](https://learn.microsoft.com/en-us/windows/win32/api/tom/nf-tom-itextrange2-getrect)
 
-浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、右键菜单、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。WinUI 的浮动文本命令栏、MathML 和从 Slint 无障碍树发现原生编辑区仍待处理。源码和示例已保存在 `.refs/WinUI/`。
+鼠标拖选后，在选区上方显示共享文本命令栏。主栏提供粗体、斜体和下划线，更多菜单按文档状态提供剪切、复制、粘贴、撤销、重做和全选。移出主栏 80px 后自动收起。右键和键盘上下文菜单会打开带有可用次级命令的浮动栏，按 Esc 将焦点交回编辑器。弹层覆盖之处临时裁切原生子窗口，其余正文、选区和输入继续由 Rich Edit 处理。Windows 回归测试覆盖裁切、复原及选区保留。[WinUI 命令分组](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/CommandBarFlyout/TextCommandBarFlyout.cpp) · [WinUI 弹层的输入设备行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp)
+
+浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、浮动命令栏、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。触摸和笔的选区入口、拼写建议、MathML 以及从 Slint 无障碍树发现原生编辑区仍待处理。已裁切的弹层轮廓之外由原生窗口绘制，弹层阴影不能叠在该部分正文上。源码和示例已保存在 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |

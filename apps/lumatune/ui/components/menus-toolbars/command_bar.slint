@@ -544,7 +544,8 @@ export component CommandBar inherits Rectangle {
                                 expanded: entry.item.flyout-open;
                                 toggleable: entry.item.kind == CommandBarItemKind.toggle;
                                 checked: entry.item.checked;
-                                keyboard-highlight: index == root.primary-index && primary-focus.has-focus && root.keyboard-focus;
+                                keyboard-highlight: root.take-focus-on-click && index == root.primary-index
+                                    && primary-focus.has-focus && root.keyboard-focus;
                                 changed active-anchor => { if (index == root.primary-index) { primary-focus.active-anchor = self.active-anchor; } }
                                 focus-requested => { root.select-primary(index); }
                                 clicked => { root.invoke-entry(entry, self.anchor, false); }
@@ -568,7 +569,8 @@ export component CommandBar inherits Rectangle {
                     icon: @image-url("../../icons/more_horizontal_16_regular.svg");
                     enabled: root.enabled;
                     expanded: root.visible-open;
-                    keyboard-highlight: root.primary-index < 0 && primary-focus.has-focus && root.keyboard-focus;
+                    keyboard-highlight: root.take-focus-on-click && root.primary-index < 0
+                        && primary-focus.has-focus && root.keyboard-focus;
                     focus-requested => { root.select-primary(-1); }
                     clicked => { root.toggle-open(); }
                 }

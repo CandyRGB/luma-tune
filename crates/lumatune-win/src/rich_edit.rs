@@ -13,11 +13,12 @@ use windows::Win32::Foundation::{
     RPC_E_CHANGED_MODE, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
-    AC_SRC_OVER, AlphaBlend, BLENDFUNCTION, COLOR_HIGHLIGHT, ClientToScreen,
-    CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush, DT_NOPREFIX,
-    DT_WORDBREAK, DeleteDC, DeleteObject, DrawTextW, FillRect, GetDC, GetSysColor, HDC, HGDIOBJ,
-    InvalidateRect, LOGFONTW, ReleaseDC, RestoreDC, SaveDC, SelectObject, SetBkMode, SetTextColor,
-    TRANSPARENT,
+    AC_SRC_OVER, AlphaBlend, BLENDFUNCTION, COLOR_HIGHLIGHT, ClientToScreen, CombineRgn,
+    CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateRectRgn,
+    CreateRoundRectRgn, CreateSolidBrush, DT_NOPREFIX, DT_WORDBREAK, DeleteDC, DeleteObject,
+    DrawTextW, FillRect, GetDC, GetSysColor, HDC, HGDIOBJ, InvalidateRect, LOGFONTW, RGN_DIFF,
+    RGN_ERROR, ReleaseDC, RestoreDC, SaveDC, ScreenToClient, SelectObject, SetBkMode, SetTextColor,
+    SetWindowRgn, TRANSPARENT,
 };
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
@@ -40,17 +41,20 @@ use windows::Win32::UI::Controls::{
 };
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    EnableWindow, GetFocus, GetKeyState, SetFocus, VK_SHIFT, VK_TAB,
+    EnableWindow, GetFocus, GetKeyState, SetFocus, VK_APPS, VK_ESCAPE, VK_F10, VK_MENU, VK_SHIFT,
+    VK_TAB,
 };
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CHILDID_SELF, CreatePopupMenu, CreateWindowExW, DestroyMenu, DestroyWindow,
     EN_CHANGE, ES_AUTOVSCROLL, ES_MULTILINE, ES_NOHIDESEL, ES_WANTRETURN, GetClientRect,
-    GetWindowThreadProcessId, IsWindow, MF_CHECKED, MF_GRAYED, MF_STRING, OBJID_CLIENT, SW_HIDE,
-    SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOZORDER, SendMessageW, SetWindowPos, ShowWindow,
-    TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_CHAR, WM_CLEAR, WM_COMMAND, WM_CONTEXTMENU, WM_COPY, WM_CUT, WM_KEYDOWN, WM_LBUTTONDOWN,
-    WM_PASTE, WM_SETTEXT, WS_CHILD, WS_CLIPSIBLINGS, WS_TABSTOP, WS_VSCROLL,
+    GetWindowRect, GetWindowThreadProcessId, IsWindow, MF_CHECKED, MF_GRAYED, MF_STRING,
+    OBJID_CLIENT, SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOZORDER, SendMessageW,
+    SetWindowPos, ShowWindow, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_CHAR, WM_CLEAR, WM_COMMAND, WM_CONTEXTMENU, WM_COPY, WM_CUT,
+    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
+    WM_MOUSEWHEEL, WM_PASTE, WM_RBUTTONDOWN, WM_SETTEXT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL,
+    WS_CHILD, WS_CLIPSIBLINGS, WS_TABSTOP, WS_VSCROLL,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     HideCaret, ShowCaret, WM_GETTEXTLENGTH, WM_IME_ENDCOMPOSITION, WM_IME_STARTCOMPOSITION,
@@ -108,7 +112,17 @@ pub struct Placement {
 #[derive(Clone, Copy, Debug)]
 pub enum EditorRequest {
     ContextMenu { x: i32, y: i32 },
+    SelectionMenu { x: i32, y: i32 },
+    PointerMoved { x: i32, y: i32 },
+    DismissMenu { escape: bool },
     Traverse { backward: bool },
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct MenuClip {
+    editor_size: [i32; 2],
+    cutout: [i32; 4],
+    diameter: i32,
 }
 
 struct EditorEvents {
@@ -116,6 +130,9 @@ struct EditorEvents {
     parent: HWND,
     changed: Cell<bool>,
     request: Cell<Option<EditorRequest>>,
+    selection_menu_enabled: Cell<bool>,
+    menu_open: Cell<bool>,
+    track_pointer: Cell<bool>,
     placeholder: RefCell<Placeholder>,
     composing: Cell<bool>,
     search_matches: RefCell<Vec<Selection>>,
@@ -178,6 +195,9 @@ impl EditorEvents {
             parent,
             changed: Cell::new(true),
             request: Cell::new(None),
+            selection_menu_enabled: Cell::new(false),
+            menu_open: Cell::new(false),
+            track_pointer: Cell::new(false),
             placeholder: RefCell::new(Placeholder::new(
                 unsafe { GetDpiForWindow(window) } as f32 / 96.0,
             )),
@@ -323,6 +343,54 @@ unsafe extern "system" fn editor_event(
             .set(Some(EditorRequest::ContextMenu { x, y }));
         return LRESULT(0);
     }
+    if matches!(msg, WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP)
+        && (wparam.0 == usize::from(VK_APPS.0)
+            || (wparam.0 == usize::from(VK_F10.0)
+                && unsafe { GetKeyState(i32::from(VK_SHIFT.0)) < 0 }
+                && unsafe { GetKeyState(i32::from(VK_MENU.0)) >= 0 }))
+    {
+        if matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN) {
+            events
+                .request
+                .set(Some(EditorRequest::ContextMenu { x: -1, y: -1 }));
+        }
+        return LRESULT(0);
+    }
+    if events.menu_open.get() {
+        if wparam.0 == VK_ESCAPE.0 as usize && matches!(msg, WM_KEYDOWN | WM_CHAR) {
+            if msg == WM_KEYDOWN {
+                events
+                    .request
+                    .set(Some(EditorRequest::DismissMenu { escape: true }));
+            }
+            return LRESULT(0);
+        }
+        if matches!(
+            msg,
+            WM_LBUTTONDOWN
+                | WM_LBUTTONDBLCLK
+                | WM_RBUTTONDOWN
+                | WM_MOUSEWHEEL
+                | WM_VSCROLL
+                | WM_KEYDOWN
+        ) {
+            events
+                .request
+                .set(Some(EditorRequest::DismissMenu { escape: false }));
+        }
+        if msg == WM_MOUSEMOVE
+            && events.track_pointer.get()
+            && matches!(
+                events.request.get(),
+                None | Some(EditorRequest::PointerMoved { .. })
+            )
+        {
+            events.request.set(Some(EditorRequest::PointerMoved {
+                x: lparam.0 as i16 as i32,
+                y: (lparam.0 >> 16) as i16 as i32,
+            }));
+        }
+    }
     if wparam.0 == VK_TAB.0 as usize {
         if msg == WM_KEYDOWN {
             let backward = unsafe { GetKeyState(i32::from(VK_SHIFT.0)) } < 0;
@@ -335,7 +403,25 @@ unsafe extern "system" fn editor_event(
             return LRESULT(0);
         }
     }
-    unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+    let result = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+    if msg == WM_LBUTTONUP && events.selection_menu_enabled.get() {
+        let mut range = CHARRANGE::default();
+        unsafe {
+            SendMessageW(
+                hwnd,
+                EM_EXGETSEL,
+                None,
+                Some(LPARAM(&mut range as *mut _ as isize)),
+            );
+        }
+        if range.cpMin != range.cpMax {
+            events.request.set(Some(EditorRequest::SelectionMenu {
+                x: lparam.0 as i16 as i32,
+                y: (lparam.0 >> 16) as i16 as i32,
+            }));
+        }
+    }
+    result
 }
 
 struct RichEditLibrary(HMODULE);
@@ -351,6 +437,7 @@ pub struct RichEdit {
     window: HWND,
     read_only: bool,
     events: Box<EditorEvents>,
+    menu_clip: Cell<Option<MenuClip>>,
     _library: RichEditLibrary,
     _thread: PhantomData<Rc<()>>,
 }
@@ -397,6 +484,7 @@ impl RichEdit {
             window,
             read_only: false,
             events,
+            menu_clip: Cell::new(None),
             _library: library,
             _thread: PhantomData,
         };
@@ -467,6 +555,121 @@ impl RichEdit {
 
     pub fn take_request(&self) -> Option<EditorRequest> {
         self.events.request.take()
+    }
+
+    pub fn enable_selection_menu(&self) {
+        self.events.selection_menu_enabled.set(true);
+    }
+
+    pub fn pointer_in_parent(&self, x: i32, y: i32) -> Result<[i32; 2]> {
+        let mut point = POINT { x, y };
+        unsafe { ClientToScreen(self.window, &mut point).ok()? };
+        self.screen_to_parent(point)
+    }
+
+    pub fn context_menu_anchor(&self, x: i32, y: i32) -> Result<[i32; 2]> {
+        self.screen_to_parent(self.context_screen_point(x, y)?)
+    }
+
+    fn screen_to_parent(&self, mut point: POINT) -> Result<[i32; 2]> {
+        unsafe { ScreenToClient(self.events.parent, &mut point).ok()? };
+        Ok([point.x, point.y])
+    }
+
+    pub fn selection_menu_anchor(&self, x: i32, y: i32) -> Result<[i32; 3]> {
+        let Selection { start, end } = self.selection();
+        let mut bounds = RECT::default();
+        let mut hit = 0;
+        if let Some(document) = text_document(self.window)
+            && let Ok(range) = unsafe { document.Range2(end, start) }
+            && unsafe {
+                range.GetRect(
+                    tomClientCoord.0 | tomAllowOffClient.0,
+                    &mut bounds.left,
+                    &mut bounds.top,
+                    &mut bounds.right,
+                    &mut bounds.bottom,
+                    &mut hit,
+                )
+            }
+            .is_ok()
+        {
+            let mut viewport = RECT::default();
+            unsafe { GetClientRect(self.window, &mut viewport)? };
+            let top = bounds.top.max(viewport.top);
+            let bottom = bounds.bottom.min(viewport.bottom);
+            if top < bottom {
+                let height = bottom - top;
+                let [left, top] = self.pointer_in_parent(x, top)?;
+                return Ok([left, top, height]);
+            }
+        }
+        let [left, top] = self.pointer_in_parent(x, y)?;
+        Ok([left, top, 0])
+    }
+
+    /// Keep the native editor live outside the area drawn by the parent's command bar.
+    pub fn set_menu_overlay(
+        &self,
+        bounds: Option<[i32; 4]>,
+        diameter: i32,
+        track_pointer: bool,
+    ) -> Result<()> {
+        self.events.menu_open.set(bounds.is_some());
+        self.events.track_pointer.set(track_pointer);
+        let mut clip = None;
+        if let Some([left, top, right, bottom]) = bounds {
+            let mut window = RECT::default();
+            unsafe { GetWindowRect(self.window, &mut window)? };
+            let [x, y] = self.screen_to_parent(POINT {
+                x: window.left,
+                y: window.top,
+            })?;
+            let width = window.right - window.left;
+            let height = window.bottom - window.top;
+            if left < right
+                && top < bottom
+                && left < x + width
+                && right > x
+                && top < y + height
+                && bottom > y
+            {
+                clip = Some(MenuClip {
+                    editor_size: [width, height],
+                    cutout: [left - x, top - y, right - x, bottom - y],
+                    diameter,
+                });
+            }
+        }
+        if clip == self.menu_clip.get() {
+            return Ok(());
+        }
+        unsafe {
+            if let Some(clip) = clip {
+                let [width, height] = clip.editor_size;
+                let [left, top, right, bottom] = clip.cutout;
+                let region = CreateRectRgn(0, 0, width, height);
+                let cutout =
+                    CreateRoundRectRgn(left, top, right + 1, bottom + 1, diameter, diameter);
+                let combined = !region.is_invalid()
+                    && !cutout.is_invalid()
+                    && CombineRgn(Some(region), Some(region), Some(cutout), RGN_DIFF) != RGN_ERROR;
+                if !cutout.is_invalid() {
+                    let _ = DeleteObject(HGDIOBJ(cutout.0));
+                }
+                // A successful SetWindowRgn transfers ownership to the system.
+                if !combined || SetWindowRgn(self.window, Some(region), true) == 0 {
+                    if !region.is_invalid() {
+                        let _ = DeleteObject(HGDIOBJ(region.0));
+                    }
+                    return Err(Error::from_hresult(E_FAIL));
+                }
+            } else if SetWindowRgn(self.window, None, true) == 0 {
+                return Err(Error::from_hresult(E_FAIL));
+            }
+        }
+        self.menu_clip.set(clip);
+        Ok(())
     }
 
     pub fn take_text_changed(&self) -> bool {
@@ -652,7 +855,7 @@ impl RichEdit {
         !self.read_only && self.message(EM_CANPASTE, 0, 0) != 0
     }
 
-    pub fn show_context_menu(&self, x: i32, y: i32) -> Result<()> {
+    fn context_screen_point(&self, x: i32, y: i32) -> Result<POINT> {
         let mut point = POINT { x, y };
         if x == -1 && y == -1 {
             point = POINT::default();
@@ -664,6 +867,11 @@ impl RichEdit {
             point.y += 20;
             unsafe { ClientToScreen(self.window, &mut point).ok()? };
         }
+        Ok(point)
+    }
+
+    pub fn show_context_menu(&self, x: i32, y: i32) -> Result<()> {
+        let point = self.context_screen_point(x, y)?;
         let selection = self.selection();
         let has_selection = selection.start != selection.end;
         let actions = [
@@ -1214,6 +1422,7 @@ unsafe extern "system" fn write_rtf(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows::Win32::Graphics::Gdi::{GetWindowRgn, PtInRegion};
     use windows::Win32::UI::WindowsAndMessaging::WS_OVERLAPPED;
 
     struct TestWindow(HWND);
@@ -1248,6 +1457,49 @@ mod tests {
         fn drop(&mut self) {
             let _ = unsafe { DestroyWindow(self.0) };
         }
+    }
+
+    #[test]
+    fn floating_menu_clips_only_its_overlap_and_preserves_document_selection() {
+        let parent = TestWindow::new();
+        let editor = parent.editor();
+        editor
+            .place(
+                Placement {
+                    left: 12,
+                    top: 18,
+                    width: 180,
+                    height: 80,
+                    ..Default::default()
+                },
+                true,
+            )
+            .unwrap();
+        editor.set_text("First second").unwrap();
+        let selection = Selection { start: 0, end: 5 };
+        editor.set_selection(selection);
+
+        editor
+            .set_menu_overlay(Some([32, 10, 72, 44]), 16, true)
+            .unwrap();
+        let region = unsafe { CreateRectRgn(0, 0, 0, 0) };
+        assert!(!region.is_invalid());
+        let (clipped, covered_text, uncovered_text) = unsafe {
+            let kind = GetWindowRgn(editor.window, region);
+            let covered = PtInRegion(region, 30, 12).as_bool();
+            let uncovered = PtInRegion(region, 10, 12).as_bool();
+            (kind, covered, uncovered)
+        };
+        editor.set_menu_overlay(None, 16, false).unwrap();
+        let unclipped = unsafe { GetWindowRgn(editor.window, region) };
+        let _ = unsafe { DeleteObject(HGDIOBJ(region.0)) };
+
+        assert_ne!(clipped, RGN_ERROR);
+        assert!(!covered_text);
+        assert!(uncovered_text);
+        assert_eq!(unclipped, RGN_ERROR);
+        assert_eq!(editor.selection(), selection);
+        assert_eq!(editor.text(), "First second");
     }
 
     #[test]

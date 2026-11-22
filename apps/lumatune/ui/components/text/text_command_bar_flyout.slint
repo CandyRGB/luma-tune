@@ -23,8 +23,10 @@ export component TextCommandBarFlyout inherits Rectangle {
     in property <bool> italic;
     in property <bool> underlined;
     in property <bool> rtl;
+    in property <bool> mouse-selection;
     out property <bool> is-open: flyout.is-open;
     out property <bool> is-expanded: flyout.is-expanded;
+    out property <FlyoutRect> panel-bounds: flyout.panel-bounds;
 
     callback invoked(TextCommand);
     callback restore-focus();
@@ -34,6 +36,7 @@ export component TextCommandBarFlyout inherits Rectangle {
     private property <bool> password: root.target-kind == TextCommandTarget.password-box;
     private property <bool> rich-edit: root.editable && root.target-kind == TextCommandTarget.rich-edit-box;
     private property <bool> selection-entry;
+    private property <bool> clipboard-in-primary: root.selection-entry && !root.mouse-selection;
     private property <bool> has-primary: CommandBarBehavior.has-actions(root.primary);
     private property <bool> has-secondary: CommandBarBehavior.has-actions(root.secondary);
     private property <bool> show-cut: root.editable && root.has-selection && !root.password;
@@ -42,9 +45,9 @@ export component TextCommandBarFlyout inherits Rectangle {
     private property <bool> show-undo: root.editable && !root.password && root.can-undo;
     private property <bool> show-redo: root.editable && !root.password && root.can-redo;
     private property <[CommandBarItem]> primary: [
-        root.cut-command(!root.selection-entry),
-        root.copy-command(!root.selection-entry),
-        root.paste-command(!root.selection-entry),
+        root.cut-command(!root.clipboard-in-primary),
+        root.copy-command(!root.clipboard-in-primary),
+        root.paste-command(!root.clipboard-in-primary),
         { id: "bold", label: @tr("Bold"), kind: CommandBarItemKind.toggle, checked: root.bold,
             icon: @image-url("../../icons/text_bold_16_regular.svg"), shortcut: @keys(Control + B),
             hidden: !root.rich-edit || !root.can-bold },
@@ -56,9 +59,9 @@ export component TextCommandBarFlyout inherits Rectangle {
             hidden: !root.rich-edit || !root.can-underline },
     ];
     private property <[CommandBarItem]> secondary: [
-        root.cut-command(root.selection-entry),
-        root.copy-command(root.selection-entry),
-        root.paste-command(root.selection-entry),
+        root.cut-command(root.clipboard-in-primary),
+        root.copy-command(root.clipboard-in-primary),
+        root.paste-command(root.clipboard-in-primary),
         { id: "undo", label: @tr("Undo"), shortcut: @keys(Control + Z),
             icon: @image-url("../../icons/arrow_undo_16_regular.svg"), hidden: !root.show-undo },
         { id: "redo", label: @tr("Redo"), shortcut: @keys(Control + Y),
@@ -109,12 +112,15 @@ export component TextCommandBarFlyout inherits Rectangle {
         if (flyout.is-open) { return; }
         root.selection-entry = true;
         if (root.has-primary) {
-            flyout.show-for(target, CommandBarFlyoutShowMode.transient);
+            flyout.show-for(target, root.mouse-selection
+                ? CommandBarFlyoutShowMode.transient-with-dismiss-on-pointer-move-away
+                : CommandBarFlyoutShowMode.transient);
         }
     }
 
     public function hide() { flyout.hide(); }
     public function dismiss(reason: FlyoutCloseReason) { flyout.dismiss(reason); }
+    public function track-pointer(position: Point) { flyout.track-pointer(position.x, position.y); }
 
     function invoke(item: CommandBarItem) {
         if (item.id == "cut") {
