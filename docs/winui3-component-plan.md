@@ -237,9 +237,17 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
 | Grid / StackPanel / RelativePanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
-| Expander | 🚧 | `components/layout/expander.slint`，支持文本标题和可组合内容、向上/向下展开 |
+| Expander | 🚧 | `components/layout/expander.slint`，支持标题插槽、内容对齐、禁用和双向展开 |
 | SplitView | 🚧 | `components/layout/split_view.slint`，含四种窗格模式、左右放置、内容插槽与可取消的轻触关闭 |
 | VariableSizedWrapGrid / WrapPanel | 🟡 | 可用布局近似 |
+
+#### Expander
+
+运行 `cargo run -p lumatune --example expander` 可试用 Gallery 的文本标题、居中标题、可编辑内容、RTL 及向上和向下展开。通过 `header-content` 提供标题，通过默认插槽提供正文。常规正文居中，宿主可指定对齐和内边距。折叠保留内容实例，展开后恢复原有输入。向上展开时可由宿主固定标题的底部锚点。
+
+已对照原生 WinUI Gallery 的标题、正文位置和展开方向。浅色 100% 和 125% 下检查了四种箭头朝向、圆角接缝、对齐、RTL、键鼠操作、禁用和程序展开。组件禁用时拦截其范围内的指针和激活键，正文控件将 `enabled` 绑定到 `content-enabled` 后同时停用焦点、编辑和无障碍操作。布局立即切换，箭头保留旋转过渡。
+
+Windows UI Automation 已验证展开、展开状态和绑定后的子控件失效。Slint 1.18.1 未向组件转发原生 `ExpandCollapse.Collapse`，也未向任意 Slint 子树自动继承禁用状态。折叠的辅助技术播报仍待验收。[官方模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/Expander/Expander.xaml) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Expander/ExpanderPage.xaml)
 
 #### SplitView
 
@@ -463,7 +471,7 @@ Windows 浅色已实测照片优先级、联系人小图、姓名和群组回退
 
 1. 🚧 ContentDialog（`dialogs-flyouts/content_dialog.slint`，模态、鼠标键盘、关闭生命周期已验证，待完成原生视觉和读屏对照）
 2. 🚧 InfoBar（`status-info/info_bar.slint`，已验证操作位、布局切换和关闭事件，待验收读屏与原生通知）
-3. 🚧 Expander（`layout/expander.slint`，已验证常用交互，待补可组合标题、内容禁用传递）
+3. 🚧 Expander（`layout/expander.slint`，已验证双向展开、标题插槽及内容禁用，待补原生无障碍折叠与自动禁用继承）
 4. 🚧 CommandBar（menus-toolbars，已验证主次命令、动态溢出和独立 AppBar 元素）
 5. 🚧 NumberBox（text） / 🚧 AutoSuggestBox（text）
 6. 🚧 NavigationView（`navigation/navigation_view.slint`，已验收主要窗格和导航交互，待补宿主插槽及原生无障碍差异）
