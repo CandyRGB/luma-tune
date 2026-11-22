@@ -2,6 +2,7 @@ import { Palette, ScrollView } from "std-widgets.slint";
 import { AutoSuggestion, AutoSuggestBox, AutoSuggestTextChangeReason } from "../text/auto_suggest_box.slint";
 import { FlyoutPlacement, FlyoutRect, FlyoutLayout } from "../dialogs-flyouts/flyout_layout.slint";
 import { InfoBadge, InfoBadgeContent } from "../status-info/info_badge.slint";
+import { ToolTipSurface } from "../status-info/tool_tip.slint";
 
 export enum NavigationViewPaneDisplayMode { auto, left, left-compact, left-minimal, top }
 export enum NavigationViewDisplayMode { minimal, compact, expanded }
@@ -276,21 +277,15 @@ component NavigationViewItemPresenter inherits Rectangle {
             : @image-url("../../icons/chevron_down_16_regular.svg");
         colorize: root.foreground;
     }
-    if root.icon-only && !root.horizontal && root.actionable && !root.popup-open && entry.item.label != "" : Tooltip {
-        HorizontalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 4px;
-            padding-bottom: 4px;
-            Text { text: root.entry.item.label; font-size: 12px; color: Palette.foreground; }
-        }
-    }
     chevron := TouchArea {
         enabled: root.enabled && root.has-chevron;
         x: root.rtl ? root.chevron-shift : parent.width - self.width - root.chevron-shift;
         width: 32px;
         height: parent.height;
         clicked => { root.activated(true); }
+    }
+    if root.icon-only && !root.horizontal && root.actionable && !root.popup-open && root.entry.item.label != "" : Tooltip {
+        ToolTipSurface { text: root.entry.item.label; }
     }
 }
 

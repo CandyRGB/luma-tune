@@ -1,6 +1,7 @@
 import { Button, Palette } from "std-widgets.slint";
 import { ContrastTheme, SystemContrastColors } from "../contrast_theme.slint";
 import { ButtonInput, ButtonFocusVisual } from "../basic-input/button_input.slint";
+import { ToolTipSurface } from "tool_tip.slint";
 
 export enum InfoSeverity {
     informational,
@@ -302,6 +303,7 @@ export component InfoBar inherits Rectangle {
 
         accessible-role: button;
         accessible-label: root.close-button-accessible-name;
+        accessible-description: root.close-button-tooltip;
         accessible-action-default => { root.request-close(InfoBarCloseReason.close-button); }
 
         Image {
@@ -326,25 +328,7 @@ export component InfoBar inherits Rectangle {
         }
 
         if root.close-button-tooltip != "" : Tooltip {
-            Rectangle {
-                width: min(320px, root.even(tooltip-text.preferred-width) + 20px);
-                height: root.even(tooltip-text.preferred-height) + 14px;
-                background: root.contrast.active ? root.contrast.window : root.dark ? #2c2c2c : #f9f9f9;
-                border-radius: 4px;
-                border-width: 1px;
-                border-color: root.contrast.active ? root.contrast.window-text : root.dark ? #00000033 : #0000000f;
-
-                tooltip-text := Text {
-                    x: 10px;
-                    y: 6px;
-                    width: parent.width - 20px;
-                    text: root.close-button-tooltip;
-                    font-family: "Segoe UI Variable Text";
-                    font-size: 12px;
-                    color: root.contrast.active ? root.contrast.window-text : Palette.foreground;
-                    wrap: word-wrap;
-                }
-            }
+            ToolTipSurface { text: root.close-button-tooltip; }
         }
     }
 }

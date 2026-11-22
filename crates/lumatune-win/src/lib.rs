@@ -11,6 +11,7 @@ pub mod rich_text;
 pub mod settings;
 pub mod state;
 pub mod time_format;
+pub mod tool_tip;
 
 pub use display::Display;
 pub use ramp::Session;

@@ -307,7 +307,7 @@ Windows 浅色已对照 48px 标题栏、标题与正文位置、24px 页签文�
 | InfoBadge（角标） | 🚧 | `components/status-info/info_badge.slint`，支持点、计数、字形与图像，并可附在导航条目上 |
 | ProgressBar | 🚧 | `components/status-info/progress_bar.slint`，支持确定和不确定模式、暂停与错误 |
 | ProgressRing（环形） | 🚧 | `components/status-info/progress_ring.slint`，支持确定与不确定模式、范围、配色和停用 |
-| ToolTip | 🟡 | 基础可用，样式弱 |
+| ToolTip | 🚧 | `components/status-info/tool_tip.slint`，支持延迟、文本与自定义内容、位置偏移和避让 |
 
 #### InfoBar
 
@@ -332,6 +332,12 @@ Windows 浅色已与 WinUI Gallery 对照，并实测 1px 轨道、六种状态�
 运行 `cargo run -p lumatune --example progress_ring` 可切换确定与不确定模式、透明与浅灰轨道、动画和活动状态，并试用 16/32/60px 三种尺寸。范围边界交叉时，刚设置的边界同步收拢另一端，进度值限制在区间内。两端相等时显示空进度。
 
 Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义范围。确定样式已与 WinUI Gallery 实例对照，圆弧从 12 点方向顺时针增长。UI Automation 在活动时提供进度条角色，并在确定模式提供只读范围值。Slint 使用矢量圆弧并按项目约定取偶数尺寸。WinUI 的自定义 `IAnimatedVisualSource` 和读屏播报仍待补齐。模板、动画源码、自动化实现及 Gallery 示例已保存在 `.refs/WinUI/`。
+
+#### ToolTip
+
+运行 `cargo run -p lumatune --example tool_tip` 可试用 Gallery 的普通提示、负垂直偏移、图像避让、长文本和 RTL。挂载在宿主窗口内容的最后一层，目标、放置矩形和指针使用该层的同一坐标系。自动提示响应悬停和键盘焦点，支持延迟显示、超时和主动关闭。示例读取 Windows 悬停时长与通知显示时长。InfoBar、NavigationView、PagerControl 和 PipsPager 的悬停提示共用样式，仍由 Slint 的附加提示负责触发。
+
+浅色 100% 和 125% 下已实测文字换行及 320px 宽度上限、悬停延迟、超时后防止立即重开、键盘、Escape、禁用目标、手动开关、偏移、左右避让与指针穿透。原生 Gallery 的键盘提示位于目标上方，间距为 12px。原生 `ToolTip` 无障碍角色、触摸长按、多目标快速重显示、跨窗口弹层和真实 Acrylic 材质仍待补齐。[官方主题资源](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/CommonStyles/ToolTip_themeresources.xaml) · [显示行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/dxaml/lib/ToolTipService_Partial.cpp)
 
 ### Scrolling
 | 控件 | 现状 | 备注 |

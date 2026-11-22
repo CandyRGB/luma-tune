@@ -2,6 +2,7 @@ import { Palette } from "std-widgets.slint";
 import { ButtonFocusVisual, ButtonInput } from "../basic-input/button_input.slint";
 import { ComboBox, ComboBoxItem } from "../basic-input/combo_box.slint";
 import { NumberBox, NumberBoxValue } from "../text/number_box.slint";
+import { ToolTipSurface } from "../status-info/tool_tip.slint";
 
 export enum PagerControlDisplayMode { auto, combo-box, number-box, button-panel }
 export enum PagerControlButtonVisibility { visible, hidden-on-edge, hidden }
@@ -86,7 +87,7 @@ component PagerControlButton inherits Rectangle {
         clicked => { root.invoked(); }
     }
     if !root.numeric && root.enabled: Tooltip {
-        text: @markdown("\{root.label}");
+        ToolTipSurface { text: root.label; }
     }
 }
 
