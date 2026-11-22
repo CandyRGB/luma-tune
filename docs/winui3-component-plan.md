@@ -24,7 +24,7 @@
 - 风格与现有组件一致：`export component`、属性/回调注入、Slint `Palette` 语义色。
 - **长度一律偶数**，计算结果取最近偶数（奇点为界取较大偶数，如 1→2、3→4、2.5→2）。
 - 图标用 SVG `@image-url(...)` + `colorize` 染色（`apps/lumatune/ui/icons/`）。
-- 优先读 `.refs/WinUI/` 的官方 XAML、C++ 和 Gallery 示例。资料缺失时再从上游下载，并在本地记录源文件的 Blob SHA。
+- 实现前按控件分组批量缓存官方 XAML、C++ 和 Gallery 示例到 `.refs/WinUI/`。直接用本地文件核对模板、行为和主题。缓存缺项时从固定的上游提交补齐，并在 `sources.json` 记录提交和 Git Blob SHA。
 - **容器组件避免多个重叠子元素**：`inherits Rectangle` 的自定义组件若有多个绝对重叠的子元素（如全高色条 + 内容布局），其 `preferred-height` 会算不出，放进 `VerticalLayout` 会被压扁。改为**单一布局子元素**（色条作为布局内的窄元素）可让高度由内容撑开。
 - 每个组件：编译无警告 + 截图目检 + 至少一处可运行示例验证后再提交。
 - 可以省略会触发 Slint 布局重算的过渡动画。起止状态的布局和交互仍需对齐 WinUI 3。
@@ -428,7 +428,9 @@ Windows 11 24H2 浅色主题下，100% 和 125% 缩放均实测了分式、上�
 
 浅色 100% 和 125% 下用本机拼音词典实测 `beijng` 的红线、鼠标和键盘打开子菜单、替换为 `Beijing`、还原焦点及撤销。回归测试还核对了表情符号后的 UTF-16 范围、过期建议，以及命令栏与子菜单同时覆盖原生编辑区时的裁切。当前系统只安装了拼音词典，en-US 拼写结果待在装有该词典的系统上复验。
 
-浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、浮动命令栏、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。触摸和笔的选区入口、添加到字典、忽略拼写提示、停止自动更正及从 Slint 无障碍树发现原生编辑区仍待处理。已裁切的弹层轮廓之外由原生窗口绘制，弹层阴影不能叠在该部分正文上。源码和示例已保存在 `.refs/WinUI/`。
+错词可添加到对应语言的 Windows 用户词典，或在当前编辑器会话里忽略该词。重复词可删除或只忽略当前位置。浅色 100% 和 125% 下实测忽略错词会去掉所有同词标记，忽略重复词只作用于当前一处，删除重复词可以撤销。回归测试核对了忽略和添加词条前后的正文、选区和撤销状态，并覆盖混合格式和语言、忽略范围随前文移动、整篇替换清除单次忽略。词典写入通过隔离回调验证词条和语言，本次没有实际改动系统词典。[WinUI 校对操作](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/native/text/Controls/TextContextMenu.cpp#L258-L313) · [Windows 用户词典写入](https://learn.microsoft.com/en-us/windows/win32/api/spellcheck/nf-spellcheck-ispellchecker-add)
+
+浅色示例按本地 Gallery 的 32px 简单字段和 200px 自定义编辑区制作。100% 和 125% 缩放下实测 Unicode 输入、占位符、选择格式、浮动命令栏、撤销重做、只读、查找高亮、Tab 从自定义编辑区进入 Slint 查找框和文件对话框的 RTF 往返。两个原生子窗口直接通过 UI Automation 提供名称和 TextPattern。原生子窗口使用 Document 角色，Gallery 使用 Edit 角色。Gallery 已核对自动化尺寸和模板，实机截图为空白，像素对照仍待复验。触摸和笔的选区入口、停止自动更正及从 Slint 无障碍树发现原生编辑区仍待处理。已裁切的弹层轮廓之外由原生窗口绘制，弹层阴影不能叠在该部分正文上。源码和示例已保存在 `.refs/WinUI/`。
 
 ### Media
 | 控件 | 现状 | 备注 |

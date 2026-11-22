@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use lumatune_win::{
     accent::light_accent_text_colors,
-    rich_edit::{Edit, EditorRequest, Effect, Placement, RichEdit, SpellingMenu},
+    rich_edit::{Edit, EditorRequest, Effect, Placement, RichEdit, SpellingAction, SpellingMenu},
 };
 use quick_xml::{
     Reader, Writer,
@@ -275,21 +275,10 @@ fn handle_editor_request(
                         None
                     }
                 };
-                let proofing = host.spelling_menu.as_ref().map_or_else(Vec::new, |menu| {
-                    menu.replacements
-                        .iter()
-                        .enumerate()
-                        .map(|(index, word)| MenuFlyoutItem {
-                            id: index.to_string().into(),
-                            text: if word.is_empty() {
-                                "Delete repeated word".into()
-                            } else {
-                                word.as_str().into()
-                            },
-                            ..Default::default()
-                        })
-                        .collect()
-                });
+                let proofing = host
+                    .spelling_menu
+                    .as_ref()
+                    .map_or_else(Vec::new, proofing_items);
                 (
                     FlyoutRect {
                         x: logical(anchor_x),
@@ -334,6 +323,32 @@ fn handle_editor_request(
         }
     }
     Ok(())
+}
+
+fn proofing_items(menu: &SpellingMenu) -> Vec<MenuFlyoutItem> {
+    let mut items = Vec::new();
+    for (index, action) in menu.actions.iter().enumerate() {
+        let text = match action {
+            SpellingAction::Replace(word) => word,
+            SpellingAction::DeleteRepeated => "Delete repeated word",
+            SpellingAction::AddToDictionary => {
+                if index > 0 {
+                    items.push(MenuFlyoutItem {
+                        kind: MenuFlyoutItemKind::Separator,
+                        ..Default::default()
+                    });
+                }
+                "Add to dictionary"
+            }
+            SpellingAction::IgnoreAll | SpellingAction::IgnoreOnce => "Ignore",
+        };
+        items.push(MenuFlyoutItem {
+            id: index.to_string().into(),
+            text: text.into(),
+            ..Default::default()
+        });
+    }
+    items
 }
 
 struct MountedPair {
@@ -469,9 +484,11 @@ fn mount(ui: &RichEditBoxExample, parent: NonZeroIsize) -> Result<MountedPair, B
         } else {
             &custom_proofing
         };
-        if let (Some(ui), Ok(host), Ok(index)) = (weak.upgrade(), slot.try_borrow(), id.parse()) {
-            if let Some(menu) = &host.spelling_menu {
-                if let Err(error) = host.editor.apply_spelling(menu, index) {
+        if let (Some(ui), Ok(mut host), Ok(index)) =
+            (weak.upgrade(), slot.try_borrow_mut(), id.parse())
+        {
+            if let Some(menu) = host.spelling_menu.take() {
+                if let Err(error) = host.editor.apply_spelling(&menu, index) {
                     ui.set_status(error.to_string().into());
                 }
             }

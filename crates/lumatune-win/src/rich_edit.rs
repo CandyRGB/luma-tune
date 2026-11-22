@@ -120,7 +120,27 @@ pub struct Placement {
 pub struct SpellingMenu {
     range: Selection,
     original: Vec<u16>,
-    pub replacements: Vec<String>,
+    locale: Vec<u16>,
+    pub actions: Vec<SpellingAction>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SpellingAction {
+    Replace(String),
+    DeleteRepeated,
+    AddToDictionary,
+    IgnoreAll,
+    IgnoreOnce,
+}
+
+struct IgnoredWord {
+    locale: Vec<u16>,
+    word: Vec<u16>,
+}
+
+struct IgnoredOccurrence {
+    range: ITextRange2,
+    original: Vec<u16>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -459,6 +479,8 @@ pub struct RichEdit {
     read_only: bool,
     spelling_enabled: bool,
     spelling_locale: Option<Vec<u16>>,
+    ignored_words: Vec<IgnoredWord>,
+    ignored_occurrences: RefCell<Vec<IgnoredOccurrence>>,
     math_mode: Cell<bool>,
     events: Box<EditorEvents>,
     menu_clip: Cell<Option<MenuClip>>,
@@ -509,6 +531,8 @@ impl RichEdit {
             read_only: false,
             spelling_enabled: false,
             spelling_locale: None,
+            ignored_words: Vec::new(),
+            ignored_occurrences: RefCell::default(),
             math_mode: Cell::new(false),
             events,
             menu_clip: Cell::new(None),
@@ -605,7 +629,7 @@ impl RichEdit {
     }
 
     fn sync_native_spelling(&self) {
-        let enabled = self.spelling_enabled && self.spelling_locale.is_none();
+        let enabled = self.spelling_enabled && !self.draws_spelling_marks();
         self.message(
             EM_SETEDITSTYLE,
             if enabled {
@@ -622,6 +646,12 @@ impl RichEdit {
             0
         };
         self.message(EM_SETLANGOPTIONS, 0, flags | spell);
+    }
+
+    fn draws_spelling_marks(&self) -> bool {
+        self.spelling_locale.is_some()
+            || !self.ignored_words.is_empty()
+            || !self.ignored_occurrences.borrow().is_empty()
     }
 
     pub fn set_default_language(&self, lcid: u32) {
@@ -642,20 +672,22 @@ impl RichEdit {
         Ok(true)
     }
 
-    /// Draw proofing marks using the explicitly supplied dictionary.
+    /// Refresh the marks when this editor owns the dictionary or has session ignores.
     pub fn refresh_spelling_marks(&self) -> Result<()> {
-        let next = match &self.spelling_locale {
-            Some(locale) if self.spelling_enabled && !self.read_only && !self.math_mode.get() => {
-                let document =
-                    text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
-                let range = unsafe { document.Range2(self.text_length() as i32, 0)? };
-                let text = unsafe { range.GetText2(0)? };
-                with_spell_checker(PCWSTR(locale.as_ptr()), |checker| {
-                    spelling_ranges(checker, &text)
-                })?
-                .unwrap_or_default()
-            }
-            _ => Vec::new(),
+        self.retain_ignored_occurrences(|ignored| unsafe {
+            ignored
+                .range
+                .GetText2(0)
+                .is_ok_and(|text| &*text == ignored.original.as_slice())
+        });
+        let next = if self.spelling_enabled
+            && !self.read_only
+            && !self.math_mode.get()
+            && self.draws_spelling_marks()
+        {
+            self.document_spelling_marks()?
+        } else {
+            Vec::new()
         };
         let mut current = self.events.spelling_marks.borrow_mut();
         if *current != next {
@@ -666,8 +698,88 @@ impl RichEdit {
         Ok(())
     }
 
+    fn document_spelling_marks(&self) -> Result<Vec<Selection>> {
+        let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
+        let end = self.text_length() as i32;
+        let mut marks = Vec::new();
+        if let Some(locale) = &self.spelling_locale {
+            self.append_spelling_marks(&document, Selection { start: 0, end }, locale, &mut marks)?;
+        } else {
+            for (span, language) in spelling_language_runs(&document, end)? {
+                if let Some(locale) = proofing_locale(language) {
+                    self.append_spelling_marks(&document, span, &locale, &mut marks)?;
+                }
+            }
+        }
+        marks.retain(|span| !self.ignores_occurrence(*span));
+        Ok(marks)
+    }
+
+    fn append_spelling_marks(
+        &self,
+        document: &ITextDocument2,
+        span: Selection,
+        locale: &[u16],
+        marks: &mut Vec<Selection>,
+    ) -> Result<()> {
+        if span.start == span.end {
+            return Ok(());
+        }
+        let range = unsafe { document.Range2(span.end, span.start)? };
+        let text = unsafe { range.GetText2(0)? };
+        let ranges =
+            self.with_spelling_dictionary(locale, |checker| spelling_ranges(checker, &text))?;
+        marks.extend(ranges.into_iter().flatten().map(|issue| Selection {
+            start: issue.start + span.start,
+            end: issue.end + span.start,
+        }));
+        Ok(())
+    }
+
+    fn with_spelling_dictionary<T>(
+        &self,
+        locale: &[u16],
+        run: impl FnOnce(&ISpellChecker) -> Result<T>,
+    ) -> Result<Option<T>> {
+        with_spell_checker(PCWSTR(locale.as_ptr()), |checker| {
+            for ignored in self
+                .ignored_words
+                .iter()
+                .filter(|ignored| ignored.locale == locale)
+            {
+                unsafe { checker.Ignore(PCWSTR(ignored.word.as_ptr()))? };
+            }
+            run(checker)
+        })
+    }
+
+    fn ignores_occurrence(&self, span: Selection) -> bool {
+        self.ignored_occurrences
+            .borrow()
+            .iter()
+            .any(|ignored| unsafe {
+                ignored.range.GetStart().ok() == Some(span.start)
+                    && ignored.range.GetEnd().ok() == Some(span.end)
+                    && ignored
+                        .range
+                        .GetText2(0)
+                        .is_ok_and(|text| &*text == ignored.original.as_slice())
+            })
+    }
+
+    fn retain_ignored_occurrences(&self, keep: impl FnMut(&IgnoredOccurrence) -> bool) {
+        let mut occurrences = self.ignored_occurrences.borrow_mut();
+        let previously_ignored = !occurrences.is_empty();
+        occurrences.retain(keep);
+        let enable_native = previously_ignored && occurrences.is_empty();
+        drop(occurrences);
+        if enable_native {
+            self.sync_native_spelling();
+        }
+    }
+
     pub fn spelling_at(&self, x: i32, y: i32) -> Result<Option<SpellingMenu>> {
-        if !self.spelling_enabled || self.read_only || self.math_mode.get() {
+        if !self.spelling_enabled || self.read_only || self.math_mode.get() || !self.has_text() {
             return Ok(None);
         }
         let point = if (x, y) == (-1, -1) {
@@ -683,23 +795,24 @@ impl RichEdit {
         );
         let document = text_document(self.window).ok_or_else(|| Error::from_hresult(E_FAIL))?;
         let hit = unsafe { document.Range2(position, position)? };
-        let language = unsafe { hit.GetFont2()?.GetLanguageID()? };
-        let mut document_locale = [0u16; 85];
         let locale = if let Some(locale) = self.spelling_locale.as_deref() {
-            locale
+            locale.to_vec()
         } else {
-            if unsafe { LCIDToLocaleName(language as u32, Some(&mut document_locale), 0) } == 0 {
+            let language = unsafe { hit.GetFont2()?.GetLanguageID()? };
+            let Some(locale) = proofing_locale(language) else {
                 return Ok(None);
-            }
-            &document_locale
+            };
+            locale
         };
         unsafe { hit.Expand(tomParagraph.0)? };
         let start = unsafe { hit.GetStart()? };
         let paragraph = unsafe { hit.GetText2(0)? };
-        let menu = with_spell_checker(PCWSTR(locale.as_ptr()), |checker| {
-            spelling_menu(checker, &paragraph, start, position)
-        })?
-        .flatten();
+        let menu = self
+            .with_spelling_dictionary(&locale, |checker| {
+                spelling_menu(checker, &paragraph, start, position, &locale)
+            })?
+            .flatten();
+        let menu = menu.filter(|menu| !self.ignores_occurrence(menu.range));
         if let (Some(point), Some(menu)) = (point, &menu) {
             let word = unsafe { document.Range2(menu.range.end, menu.range.start)? };
             let mut bounds = RECT::default();
@@ -722,8 +835,22 @@ impl RichEdit {
         Ok(menu)
     }
 
-    pub fn apply_spelling(&self, menu: &SpellingMenu, index: usize) -> Result<bool> {
-        let Some(replacement) = menu.replacements.get(index) else {
+    pub fn apply_spelling(&mut self, menu: &SpellingMenu, index: usize) -> Result<bool> {
+        self.apply_spelling_using(menu, index, |locale, word| {
+            with_spell_checker(PCWSTR(locale.as_ptr()), |checker| unsafe {
+                checker.Add(PCWSTR(word.as_ptr()))
+            })
+            .map(|result| result.is_some())
+        })
+    }
+
+    fn apply_spelling_using(
+        &mut self,
+        menu: &SpellingMenu,
+        index: usize,
+        add: impl FnOnce(&[u16], &[u16]) -> Result<bool>,
+    ) -> Result<bool> {
+        let Some(action) = menu.actions.get(index) else {
             return Ok(false);
         };
         if !self.spelling_enabled || self.read_only || self.math_mode.get() {
@@ -734,8 +861,52 @@ impl RichEdit {
         if &*unsafe { word.GetText2(0)? } != menu.original.as_slice() {
             return Ok(false);
         }
-        self.set_selection(menu.range);
-        self.replace_selection(replacement)?;
+        match action {
+            SpellingAction::Replace(replacement) => {
+                self.set_selection(menu.range);
+                self.replace_selection(replacement)?;
+            }
+            SpellingAction::DeleteRepeated => {
+                self.set_selection(menu.range);
+                self.replace_selection("")?;
+            }
+            SpellingAction::AddToDictionary => {
+                let word: Vec<u16> = menu.original.iter().copied().chain([0]).collect();
+                if !add(&menu.locale, &word)? {
+                    return Ok(false);
+                }
+                if !self.draws_spelling_marks() {
+                    let flags = self.message(EM_GETLANGOPTIONS, 0, 0);
+                    self.message(EM_SETLANGOPTIONS, 0, flags & !(IMF_SPELLCHECKING as isize));
+                    self.message(EM_SETLANGOPTIONS, 0, flags);
+                }
+                self.events.changed.set(true);
+            }
+            SpellingAction::IgnoreAll => {
+                let word: Vec<u16> = menu.original.iter().copied().chain([0]).collect();
+                let accepted =
+                    with_spell_checker(PCWSTR(menu.locale.as_ptr()), |checker| unsafe {
+                        checker.Ignore(PCWSTR(word.as_ptr()))
+                    })?;
+                if accepted.is_none() {
+                    return Ok(false);
+                }
+                self.ignored_words.push(IgnoredWord {
+                    locale: menu.locale.clone(),
+                    word,
+                });
+                self.sync_native_spelling();
+                self.events.changed.set(true);
+            }
+            SpellingAction::IgnoreOnce => {
+                self.ignored_occurrences.get_mut().push(IgnoredOccurrence {
+                    range: word,
+                    original: menu.original.clone(),
+                });
+                self.sync_native_spelling();
+                self.events.changed.set(true);
+            }
+        }
         Ok(true)
     }
 
@@ -862,7 +1033,7 @@ impl RichEdit {
     pub fn set_read_only(&mut self, read_only: bool) {
         self.message(EM_SETREADONLY, usize::from(read_only), 0);
         self.read_only = read_only;
-        if self.spelling_locale.is_some() {
+        if self.draws_spelling_marks() {
             self.events.changed.set(true);
         }
     }
@@ -1051,6 +1222,7 @@ impl RichEdit {
             return Err(Error::from_hresult(E_FAIL));
         }
         self.message(EM_EMPTYUNDOBUFFER, 0, 0);
+        self.retain_ignored_occurrences(|_| false);
         self.events.changed.set(true);
         self.events.clear_matches();
         Ok(())
@@ -1392,6 +1564,7 @@ impl RichEdit {
             return Err(error);
         }
         self.message(EM_EMPTYUNDOBUFFER, 0, 0);
+        self.retain_ignored_occurrences(|_| false);
         self.events.changed.set(true);
         self.events.clear_matches();
         Ok(())
@@ -1441,6 +1614,7 @@ impl RichEdit {
 
 impl Drop for RichEdit {
     fn drop(&mut self) {
+        self.ignored_occurrences.get_mut().clear();
         // Closing the parent can destroy this child before its Rust handle is dropped.
         unsafe {
             if IsWindow(Some(self.window)).as_bool() {
@@ -1483,6 +1657,7 @@ fn spelling_menu(
     paragraph: &BSTR,
     start: i32,
     position: i32,
+    locale: &[u16],
 ) -> Result<Option<SpellingMenu>> {
     let errors = unsafe { checker.ComprehensiveCheck(PCWSTR(paragraph.as_ptr()))? };
     while let Some(error) = {
@@ -1499,14 +1674,18 @@ fn spelling_menu(
             start: start + offset as i32,
             end: start + (offset + length) as i32,
         };
-        if !(range.start..range.end).contains(&position) {
+        if range.start == range.end || !(range.start..=range.end).contains(&position) {
             continue;
         }
-        let replacements = match unsafe { error.CorrectiveAction()? } {
+        let mut actions = match unsafe { error.CorrectiveAction()? } {
             CORRECTIVE_ACTION_REPLACE => {
-                vec![read_spelling_string(unsafe { error.Replacement()? })?]
+                vec![SpellingAction::Replace(read_spelling_string(unsafe {
+                    error.Replacement()?
+                })?)]
             }
-            CORRECTIVE_ACTION_DELETE => vec![String::new()],
+            CORRECTIVE_ACTION_DELETE => {
+                vec![SpellingAction::DeleteRepeated, SpellingAction::IgnoreOnce]
+            }
             CORRECTIVE_ACTION_GET_SUGGESTIONS => {
                 let word: Vec<u16> = original.iter().copied().chain([0]).collect();
                 let suggestions = unsafe { checker.Suggest(PCWSTR(word.as_ptr()))? };
@@ -1518,19 +1697,50 @@ fn spelling_menu(
                     if fetched == 0 {
                         break;
                     }
-                    results.push(read_spelling_string(value[0])?);
+                    results.push(SpellingAction::Replace(read_spelling_string(value[0])?));
                 }
                 results
             }
-            _ => Vec::new(),
+            _ => continue,
         };
+        if !actions.contains(&SpellingAction::DeleteRepeated) {
+            actions.extend([SpellingAction::AddToDictionary, SpellingAction::IgnoreAll]);
+        }
         return Ok(Some(SpellingMenu {
             range,
             original: original.to_vec(),
-            replacements,
+            locale: locale.to_vec(),
+            actions,
         }));
     }
     Ok(None)
+}
+
+fn proofing_locale(language: i32) -> Option<Vec<u16>> {
+    let mut name = [0u16; 85];
+    let length = unsafe { LCIDToLocaleName(language as u32, Some(&mut name), 0) } as usize;
+    (length > 0).then(|| name[..length].to_vec())
+}
+
+fn spelling_language_runs(document: &ITextDocument2, end: i32) -> Result<Vec<(Selection, i32)>> {
+    let mut runs: Vec<(Selection, i32)> = Vec::new();
+    let mut start = 0;
+    while start < end {
+        // Start on a character rather than an insertion point at a format boundary.
+        let run = unsafe { document.Range2(start + 1, start)? };
+        let language = unsafe { run.GetFont2()?.GetLanguageID()? };
+        unsafe { run.EndOf(tomCharFormat.0, tomExtend.0)? };
+        let stop = unsafe { run.GetEnd()? }.clamp(start + 1, end);
+        if let Some((tail, previous_language)) = runs.last_mut()
+            && *previous_language == language
+        {
+            tail.end = stop;
+        } else {
+            runs.push((Selection { start, end: stop }, language));
+        }
+        start = stop;
+    }
+    Ok(runs)
 }
 
 fn spelling_ranges(checker: &ISpellChecker, text: &BSTR) -> Result<Vec<Selection>> {
@@ -1908,15 +2118,136 @@ mod tests {
             .unwrap()
             .expect("native proofing");
         let index = menu
-            .replacements
+            .actions
             .iter()
-            .position(|word| word == expected)
+            .position(|action| matches!(action, SpellingAction::Replace(word) if word == expected))
             .unwrap();
         assert!(editor.apply_spelling(&menu, index).unwrap());
         assert_eq!(editor.text(), format!("😀 {expected}."));
         assert!(!editor.apply_spelling(&menu, index).unwrap());
         editor.execute(Edit::Undo);
         assert_eq!(editor.text(), initial);
+    }
+
+    #[test]
+    fn proofing_dictionary_and_ignore_actions_preserve_document_and_undo() {
+        let parent = TestWindow::new();
+        let mut editor = parent.editor();
+        let wrong = if editor.set_spelling_locale("en-US").unwrap() {
+            "quik"
+        } else if editor.set_spelling_locale("zh-Latn-CN-x-ext").unwrap() {
+            "beijng"
+        } else {
+            return;
+        };
+        editor.set_spelling_enabled(true);
+        let initial = format!("{wrong}. {wrong}.");
+        editor.set_text(&initial).unwrap();
+        editor.set_selection(Selection { start: 2, end: 2 });
+        let menu = editor.spelling_at(-1, -1).unwrap().unwrap();
+        let add = menu
+            .actions
+            .iter()
+            .position(|item| *item == SpellingAction::AddToDictionary)
+            .unwrap();
+        let ignore = menu
+            .actions
+            .iter()
+            .position(|item| *item == SpellingAction::IgnoreAll)
+            .unwrap();
+
+        let editor_locale = editor.spelling_locale.clone();
+        let check_add = |locale: &[u16], word: &[u16]| {
+            assert_eq!(Some(locale), editor_locale.as_deref());
+            assert_eq!(String::from_utf16_lossy(word), format!("{wrong}\0"));
+            Ok(true)
+        };
+        assert!(editor.apply_spelling_using(&menu, add, check_add).unwrap());
+        assert_eq!(editor.text(), initial);
+        assert!(!editor.can_undo());
+        assert!(editor.apply_spelling(&menu, ignore).unwrap());
+        assert!(editor.spelling_at(-1, -1).unwrap().is_none());
+        editor.set_selection(Selection {
+            start: wrong.len() as i32 + 3,
+            end: wrong.len() as i32 + 3,
+        });
+        assert!(editor.spelling_at(-1, -1).unwrap().is_none());
+        editor.refresh_spelling_marks().unwrap();
+        assert!(editor.events.spelling_marks.borrow().is_empty());
+        assert_eq!(editor.text(), initial);
+        assert!(!editor.can_undo());
+    }
+
+    #[test]
+    fn ignoring_a_repetition_follows_the_occurrence_through_edits() {
+        let parent = TestWindow::new();
+        let mut editor = parent.editor();
+        let word = if editor.set_spelling_locale("en-US").unwrap() {
+            "fox"
+        } else if editor.set_spelling_locale("zh-Latn-CN-x-ext").unwrap() {
+            "Beijing"
+        } else {
+            return;
+        };
+        editor.set_spelling_enabled(true);
+        editor
+            .set_text(&format!("{word} {word}. {word} {word}."))
+            .unwrap();
+        let position = word.len() as i32 + 2;
+        editor.set_selection(Selection {
+            start: position,
+            end: position,
+        });
+        let menu = editor.spelling_at(-1, -1).unwrap().unwrap();
+        let ignore = menu
+            .actions
+            .iter()
+            .position(|item| *item == SpellingAction::IgnoreOnce)
+            .unwrap();
+        let span = menu.range;
+        assert!(editor.apply_spelling(&menu, ignore).unwrap());
+        assert!(editor.spelling_at(-1, -1).unwrap().is_none());
+        editor.set_selection(Selection { start: 0, end: 0 });
+        editor.replace_selection("😀 ").unwrap();
+        editor.refresh_spelling_marks().unwrap();
+        assert!(editor.ignores_occurrence(Selection {
+            start: span.start + 3,
+            end: span.end + 3
+        }));
+        assert_eq!(editor.events.spelling_marks.borrow().len(), 1);
+        editor.set_text("New document").unwrap();
+        assert!(editor.ignored_occurrences.borrow().is_empty());
+    }
+
+    #[test]
+    fn proofing_preserves_the_language_of_mixed_format_runs() {
+        let parent = TestWindow::new();
+        let editor = parent.editor();
+        editor
+            .import_rtf(br"{\rtf1\ansi\deflang1033 \lang1033 Quick \b fox\b0 . \lang2052 other}")
+            .unwrap();
+        let document = text_document(editor.window).unwrap();
+        let end = editor.text_length() as i32;
+        let first_chinese = editor.find_from("other", 0).unwrap().start;
+        assert_eq!(
+            spelling_language_runs(&document, end).unwrap(),
+            vec![
+                (
+                    Selection {
+                        start: 0,
+                        end: first_chinese
+                    },
+                    0x0409
+                ),
+                (
+                    Selection {
+                        start: first_chinese,
+                        end
+                    },
+                    0x0804
+                )
+            ]
+        );
     }
 
     #[test]
