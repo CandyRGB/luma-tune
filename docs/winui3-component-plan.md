@@ -256,7 +256,8 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 | Grid / StackPanel / RelativePanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
 | Expander | 🚧 | `components/layout/expander.slint`，支持标题插槽、内容对齐、禁用和双向展开 |
 | SplitView | 🚧 | `components/layout/split_view.slint`，含四种窗格模式、左右放置、内容插槽与可取消的轻触关闭 |
-| VariableSizedWrapGrid / WrapPanel | 🟡 | 可用布局近似 |
+| WrapPanel | 🚧 | 双向换行、内边距、行和项间距、末项拉伸、折叠与 RTL |
+| VariableSizedWrapGrid | 🚧 | 跨行跨列、槽位尺寸推断、行列上限、边界裁切和对齐 |
 
 #### Expander
 
@@ -271,6 +272,14 @@ Windows UI Automation 已验证展开、展开状态和绑定后的子控件失�
 运行 `cargo run -p lumatune --example split_view` 可切换四种模式、窗格方向和遮罩。通过 `pane`、`content` 命名插槽承载内容。内联模式让正文为窗格腾出空间，覆盖模式将窗格叠在正文上，紧凑覆盖模式仍保留紧凑栏。紧凑态只裁剪窗格视口，内部按展开宽度布局。窗格外点击、Escape 和大小变化触发的关闭可以在 `pane-closing` 中取消，显式关闭会发送同一通知并完成关闭。
 
 已对照本地官方模板和 Windows 浅色 Gallery，检查内联示例的 400 × 300 区域、256 宽窗格、正文换行及面板底色。已实测四种模式、左右放置和 RTL、Tab 循环、Escape 与焦点恢复、遮罩拦截、关闭取消及 UI Automation 的遮罩调用。嵌入时由宿主接入 `SplitViewBehavior.traverse-focus` 和 `restore-focus`。组件边界外的关闭请求可由宿主转给 `dismiss-pane()`。原生覆盖层的整窗命中、自动测量窗格宽度、窗格 UIA Window 角色和示例图标字形仍有差异。
+
+#### WrapPanel 与 VariableSizedWrapGrid
+
+运行 `cargo run -p lumatune --example wrap_layout` 查看 Gallery 的十项换行、末项拉伸和四色跨格示例。宿主注册 `WrapLayoutBehavior`，按子项顺序提供测量尺寸、跨度和折叠状态，并按 `placements` 放置插槽中的 Slint 子元素。RTL 镜像横向槽位。可用尺寸为负时，对应轴视为无上限。
+
+WrapPanel 共享同一行或列的交叉轴尺寸，跳过折叠项。如果源模型最后一项折叠，前一项保留原尺寸。VariableSizedWrapGrid 从当前位置向前搜索连续空格，保留前面留下的空位，沿增长轴裁切跨出边界的槽。显式单元格尺寸省略时使用首项的测量尺寸。出界未摆放的条目保留原索引，其槽位尺寸为零。
+
+已对照本地 WinUI 代码和 Gallery XAML。Windows 浅色 100% 和 125% 用 Slint MCP 验证了行列位置、横纵切换、缩窄重排、间距、末项隐藏与拉伸、四色尺寸与颜色、跨格上限、对齐、RTL 及重排后保留编辑内容。Rust 回归测试覆盖跨格顺序、有限空间裁切和末项折叠。原生 Gallery 的基础 WrapPanel 已核对换行和相对位置。示例按偶数度量将常规卡片高度取为 38，仍需完成原生截图逐像素对照。Slint 插槽子项的测量与放置由宿主绑定，原生 XAML 的自动 Measure/Arrange 与无障碍树映射仍待验证。[WrapPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/WrapPanel/WrapPanel.cpp) · [VariableSizedWrapGrid 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/dxaml/lib/VariableSizedWrapGrid_Partial.cpp)
 
 ### Navigation
 | 控件 | 现状 | 备注 |
