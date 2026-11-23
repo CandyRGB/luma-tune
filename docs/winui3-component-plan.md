@@ -4,6 +4,10 @@
 
 分类以 **WinUI Gallery 官方分组**为准（`WinUI-Gallery/WinUIGallery/SampleSupport/Data/ControlInfoData.json` 的 `Groups`）。
 
+## 本次交付范围
+
+本次以已有组件、58 个可运行的 Cargo 示例和已记录的验收结果收尾。各条目的状态保留其验收进度，尚未覆盖的控件和原生行为差异留在本计划中，后续按实际需求安排。下文保留完整复刻时使用的范围、标准和验收记录。
+
 ## 完成条件
 
 - 按 [WinUI Gallery 控件目录](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/SampleSupport/Data/ControlInfoData.json) 逐项核对范围。补记本体控件缺项，并记录示例页、宿主 API 和外部库控件的归属。
@@ -27,6 +31,7 @@
 - 实现前按控件分组批量缓存官方 XAML、C++ 和 Gallery 示例到 `.refs/WinUI/`。直接用本地文件核对模板、行为和主题。缓存缺项时从固定的上游提交补齐，并在 `sources.json` 记录提交和 Git Blob SHA。
 - **容器组件避免多个重叠子元素**：`inherits Rectangle` 的自定义组件若有多个绝对重叠的子元素（如全高色条 + 内容布局），其 `preferred-height` 会算不出，放进 `VerticalLayout` 会被压扁。改为**单一布局子元素**（色条作为布局内的窄元素）可让高度由内容撑开。
 - 每个组件：编译无警告 + 截图目检 + 至少一处可运行示例验证后再提交。
+- **必须与 WinUI 3 官方完全一致**（不能只是「接近」）：结构、图标、配色、间距、对齐、交互态都要对齐官方截图/规范。
 - 可以省略会触发 Slint 布局重算的过渡动画。起止状态的布局和交互仍需对齐 WinUI 3。
 - 状态：⬜ 待做 / 🚧 进行中 / ✅ 完成 / ⏭️ 跳过。
 
@@ -234,6 +239,8 @@ Windows 浅色按 Gallery 字段和官方弹层模板核对了 296px 宽度、�
 | MenuFlyout | 🚧 | `components/menus-toolbars/menu_flyout.slint`，已实现普通与分裂菜单项、选择状态、多级子菜单、上下文入口及可限定作用域的快捷键。 |
 | TeachingTip | 🚧 | `components/dialogs-flyouts/teaching_tip.slint`，支持锚点、箭头、主图、操作及可延期关闭 |
 | Popup | ✅ | Slint `PopupWindow`/基础可用 |
+
+ContentDialog 的最大宽度为 548px，标题与正文之间的间距为 12px。浅色 100% 和 125% 的独立预览验证了最大宽度、居中、点击主按钮与 Enter 触发默认操作。标题、正文和命令区的完整原生视觉对照留作已知验收差异。[WinUI ContentDialog 模板资源](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/CommonStyles/ContentDialog_themeresources.xaml)
 
 运行 `slint-viewer --style fluent-light examples/winui3/flyout.slint` 可试用布局、外部关闭和溢出滚动。已用 Fluent 浅色软件渲染与深色 FemtoVG 验证定位、首次焦点、Escape、取消外部关闭和双轴滚动。剩余项包括 Acrylic 背景、`FlyoutShowMode`、关闭时向指定元素传递点击和窗口边界交互。当前用 Acrylic 的纯色回退，指针滚动后焦点移到弹层容器。[WinUI 定位源码](https://github.com/microsoft/microsoft-ui-xaml/blob/main/dxaml/xcp/dxaml/lib/FlyoutBase_partial.cpp) · [WinUI 呈现模板](https://github.com/microsoft/microsoft-ui-xaml/blob/main/controls/dev/CommonStyles/FlyoutPresenter_themeresources.xaml)
 

@@ -206,7 +206,7 @@ export component ContentDialog inherits Rectangle {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
                 width: min(max(0px, floor((parent.width - 48px) / 2px) * 2px),
-                    min(440px, round(max(320px, layout.preferred-width, commands.natural-width) / 2px) * 2px));
+                    min(548px, round(max(320px, layout.preferred-width, commands.natural-width) / 2px) * 2px));
                 height: min(max(0px, floor((parent.height - 48px) / 2px) * 2px),
                     min(756px, round(max(184px, layout.preferred-height + commands.height) / 2px) * 2px));
                 border-radius: 8px;
@@ -255,7 +255,7 @@ export component ContentDialog inherits Rectangle {
                         width: viewport.width;
                         height: viewport.content-height;
                         padding: 24px;
-                        spacing: 16px;
+                        spacing: 12px;
                         alignment: start;
 
                         if root.title != "" : Text {
