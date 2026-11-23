@@ -156,7 +156,7 @@ Windows 浅色已实测展开折叠、键盘焦点、多选与半选、懒加载
 
 原生 Gallery 在 125% 下的基础行高为 50 物理像素，对应模板的 40px。复刻遵循 16/12px 正文内边距、4/2px 底板内收、20px 内联复选框、14px 复选框起点和 28px 正文偏移。单选和扩展选择显示指示条，多选使用可隐藏的复选框。指示条的原生 3px 宽度按项目约定取 4px。
 
-浅色 100% 和 125% 检查了基础与自定义行、点按和键盘、四种选择模式、禁用项、事件顺序、分组吸顶、RTL、同列表拖动和顶端滚动。跳到 10,000 项末行时创建 20 个条目。Windows UI Automation 验证了 List 与 ListItem 角色、单选互斥和条目禁用状态。RTL 下 Slint 滚动条的位置固定在右侧。跨列表拖放、拖动自动滚动、原生阶段式模板绑定、系统滚动位置恢复、完整 UI Automation Invoke 与多项选择动作、读屏和手柄仍待对齐。Gallery 示例、模板与原生行绘制源码已存入 `.refs/WinUI/`。[ListView 行绘制](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/ListViewBaseItemChrome.cpp) · [Gallery ListView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ListView/ListViewPage.xaml)
+浅色 100% 和 125% 检查了基础与自定义行、点按和键盘、四种选择模式、禁用项、事件顺序、分组吸顶、RTL、同列表拖动和顶端滚动。跳到 10,000 项末行时创建 20 个条目。Windows UI Automation 验证了 List 与 ListItem 角色、单选互斥和条目禁用状态。共用的 WinUI 滚动视口将 RTL 垂直滚动条放在左侧。跨列表拖放、拖动自动滚动、原生阶段式模板绑定、系统滚动位置恢复、完整 UI Automation Invoke 与多项选择动作、读屏和手柄仍待对齐。Gallery 示例、模板与原生行绘制源码已存入 `.refs/WinUI/`。[ListView 行绘制](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/ListViewBaseItemChrome.cpp) · [Gallery ListView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ListView/ListViewPage.xaml)
 
 #### GridView
 
@@ -359,7 +359,7 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 ### Scrolling
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ScrollView / ScrollViewer | ✅ | `ScrollView` |
+| ScrollView / ScrollViewer | 🚧 | `components/scrolling/scroll_view.slint`、`scroll_bar.slint`，支持覆盖滚动条、锚点缩放、滚动链、对齐与程序滚动 |
 | PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
 | AnnotatedScrollBar | 🚧 | `components/scrolling/annotated_scroll_bar.slint`，支持标记、详细提示、拖动、连发箭头及滚动联动 |
 | PagerControl | 🚧 | `components/scrolling/pager_control.slint`，支持自动、下拉、数字输入和页码按钮模式 |
@@ -368,6 +368,14 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 运行 `cargo run -p lumatune --example pips_pager` 可切换横向、纵向、RTL、有限或无限页数，以及始终显示、悬停或键盘聚焦时显示、折叠三种箭头策略。有限页数可循环翻页。当前页会在可见范围内居中，靠近首尾时对齐边缘。方向键移动焦点，Enter、空格与鼠标点击提交选择。超出范围的有限页索引会归入可用范围。
 
 Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标、键盘、循环、无限分页、减少页数时的回退、空页和禁用。UI Automation 已读到分页点的名称和选中态。Slint 使用列表和可选择条目表达分页状态，WinUI 使用 Menu 自动化角色与选择提供程序。WinUI 样式模板替换、读屏播报和手柄仍待验收。[WinUI 接口定义](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPager.idl) · [自动化实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/PipsPager/PipsPagerAutomationPeer.cpp)
+
+#### ScrollView / ScrollViewer
+
+运行 `cargo run -p lumatune --example scroll_view` 查看原图滚动、程序滚动、自定义时长、等速滚动和嵌套视口。宿主提供未缩放的内容尺寸和正文插槽。偏移使用物理方向的视口像素，RTL 把垂直滚动条移到左侧。嵌套控件通过 `scroll-chained` 将边界外的滚轮请求交给父视口。ScrollViewer 保留单独的默认轴策略与 `change-view` 入口。
+
+对照了 Gallery 的 400×266px 视口、覆盖式 12px 滚动条、紧凑滑块、8px 展开滑块和两秒收起时间。浅色 100% 和 125% 下检查滚轮、Shift 横滚、键盘、Ctrl 滚轮与程序锚点缩放、拖动、隐藏、RTL、等距吸附、自定义时长、连续滚动和嵌套滚动链。FemtoVG 和软件渲染均检查了放大后滚到图像末端的像素。Windows UI Automation 验证了滚动范围、步长和程序设值。ItemsView 与 ListView 共用该视口。
+
+Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `transform-content`，用 `zoom-factor` 计算正文尺寸。原生 Composition 惯性与回弹、系统偏好动态订阅、滚动锚点候选、区域及非等距吸附点、外部控制器和原生双轴 UI Automation ScrollPattern 仍待对齐。现在通过两个范围控件暴露滚动值。Pinch 和触摸平移已接入 Slint 手势，触屏实机与手柄仍待验证。模板、行为、Gallery 示例和照片保存在 `.refs/WinUI/`。[ScrollView 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollView/ScrollView.xaml) · [Gallery ScrollView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ScrollView/ScrollViewPage.xaml)
 
 #### AnnotatedScrollBar
 

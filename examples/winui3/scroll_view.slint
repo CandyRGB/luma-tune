@@ -1,0 +1,200 @@
+import { Button, CheckBox, ComboBox } from "std-widgets.slint";
+import { ScrollView, ScrollViewer, ScrollMode, ScrollBarVisibility, ScrollViewMotion }
+    from "../../apps/lumatune/ui/components/scrolling/scroll_view.slint";
+
+export struct ScrollPhoto { name: string, image: image, height: length }
+export struct ScrollPhotoStrip { photos: [ScrollPhoto], height: length }
+
+export component ScrollViewExample inherits Window {
+    title: "ScrollView and ScrollViewer";
+    preferred-width: 892px;
+    preferred-height: 578px;
+    min-width: 872px;
+    min-height: 556px;
+    background: #f3f3f3;
+    default-font-family: "Segoe UI Variable Text";
+    default-font-size: 14px;
+    in property <image> cliff;
+    in property <bool> transform-content: true;
+    in property <ScrollPhotoStrip> animation-strip;
+    in property <ScrollPhotoStrip> velocity-strip;
+    private property <bool> photo: sample.current-index == 0;
+    private property <bool> nested: sample.current-index == 3;
+    private property <ScrollPhotoStrip> active-strip: sample.current-index == 2 ? root.velocity-strip : root.animation-strip;
+    private property <int> completions;
+    private property <length> nested-offset;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            VerticalLayout {
+                alignment: start;
+                spacing: 8px;
+                Text { text: "ScrollView"; font-size: 28px; }
+                sample := ComboBox {
+                    accessible-label: "Sample";
+                    model: ["Content image", "Animated scrolling", "Constant velocity", "Nested scrolling"];
+                    current-index: 0;
+                    selected(_) => {
+                        root.nested-offset = 0px;
+                        modern.set-view(0px, 0px, 1);
+                    }
+                }
+                modern := ScrollView {
+                    width: 400px;
+                    height: root.photo ? 266px : 300px;
+                    label: "Gallery ScrollView";
+                    is-tab-stop: true;
+                    rtl: mirror.checked;
+                    auto-hide-scroll-bars: !persist.checked;
+                    zoom-enabled: zooming.checked;
+                    transform-content: root.transform-content;
+                    private property <float> layout-scale: root.transform-content ? 1 : self.zoom-factor;
+                    center-content: root.photo;
+                    extent-width: root.photo ? max(640px, root.cliff.width * 1px) : 400px;
+                    extent-height: root.photo ? max(480px, root.cliff.height * 1px) : root.nested ? 900px : root.active-strip.height;
+                    horizontal-scroll-mode: axes.current-index == 1 ? ScrollMode.disabled : ScrollMode.auto;
+                    vertical-scroll-mode: axes.current-index == 2 ? ScrollMode.disabled : ScrollMode.auto;
+                    vertical-scroll-bar-visibility: hidden.checked ? ScrollBarVisibility.hidden : ScrollBarVisibility.auto;
+                    horizontal-scroll-bar-visibility: self.vertical-scroll-bar-visibility;
+                    vertical-snap-interval: snap.checked ? 100px : 0px;
+                    view-completed(_) => { root.completions += 1; }
+                    scroll-animation-starting(_, _, _) => { return 420ms; }
+
+                    if root.photo: Image {
+                        x: 0px;
+                        y: 0px;
+                        width: modern.extent-width * modern.layout-scale;
+                        height: modern.extent-height * modern.layout-scale;
+                        source: root.cliff;
+                        image-fit: cover;
+                        accessible-label: "cliff";
+                    }
+                    if !root.photo && !root.nested: VerticalLayout {
+                        x: 0px;
+                        y: 0px;
+                        width: 400px * modern.layout-scale;
+                        height: modern.extent-height * modern.layout-scale;
+                        for photo in root.active-strip.photos: Image {
+                            height: photo.height * modern.layout-scale;
+                            source: photo.image;
+                            image-fit: cover;
+                            accessible-label: photo.name;
+                        }
+                    }
+                    if root.nested: Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: 400px * modern.layout-scale;
+                        height: 900px * modern.layout-scale;
+                        background: #e4eaf2;
+                        nested-viewport := ScrollViewer {
+                            x: 20px * modern.layout-scale;
+                            y: 20px * modern.layout-scale;
+                            width: 324px * modern.layout-scale;
+                            height: 180px * modern.layout-scale;
+                            extent-width: self.width;
+                            extent-height: 480px * modern.layout-scale;
+                            label: "Nested ScrollViewer";
+                            chain-wheel: chaining.checked;
+                            scroll-chained(dx, dy) => { return modern.handle-chained-scroll(dx, dy); }
+                            view-changed(position, _) => { root.nested-offset = position.vertical; }
+                            Image {
+                                width: nested-viewport.extent-width;
+                                height: nested-viewport.extent-height;
+                                source: root.cliff;
+                                image-fit: cover;
+                                accessible-label: "cliff nested";
+                            }
+                        }
+                    }
+                }
+                Text { text: "Offset " + round(modern.horizontal-offset / 1px) + ", "
+                    + round(modern.vertical-offset / 1px) + "   Zoom " + round(modern.zoom-factor * 100) + "%"
+                    + (root.nested ? "   Inner " + round(root.nested-offset / 1px) : "   Completed " + root.completions); }
+            }
+
+            VerticalLayout {
+                alignment: start;
+                spacing: 8px;
+                Text { text: "ScrollViewer"; font-size: 28px; }
+                axes := ComboBox {
+                    accessible-label: "Scroll axes";
+                    model: ["Both axes", "Vertical only", "Horizontal only"];
+                    current-index: 0;
+                }
+                legacy := ScrollViewer {
+                    width: 400px;
+                    height: 266px;
+                    label: "Gallery ScrollViewer";
+                    is-tab-stop: true;
+                    rtl: mirror.checked;
+                    zoom-enabled: zooming.checked;
+                    transform-content: root.transform-content;
+                    private property <float> layout-scale: root.transform-content ? 1 : self.zoom-factor;
+                    auto-hide-scroll-bars: !persist.checked;
+                    extent-width: max(640px, root.cliff.width * 1px);
+                    extent-height: max(480px, root.cliff.height * 1px);
+                    horizontal-scroll-mode: axes.current-index == 1 ? ScrollMode.disabled : ScrollMode.auto;
+                    vertical-scroll-mode: axes.current-index == 2 ? ScrollMode.disabled : ScrollMode.auto;
+                    horizontal-scroll-bar-visibility: hidden.checked ? ScrollBarVisibility.hidden : ScrollBarVisibility.auto;
+                    vertical-scroll-bar-visibility: hidden.checked ? ScrollBarVisibility.hidden : ScrollBarVisibility.visible;
+                    Image {
+                        x: 0px;
+                        y: 0px;
+                        width: legacy.extent-width * legacy.layout-scale;
+                        height: legacy.extent-height * legacy.layout-scale;
+                        source: root.cliff;
+                        image-fit: cover;
+                        accessible-label: "cliff legacy";
+                    }
+                }
+                Text { text: "Legacy offset " + round(legacy.horizontal-offset / 1px) + ", "
+                    + round(legacy.vertical-offset / 1px) + "   Zoom " + round(legacy.zoom-factor * 100) + "%"; }
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            spacing: 16px;
+            zooming := CheckBox { text: "Zoom enabled"; checked: true; }
+            persist := CheckBox { text: "Always show bars"; }
+            hidden := CheckBox { text: "Hide bars"; }
+            mirror := CheckBox { text: "Right to left"; }
+            snap := CheckBox { text: "Snap to 100px"; }
+            chaining := CheckBox { text: "Chain wheel"; checked: true; visible: root.nested; }
+        }
+        HorizontalLayout {
+            alignment: start;
+            spacing: 8px;
+            Button {
+                text: "Reset";
+                clicked => {
+                    modern.set-view(0px, 0px, 1);
+                    legacy.change-view(0px, 0px, 1);
+                }
+            }
+            Button {
+                text: "Scroll to (80, 240)";
+                clicked => { modern.scroll-to-with-options(80px, 240px, sample.current-index == 1 ? 300ms : 0ms, snap.checked); }
+            }
+            Button {
+                text: "Scroll down at steady speed";
+                clicked => {
+                    if modern.motion == ScrollViewMotion.velocity { modern.stop-scroll-velocity(); }
+                    else { modern.start-scroll-velocity(0, 440); }
+                }
+            }
+            Button {
+                text: "Zoom to 200%";
+                clicked => { modern.zoom-to(2, { x: modern.viewport-width / 2, y: modern.viewport-height / 2 }); }
+            }
+            Button {
+                text: "Change legacy view";
+                clicked => { legacy.change-view(80px, 240px, 1.5); }
+            }
+        }
+    }
+}

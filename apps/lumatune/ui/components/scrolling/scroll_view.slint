@@ -1,0 +1,422 @@
+import { ButtonFocusVisual } from "../basic-input/button_input.slint";
+import { ScrollBar } from "scroll_bar.slint";
+
+export enum ScrollMode { auto, enabled, disabled }
+export enum ScrollBarVisibility { auto, visible, hidden }
+export enum ScrollViewMotion { idle, interaction, animation, velocity }
+export struct ScrollViewPosition { horizontal: length, vertical: length, zoom: float }
+
+export component ScrollView inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <bool> is-tab-stop;
+    in property <bool> rtl;
+    in property <bool> auto-hide-scroll-bars: true;
+    in property <bool> chain-wheel: true;
+    in property <bool> pan-enabled: true;
+    in property <bool> mouse-pan-enabled;
+    in property <bool> zoom-enabled;
+    in property <bool> transform-content: true;
+    in property <bool> center-content;
+    in property <float> min-zoom-factor: 0.1;
+    in property <float> max-zoom-factor: 10;
+    in property <length> extent-width;
+    in property <length> extent-height;
+    in property <length> horizontal-snap-interval;
+    in property <length> vertical-snap-interval;
+    in property <ScrollMode> horizontal-scroll-mode: ScrollMode.auto;
+    in property <ScrollMode> vertical-scroll-mode: ScrollMode.auto;
+    in property <ScrollBarVisibility> horizontal-scroll-bar-visibility: ScrollBarVisibility.auto;
+    in property <ScrollBarVisibility> vertical-scroll-bar-visibility: ScrollBarVisibility.auto;
+
+    out property <length> viewport-width: viewport.width;
+    out property <length> viewport-height: viewport.height;
+    out property <length> scrollable-width: max(0px, viewport.content-width - root.viewport-width);
+    out property <length> scrollable-height: max(0px, viewport.content-height - root.viewport-height);
+    out property <length> horizontal-offset: 0px - viewport.content-x;
+    out property <length> vertical-offset: 0px - viewport.content-y;
+    out property <float> zoom-factor: 1;
+    out property <ScrollViewMotion> motion: ScrollViewMotion.idle;
+    out property <ScrollViewPosition> position: {
+        horizontal: root.horizontal-offset, vertical: root.vertical-offset, zoom: root.zoom-factor
+    };
+
+    callback view-changed(ScrollViewPosition, bool);
+    callback view-completed(ScrollViewPosition);
+    callback scroll-animation-starting(ScrollViewPosition, ScrollViewPosition, duration) -> duration;
+    callback scroll-chained(length, length) -> EventResult;
+
+    private property <length> content-left: root.center-content
+        ? max(0px, (root.viewport-width - max(0px, root.extent-width) * root.zoom-factor) / 2) : 0px;
+    private property <length> content-top: root.center-content
+        ? max(0px, (root.viewport-height - max(0px, root.extent-height) * root.zoom-factor) / 2) : 0px;
+    private property <bool> show-horizontal: root.horizontal-scroll-bar-visibility == ScrollBarVisibility.visible
+        || (root.horizontal-scroll-bar-visibility == ScrollBarVisibility.auto && root.scrollable-width > 0px);
+    private property <bool> show-vertical: root.vertical-scroll-bar-visibility == ScrollBarVisibility.visible
+        || (root.vertical-scroll-bar-visibility == ScrollBarVisibility.auto && root.scrollable-height > 0px);
+    private property <bool> indicator-active: true;
+    private property <ScrollViewPosition> animation-origin;
+    private property <ScrollViewPosition> animation-target;
+    private property <duration> animation-duration;
+    private property <duration> last-tick;
+    private property <float> velocity-x;
+    private property <float> velocity-y;
+    private property <float> pinch-factor;
+
+    accessible-role: groupbox;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    forward-focus: keys;
+    scroll-chained(_, _) => { return reject; }
+
+    init => { hide-indicators.start(); }
+    changed position => {
+        root.reveal-indicators();
+        root.view-changed(root.position, root.motion != ScrollViewMotion.idle);
+    }
+    changed enabled => { if !root.enabled { root.stop-motion(); } }
+    changed min-zoom-factor => { root.normalize-zoom(); }
+    changed max-zoom-factor => { root.normalize-zoom(); }
+
+    public function scroll-to(x: length, y: length) {
+        root.scroll-to-with-options(x, y, 0ms, false);
+    }
+
+    public function scroll-by(dx: length, dy: length) {
+        root.scroll-to(root.horizontal-offset + dx, root.vertical-offset + dy);
+    }
+
+    public function scroll-to-with-options(x: length, y: length, duration: duration, snap: bool) {
+        root.stop-motion();
+        let target = {
+            horizontal: root.axis-target(x, root.scrollable-width, snap ? root.horizontal-snap-interval : 0px),
+            vertical: root.axis-target(y, root.scrollable-height, snap ? root.vertical-snap-interval : 0px),
+            zoom: root.zoom-factor,
+        };
+        if target.horizontal == root.horizontal-offset && target.vertical == root.vertical-offset { return; }
+        if duration <= 0ms {
+            root.place(target.horizontal, target.vertical);
+            root.view-completed(root.position);
+        } else {
+            root.animation-origin = root.position;
+            root.animation-target = target;
+            let custom = root.scroll-animation-starting(root.animation-origin, target, duration);
+            root.animation-duration = custom > 0ms ? custom : duration;
+            root.last-tick = animation-tick();
+            root.motion = ScrollViewMotion.animation;
+            animator.start();
+        }
+    }
+
+    public function zoom-to(factor: float, center: Point) {
+        root.stop-motion();
+        root.apply-zoom(factor, center);
+        root.view-completed(root.position);
+    }
+
+    public function set-view(horizontal: length, vertical: length, factor: float) {
+        root.stop-motion();
+        if root.zoom-enabled { root.zoom-factor = root.clamped-zoom(factor); }
+        root.place(horizontal, vertical);
+        root.view-completed(root.position);
+    }
+
+    public function start-scroll-velocity(horizontal: float, vertical: float) {
+        root.stop-motion();
+        root.velocity-x = horizontal;
+        root.velocity-y = vertical;
+        if horizontal == 0 && vertical == 0 { return; }
+        root.last-tick = animation-tick();
+        root.motion = ScrollViewMotion.velocity;
+        animator.start();
+    }
+
+    public function stop-scroll-velocity() {
+        if root.motion == ScrollViewMotion.velocity { root.finish-motion(); }
+    }
+
+    public function bring-into-view(x: length, y: length, width: length, height: length) {
+        let left = root.content-left + x * root.zoom-factor;
+        let top = root.content-top + y * root.zoom-factor;
+        root.scroll-to(root.reveal-axis(left, width * root.zoom-factor, root.horizontal-offset, root.viewport-width),
+            root.reveal-axis(top, height * root.zoom-factor, root.vertical-offset, root.viewport-height));
+    }
+
+    public function handle-chained-scroll(dx: length, dy: length) -> EventResult {
+        if !root.enabled { return reject; }
+        let x = clamp(root.horizontal-offset + dx, 0px, root.scrollable-width);
+        let y = clamp(root.vertical-offset + dy, 0px, root.scrollable-height);
+        if x == root.horizontal-offset && y == root.vertical-offset {
+            return root.chain-wheel ? root.scroll-chained(dx, dy) : accept;
+        }
+        root.user-position(x, y);
+        return accept;
+    }
+
+    pure function reveal-axis(start: length, size: length, offset: length, view: length) -> length {
+        return size >= view || start < offset ? start : max(offset, start + size - view);
+    }
+
+    pure function clamped-zoom(factor: float) -> float {
+        let minimum = max(0.0001, root.min-zoom-factor);
+        return clamp(factor, minimum, max(minimum, root.max-zoom-factor));
+    }
+
+    function normalize-zoom() {
+        if root.zoom-enabled && root.zoom-factor != root.clamped-zoom(root.zoom-factor) {
+            root.zoom-to(root.zoom-factor, { x: root.viewport-width / 2, y: root.viewport-height / 2 });
+        }
+    }
+
+    pure function axis-target(value: length, limit: length, interval: length) -> length {
+        let clamped = clamp(value, 0px, limit);
+        return interval <= 0px || clamped == 0px || clamped == limit ? clamped
+            : clamp(round(clamped / interval) * interval, 0px, limit);
+    }
+
+    function apply-zoom(factor: float, center: Point) {
+        if !root.zoom-enabled { return; }
+        let new-factor = root.clamped-zoom(factor);
+        let ratio = new-factor / root.zoom-factor;
+        let x = (root.horizontal-offset + center.x - root.content-left) * ratio - center.x;
+        let y = (root.vertical-offset + center.y - root.content-top) * ratio - center.y;
+        root.zoom-factor = new-factor;
+        root.place(x + root.content-left, y + root.content-top);
+    }
+
+    function place(horizontal: length, vertical: length) {
+        viewport.content-x = -clamp(horizontal, 0px, root.scrollable-width);
+        viewport.content-y = -clamp(vertical, 0px, root.scrollable-height);
+    }
+
+    function stop-motion() {
+        animator.stop();
+        settle.stop();
+        root.motion = ScrollViewMotion.idle;
+    }
+
+    function finish-motion() {
+        let old = root.motion;
+        root.stop-motion();
+        if old == ScrollViewMotion.interaction || old == ScrollViewMotion.velocity {
+            root.place(root.axis-target(root.horizontal-offset, root.scrollable-width, root.horizontal-snap-interval),
+                root.axis-target(root.vertical-offset, root.scrollable-height, root.vertical-snap-interval));
+        }
+        if old != ScrollViewMotion.idle { root.view-completed(root.position); }
+    }
+
+    function user-position(x: length, y: length) {
+        animator.stop();
+        root.motion = ScrollViewMotion.interaction;
+        root.place(x, y);
+        root.queue-settle();
+    }
+
+    function queue-settle() {
+        settle.stop();
+        settle.start();
+    }
+
+    function reveal-indicators() {
+        root.indicator-active = true;
+        hide-indicators.stop();
+        hide-indicators.start();
+    }
+
+    function handle-wheel(event: PointerScrollEvent, center: Point) -> EventResult {
+        if !root.enabled { return accept; }
+        root.reveal-indicators();
+        if event.modifiers.control {
+            if root.zoom-enabled {
+                animator.stop();
+                root.motion = ScrollViewMotion.interaction;
+                let delta = event.delta-y / 1px;
+                let multiplier = delta >= 0 ? 1 + delta / 600 : 1 / (1 - delta / 600);
+                root.apply-zoom(root.zoom-factor * multiplier, center);
+                root.queue-settle();
+            }
+            return accept;
+        }
+        let horizontal = event.modifiers.shift || (root.scrollable-height == 0px && root.scrollable-width > 0px);
+        let dx = event.delta-x + (horizontal ? event.delta-y : 0px);
+        let dy = horizontal ? 0px : event.delta-y;
+        return root.handle-chained-scroll(-dx, -dy);
+    }
+
+    hide-indicators := Timer {
+        interval: 2000ms;
+        running: false;
+        triggered => {
+            self.stop();
+            root.indicator-active = false;
+        }
+    }
+
+    settle := Timer {
+        interval: 180ms;
+        running: false;
+        triggered => { root.finish-motion(); }
+    }
+
+    animator := Timer {
+        interval: 16ms;
+        running: false;
+        triggered => {
+            let now = animation-tick();
+            if root.motion == ScrollViewMotion.animation {
+                let t = clamp((now - root.last-tick) / root.animation-duration, 0, 1);
+                let eased = t * t * (3 - 2 * t);
+                root.place(root.animation-origin.horizontal + eased * (root.animation-target.horizontal - root.animation-origin.horizontal),
+                    root.animation-origin.vertical + eased * (root.animation-target.vertical - root.animation-origin.vertical));
+                if t >= 1 { root.finish-motion(); }
+            } else {
+                let seconds = min(80ms, now - root.last-tick) / 1s;
+                let previous = root.position;
+                root.last-tick = now;
+                root.place(previous.horizontal + root.velocity-x * seconds * 1px, previous.vertical + root.velocity-y * seconds * 1px);
+                if previous.horizontal == root.horizontal-offset && previous.vertical == root.vertical-offset {
+                    root.finish-motion();
+                }
+            }
+        }
+    }
+
+    keys := FocusScope {
+        enabled: root.enabled;
+        focus-on-tab-navigation: root.is-tab-stop;
+        focus-on-click: false;
+
+        key-pressed(event) => {
+            let key = event.text;
+            if event.modifiers.control && (key == "+" || key == "=" || key == "-" || key == "0") && root.zoom-enabled {
+                root.zoom-to(key == "0" ? 1 : root.zoom-factor * (key == "-" ? 0.8 : 1.25),
+                    { x: root.viewport-width / 2, y: root.viewport-height / 2 });
+                return accept;
+            }
+            let x = root.horizontal-offset;
+            let y = root.vertical-offset;
+            if key == Key.LeftArrow || key == Key.RightArrow {
+                if root.scrollable-width == 0px { return reject; }
+                root.scroll-to(x + (key == Key.LeftArrow ? -16px : 16px), y);
+            } else if key == Key.UpArrow || key == Key.DownArrow || key == Key.PageUp || key == Key.PageDown {
+                if root.scrollable-height == 0px { return reject; }
+                let step = key == Key.UpArrow || key == Key.DownArrow ? 16px : root.viewport-height;
+                root.scroll-to(x, y + (key == Key.UpArrow || key == Key.PageUp ? -step : step));
+            } else if key == Key.Home || key == Key.End {
+                root.scroll-to(event.modifiers.control ? (key == Key.Home ? 0px : root.scrollable-width) : x,
+                    key == Key.Home ? 0px : root.scrollable-height);
+            } else {
+                return reject;
+            }
+            return accept;
+        }
+
+        pinch := ScaleRotateGestureHandler {
+            enabled: root.enabled && root.zoom-enabled;
+            started => {
+                root.stop-motion();
+                root.motion = ScrollViewMotion.interaction;
+                root.pinch-factor = root.zoom-factor;
+            }
+            updated => { root.apply-zoom(root.pinch-factor * self.scale, self.center); }
+            ended => { root.finish-motion(); }
+
+            viewport := Flickable {
+                content-width: root.horizontal-scroll-mode == ScrollMode.disabled ? self.width
+                    : max(self.width, root.extent-width * root.zoom-factor);
+                content-height: root.vertical-scroll-mode == ScrollMode.disabled ? self.height
+                    : max(self.height, root.extent-height * root.zoom-factor);
+                interactive: root.enabled && root.pan-enabled;
+                mouse-drag-pan-enabled: root.mouse-pan-enabled;
+                flicked => {
+                    animator.stop();
+                    root.motion = ScrollViewMotion.interaction;
+                    root.queue-settle();
+                }
+
+                TouchArea {
+                    x: -viewport.content-x;
+                    y: -viewport.content-y;
+                    width: viewport.width;
+                    height: viewport.height;
+                    clicked => {
+                        if root.enabled && root.is-tab-stop { keys.focus(); }
+                    }
+                    pointer-event(event) => {
+                        if event.kind == PointerEventKind.move || event.kind == PointerEventKind.down {
+                            root.reveal-indicators();
+                        }
+                        if event.kind == PointerEventKind.down && animator.running {
+                            root.stop-motion();
+                        }
+                    }
+                    scroll-event(event) => { return root.handle-wheel(event, { x: self.mouse-x, y: self.mouse-y }); }
+                }
+
+                Rectangle {
+                    x: root.content-left;
+                    y: root.content-top;
+                    width: max(root.extent-width * self.layout-scale, root.viewport-width);
+                    height: max(root.extent-height * self.layout-scale, root.viewport-height);
+                    private property <float> layout-scale: root.transform-content ? 1 : root.zoom-factor;
+                    transform-origin: { x: 0px, y: 0px };
+                    transform-scale-x: root.transform-content ? root.zoom-factor : 1;
+                    transform-scale-y: self.transform-scale-x;
+                    accessible-role: none;
+                    @children
+                }
+            }
+        }
+    }
+
+    if keys.has-focus && root.is-tab-stop: ButtonFocusVisual {
+        control-width: root.width;
+        control-height: root.height;
+        horizontal-margin: 0px;
+        vertical-margin: 0px;
+    }
+
+    if root.show-horizontal: ScrollBar {
+        x: root.rtl && root.show-vertical ? 14px : 2px;
+        y: max(0px, root.height - 14px);
+        width: max(0px, root.width - (root.show-vertical ? 16px : 4px));
+        height: 12px;
+        orientation: Orientation.horizontal;
+        label: "Horizontal scroll bar";
+        enabled: root.enabled;
+        always-show: !root.auto-hide-scroll-bars;
+        indicator-active: root.indicator-active;
+        offset: root.horizontal-offset;
+        extent: viewport.content-width;
+        viewport: root.viewport-width;
+        offset-requested(x) => { root.user-position(x, root.vertical-offset); }
+        interaction-finished => { root.finish-motion(); }
+    }
+
+    if root.show-vertical: ScrollBar {
+        x: root.rtl ? 2px : max(0px, root.width - 14px);
+        y: 2px;
+        width: 12px;
+        height: max(0px, root.height - (root.show-horizontal ? 16px : 4px));
+        label: "Vertical scroll bar";
+        enabled: root.enabled;
+        near-edge: root.rtl;
+        always-show: !root.auto-hide-scroll-bars;
+        indicator-active: root.indicator-active;
+        offset: root.vertical-offset;
+        extent: viewport.content-height;
+        viewport: root.viewport-height;
+        offset-requested(y) => { root.user-position(root.horizontal-offset, y); }
+        interaction-finished => { root.finish-motion(); }
+    }
+}
+
+export component ScrollViewer inherits ScrollView {
+    horizontal-scroll-mode: ScrollMode.disabled;
+    horizontal-scroll-bar-visibility: ScrollBarVisibility.hidden;
+    vertical-scroll-bar-visibility: ScrollBarVisibility.visible;
+
+    public function change-view(horizontal: length, vertical: length, zoom: float) {
+        root.set-view(horizontal, vertical, zoom);
+    }
+}
