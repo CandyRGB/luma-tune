@@ -1,5 +1,6 @@
 import { ButtonFocusVisual } from "../basic-input/button_input.slint";
 import { ScrollBar } from "scroll_bar.slint";
+import { ScrollSnapBehavior, ScrollSnapIntent, ScrollSnapPoints } from "scroll_snap.slint";
 
 export enum ScrollMode { auto, enabled, disabled }
 export enum ScrollBarVisibility { auto, visible, hidden }
@@ -24,6 +25,8 @@ export component ScrollView inherits Rectangle {
     in property <length> extent-height;
     in property <length> horizontal-snap-interval;
     in property <length> vertical-snap-interval;
+    in property <ScrollSnapPoints> horizontal-snap-points;
+    in property <ScrollSnapPoints> vertical-snap-points;
     in property <ScrollMode> horizontal-scroll-mode: ScrollMode.auto;
     in property <ScrollMode> vertical-scroll-mode: ScrollMode.auto;
     in property <ScrollBarVisibility> horizontal-scroll-bar-visibility: ScrollBarVisibility.auto;
@@ -57,6 +60,10 @@ export component ScrollView inherits Rectangle {
     private property <bool> indicator-active: true;
     private property <ScrollViewPosition> animation-origin;
     private property <ScrollViewPosition> animation-target;
+    private property <ScrollViewPosition> motion-origin;
+    private property <ScrollViewPosition> last-position;
+    private property <bool> tracking-flick;
+    private property <ScrollSnapIntent> interaction-intent: ScrollSnapIntent.nearest;
     private property <duration> animation-duration;
     private property <duration> last-tick;
     private property <float> velocity-x;
@@ -71,6 +78,8 @@ export component ScrollView inherits Rectangle {
 
     init => { hide-indicators.start(); }
     changed position => {
+        root.last-position = root.position;
+        if root.tracking-flick { root.queue-settle(); }
         root.reveal-indicators();
         root.view-changed(root.position, root.motion != ScrollViewMotion.idle);
     }
@@ -89,8 +98,10 @@ export component ScrollView inherits Rectangle {
     public function scroll-to-with-options(x: length, y: length, duration: duration, snap: bool) {
         root.stop-motion();
         let target = {
-            horizontal: root.axis-target(x, root.scrollable-width, snap ? root.horizontal-snap-interval : 0px),
-            vertical: root.axis-target(y, root.scrollable-height, snap ? root.vertical-snap-interval : 0px),
+            horizontal: snap ? root.snap-target(x, root.horizontal-offset, root.scrollable-width, root.viewport-width,
+                root.horizontal-snap-points, root.horizontal-snap-interval, ScrollSnapIntent.nearest) : clamp(x, 0px, root.scrollable-width),
+            vertical: snap ? root.snap-target(y, root.vertical-offset, root.scrollable-height, root.viewport-height,
+                root.vertical-snap-points, root.vertical-snap-interval, ScrollSnapIntent.nearest) : clamp(y, 0px, root.scrollable-height),
             zoom: root.zoom-factor,
         };
         if target.horizontal == root.horizontal-offset && target.vertical == root.vertical-offset { return; }
@@ -126,6 +137,7 @@ export component ScrollView inherits Rectangle {
         root.velocity-x = horizontal;
         root.velocity-y = vertical;
         if horizontal == 0 && vertical == 0 { return; }
+        root.motion-origin = root.position;
         root.last-tick = animation-tick();
         root.motion = ScrollViewMotion.velocity;
         animator.start();
@@ -149,7 +161,7 @@ export component ScrollView inherits Rectangle {
         if x == root.horizontal-offset && y == root.vertical-offset {
             return root.chain-wheel ? root.scroll-chained(dx, dy) : accept;
         }
-        root.user-position(x, y);
+        root.user-position(x, y, ScrollSnapIntent.impulse);
         return accept;
     }
 
@@ -174,6 +186,47 @@ export component ScrollView inherits Rectangle {
             : clamp(round(clamped / interval) * interval, 0px, limit);
     }
 
+    pure function uses-snap-points(points: ScrollSnapPoints) -> bool {
+        return ScrollSnapBehavior.ready && (points.points.length > 0 || points.ranges.length > 0
+            || points.aligned-points.length > 0);
+    }
+
+    pure function snap-target(
+        value: length, origin: length, limit: length, viewport: length, points: ScrollSnapPoints,
+        interval: length, intent: ScrollSnapIntent,
+    ) -> length {
+        if !root.uses-snap-points(points) {
+            return root.axis-target(value, limit, interval);
+        }
+        let clamped = clamp(value, 0px, limit);
+        if clamped == 0px || clamped == limit { return clamped; }
+        return ScrollSnapBehavior.resolve(points, {
+            target: clamped, origin: origin, limit: limit, viewport: viewport, zoom: root.zoom-factor, intent: intent,
+        });
+    }
+
+    pure function settle-axis(
+        value: length, origin: length, limit: length, viewport: length, points: ScrollSnapPoints,
+        interval: length, intent: ScrollSnapIntent,
+    ) -> length {
+        return value == origin && root.uses-snap-points(points) ? value
+            : root.snap-target(value, origin, limit, viewport, points, interval, intent);
+    }
+
+    function scroll-by-key(horizontal: bool, step: length) {
+        let x = root.horizontal-offset;
+        let y = root.vertical-offset;
+        if horizontal {
+            root.scroll-to(root.uses-snap-points(root.horizontal-snap-points)
+                ? root.snap-target(x + step, x, root.scrollable-width, root.viewport-width,
+                    root.horizontal-snap-points, 0px, ScrollSnapIntent.directional) : x + step, y);
+        } else {
+            root.scroll-to(x, root.uses-snap-points(root.vertical-snap-points)
+                ? root.snap-target(y + step, y, root.scrollable-height, root.viewport-height,
+                    root.vertical-snap-points, 0px, ScrollSnapIntent.directional) : y + step);
+        }
+    }
+
     function apply-zoom(factor: float, center: Point) {
         if !root.zoom-enabled { return; }
         let new-factor = root.clamped-zoom(factor);
@@ -192,22 +245,36 @@ export component ScrollView inherits Rectangle {
     function stop-motion() {
         animator.stop();
         settle.stop();
+        root.tracking-flick = false;
         root.motion = ScrollViewMotion.idle;
     }
 
     function finish-motion() {
         let old = root.motion;
+        let origin = root.motion-origin;
+        let intent = old == ScrollViewMotion.velocity ? ScrollSnapIntent.nearest : root.interaction-intent;
         root.stop-motion();
         if old == ScrollViewMotion.interaction || old == ScrollViewMotion.velocity {
-            root.place(root.axis-target(root.horizontal-offset, root.scrollable-width, root.horizontal-snap-interval),
-                root.axis-target(root.vertical-offset, root.scrollable-height, root.vertical-snap-interval));
+            root.place(root.settle-axis(root.horizontal-offset, origin.horizontal, root.scrollable-width,
+                root.viewport-width, root.horizontal-snap-points, root.horizontal-snap-interval, intent),
+                root.settle-axis(root.vertical-offset, origin.vertical, root.scrollable-height,
+                root.viewport-height, root.vertical-snap-points, root.vertical-snap-interval, intent));
         }
         if old != ScrollViewMotion.idle { root.view-completed(root.position); }
     }
 
-    function user-position(x: length, y: length) {
+    function begin-interaction(intent: ScrollSnapIntent) {
         animator.stop();
+        if root.motion != ScrollViewMotion.interaction || root.interaction-intent != intent {
+            root.motion-origin = root.position;
+        }
+        root.tracking-flick = false;
+        root.interaction-intent = intent;
         root.motion = ScrollViewMotion.interaction;
+    }
+
+    function user-position(x: length, y: length, intent: ScrollSnapIntent) {
+        root.begin-interaction(intent);
         root.place(x, y);
         root.queue-settle();
     }
@@ -228,8 +295,7 @@ export component ScrollView inherits Rectangle {
         root.reveal-indicators();
         if event.modifiers.control {
             if root.zoom-enabled {
-                animator.stop();
-                root.motion = ScrollViewMotion.interaction;
+                root.begin-interaction(ScrollSnapIntent.nearest);
                 let delta = event.delta-y / 1px;
                 let multiplier = delta >= 0 ? 1 + delta / 600 : 1 / (1 - delta / 600);
                 root.apply-zoom(root.zoom-factor * multiplier, center);
@@ -297,11 +363,11 @@ export component ScrollView inherits Rectangle {
             let y = root.vertical-offset;
             if key == Key.LeftArrow || key == Key.RightArrow {
                 if root.scrollable-width == 0px { return reject; }
-                root.scroll-to(x + (key == Key.LeftArrow ? -16px : 16px), y);
+                root.scroll-by-key(true, key == Key.LeftArrow ? -16px : 16px);
             } else if key == Key.UpArrow || key == Key.DownArrow || key == Key.PageUp || key == Key.PageDown {
                 if root.scrollable-height == 0px { return reject; }
                 let step = key == Key.UpArrow || key == Key.DownArrow ? 16px : root.viewport-height;
-                root.scroll-to(x, y + (key == Key.UpArrow || key == Key.PageUp ? -step : step));
+                root.scroll-by-key(false, key == Key.UpArrow || key == Key.PageUp ? -step : step);
             } else if key == Key.Home || key == Key.End {
                 root.scroll-to(event.modifiers.control ? (key == Key.Home ? 0px : root.scrollable-width) : x,
                     key == Key.Home ? 0px : root.scrollable-height);
@@ -315,7 +381,7 @@ export component ScrollView inherits Rectangle {
             enabled: root.enabled && root.zoom-enabled;
             started => {
                 root.stop-motion();
-                root.motion = ScrollViewMotion.interaction;
+                root.begin-interaction(ScrollSnapIntent.nearest);
                 root.pinch-factor = root.zoom-factor;
             }
             updated => { root.apply-zoom(root.pinch-factor * self.scale, self.center); }
@@ -329,8 +395,10 @@ export component ScrollView inherits Rectangle {
                 interactive: root.enabled && root.pan-enabled;
                 mouse-drag-pan-enabled: root.mouse-pan-enabled;
                 flicked => {
-                    animator.stop();
-                    root.motion = ScrollViewMotion.interaction;
+                    let first = !root.tracking-flick;
+                    root.begin-interaction(ScrollSnapIntent.nearest);
+                    if first { root.motion-origin = root.last-position; }
+                    root.tracking-flick = true;
                     root.queue-settle();
                 }
 
@@ -389,7 +457,7 @@ export component ScrollView inherits Rectangle {
         offset: root.horizontal-offset;
         extent: viewport.content-width;
         viewport: root.viewport-width;
-        offset-requested(x) => { root.user-position(x, root.vertical-offset); }
+        offset-requested(x) => { root.user-position(x, root.vertical-offset, ScrollSnapIntent.nearest); }
         interaction-finished => { root.finish-motion(); }
     }
 
@@ -406,7 +474,7 @@ export component ScrollView inherits Rectangle {
         offset: root.vertical-offset;
         extent: viewport.content-height;
         viewport: root.viewport-height;
-        offset-requested(y) => { root.user-position(root.horizontal-offset, y); }
+        offset-requested(y) => { root.user-position(root.horizontal-offset, y, ScrollSnapIntent.nearest); }
         interaction-finished => { root.finish-motion(); }
     }
 }

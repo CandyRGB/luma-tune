@@ -6,6 +6,7 @@ import {
     StackPanel, StackPanelBehavior, StackPanelChild, StackPanelOptions, StackPanelSnapAlignment, StackPanelSnapPoints
 } from "../../apps/lumatune/ui/components/layout/stack_panel.slint";
 import { ScrollMode, ScrollView } from "../../apps/lumatune/ui/components/scrolling/scroll_view.slint";
+import { ScrollSnapAlignment } from "../../apps/lumatune/ui/components/scrolling/scroll_snap.slint";
 
 export {
     StackPanelBehavior, StackPanelChild, StackPanelOptions, StackPanelSnapAlignment, StackPanelSnapPoints,
@@ -39,6 +40,8 @@ export component StackPanelExample inherits Window {
     private property <StackPanelSnapAlignment> alignment: snap-alignment.current-index == 1 ? StackPanelSnapAlignment.center
         : snap-alignment.current-index == 2 ? StackPanelSnapAlignment.far : StackPanelSnapAlignment.near;
     private property <StackPanelSnapPoints> snaps: scroll-stack.snap-points(Orientation.vertical, root.alignment);
+    private property <ScrollSnapAlignment> scroll-alignment: root.alignment == StackPanelSnapAlignment.center ? ScrollSnapAlignment.center
+        : root.alignment == StackPanelSnapAlignment.far ? ScrollSnapAlignment.far : ScrollSnapAlignment.near;
     private property <[color]> colors: [#ff0000, #0000ff, #008000, #ffff00];
     private property <[string]> color-names: ["Red", "Blue", "Green", "Yellow"];
     private property <[string]> row-labels: ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6"];
@@ -133,6 +136,17 @@ export component StackPanelExample inherits Window {
         horizontal-scroll-mode: ScrollMode.disabled;
         extent-width: self.width;
         extent-height: scroll-stack.preferred-height;
+        vertical-snap-points: {
+            aligned-points: root.regular ? [] : root.snaps.positions,
+            alignment: root.scroll-alignment,
+            ranges: root.regular && root.snaps.interval > 0px ? [{
+                offset: root.snaps.offset,
+                interval: root.snaps.interval,
+                start: 0px,
+                end: self.extent-height,
+                alignment: root.scroll-alignment,
+            }] : [],
+        };
 
         scroll-stack := StackPanel {
             width: scroller.width;

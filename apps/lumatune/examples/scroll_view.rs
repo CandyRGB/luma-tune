@@ -2,9 +2,17 @@ use std::path::Path;
 
 use slint::{ComponentHandle, Image, ModelRc, VecModel};
 
+#[path = "../src/scroll_snap.rs"]
+mod scroll_snap;
+
 slint::slint! {
     import { ScrollPhoto, ScrollPhotoStrip, ScrollViewExample } from "../../examples/winui3/scroll_view.slint";
+    import {
+        ScrollSnapAlignment, ScrollSnapBehavior, ScrollSnapIntent, ScrollSnapPoint, ScrollSnapPoints,
+        ScrollSnapRange, ScrollSnapRequest
+    } from "ui/components/scrolling/scroll_snap.slint";
     export { ScrollPhoto, ScrollPhotoStrip, ScrollViewExample }
+    export { ScrollSnapAlignment, ScrollSnapBehavior, ScrollSnapIntent, ScrollSnapPoint, ScrollSnapPoints, ScrollSnapRange, ScrollSnapRequest }
 }
 
 fn load_strip<'a>(
@@ -35,6 +43,7 @@ fn load_strip<'a>(
 
 fn main() -> Result<(), slint::PlatformError> {
     let window = ScrollViewExample::new()?;
+    scroll_snap::install(window.global::<ScrollSnapBehavior>());
     if std::env::var("SLINT_BACKEND").is_ok_and(|backend| backend.contains("software")) {
         window.set_transform_content(false);
     }

@@ -308,7 +308,7 @@ Windows 浅色 FemtoVG 100% 和 125% 已检查缩放后的颜色、原始图片�
 
 运行 `cargo run -p lumatune --example stack_panel` 查看 Gallery 的四个 40 × 40 色块、横纵布局、折叠、边框和间距。宿主注册 `StackPanelBehavior`，按源索引提供子项测量结果，并把插槽子项绑定到对应位置。折叠项没有长度或间距。主轴按子项测量尺寸排列，交叉轴以可用尺寸和遇到的最大子项尺寸扩展。边框和内边距复用 Border。
 
-组件提供堆叠轴的规则与非规则吸附点、近端、居中和远端对齐以及变化通知。非规则点按原始子项顺序累计，保留折叠项的零尺寸位置，最多 254 个。计算沿用 WinUI 源码，吸附坐标不计布局间距。规则点使用第一项尺寸作为步长。示例用上一点和下一点将这些坐标交给 ScrollView。浅色 100% 和 125% 已实测色块、RTL、重排、间距和折叠、吸附偏移与通知以及键盘和输入保留。原生截图逐像素对照、宿主自动测量，以及滚动手势中的原生吸附提供者接线仍待验收。[WinUI StackPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/StackPanel.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/StackPanel/StackPanelPage.xaml)
+组件提供堆叠轴的规则与非规则吸附点、近端、居中和远端对齐以及变化通知。非规则点按原始子项顺序累计，保留折叠项的零尺寸位置，最多 254 个。计算沿用 WinUI 源码，吸附坐标不计布局间距。规则点使用第一项尺寸作为步长。示例将非规则点和规则范围绑定给 ScrollView，上一点和下一点按钮仍可单独请求指定偏移。浅色 100% 和 125% 已实测色块、RTL、重排、间距、折叠、吸附偏移、通知、键盘及输入保留，并验证滚轮和方向键使用面板提供的吸附坐标。原生截图逐像素对照、宿主自动测量和触屏滚动仍待验收。[WinUI StackPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/StackPanel.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/StackPanel/StackPanelPage.xaml)
 
 #### Grid
 
@@ -403,7 +403,7 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 ### Scrolling
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ScrollView / ScrollViewer | 🚧 | `components/scrolling/scroll_view.slint`、`scroll_bar.slint`，支持覆盖滚动条、锚点缩放、滚动链、对齐与程序滚动 |
+| ScrollView / ScrollViewer | 🚧 | `components/scrolling/scroll_view.slint`、`scroll_bar.slint`，支持覆盖滚动条、锚点缩放、滚动链、离散与重复吸附点及程序滚动 |
 | PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
 | AnnotatedScrollBar | 🚧 | `components/scrolling/annotated_scroll_bar.slint`，支持标记、详细提示、拖动、连发箭头及滚动联动 |
 | PagerControl | 🚧 | `components/scrolling/pager_control.slint`，支持自动、下拉、数字输入和页码按钮模式 |
@@ -415,11 +415,13 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 
 #### ScrollView / ScrollViewer
 
-运行 `cargo run -p lumatune --example scroll_view` 查看原图滚动、程序滚动、自定义时长、等速滚动和嵌套视口。宿主提供未缩放的内容尺寸和正文插槽。偏移使用物理方向的视口像素，RTL 把垂直滚动条移到左侧。嵌套控件通过 `scroll-chained` 将边界外的滚轮请求交给父视口。ScrollViewer 保留单独的默认轴策略与 `change-view` 入口。
+运行 `cargo run -p lumatune --example scroll_view` 查看原图滚动、程序滚动、自定义时长、等速滚动、嵌套视口和吸附点。宿主提供未缩放的内容尺寸和正文插槽。偏移使用物理方向的视口像素，RTL 把垂直滚动条移到左侧。嵌套控件通过 `scroll-chained` 将边界外的滚轮请求交给父视口。ScrollViewer 保留单独的默认轴策略与 `change-view` 入口。
 
 对照了 Gallery 的 400×266px 视口、覆盖式 12px 滚动条、紧凑滑块、8px 展开滑块和两秒收起时间。浅色 100% 和 125% 下检查滚轮、Shift 横滚、键盘、Ctrl 滚轮与程序锚点缩放、拖动、隐藏、RTL、等距吸附、自定义时长、连续滚动和嵌套滚动链。FemtoVG 和软件渲染均检查了放大后滚到图像末端的像素。Windows UI Automation 验证了滚动范围、步长和程序设值。ItemsView 与 ListView 共用该视口。
 
-Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `transform-content`，用 `zoom-factor` 计算正文尺寸。原生 Composition 惯性与回弹、系统偏好动态订阅、滚动锚点候选、区域及非等距吸附点、外部控制器和原生双轴 UI Automation ScrollPattern 仍待对齐。现在通过两个范围控件暴露滚动值。Pinch 和触摸平移已接入 Slint 手势，触屏实机与手柄仍待验证。模板、行为、Gallery 示例和照片保存在 `.refs/WinUI/`。[ScrollView 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollView/ScrollView.xaml) · [Gallery ScrollView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ScrollView/ScrollViewPage.xaml)
+每轴可提供离散点、共享对齐的坐标列表及限定区间的重复点，宿主需注册 `ScrollSnapBehavior`。无点模型时使用既有的固定间隔设置。`scroll-to-with-options` 可选择吸附，普通 `scroll-to` 与 `change-view` 仍按指定偏移执行。浅色 100% 和 125% 验证了近端、居中和远端吸附、滚轮越过当前停靠点、方向键、鼠标拖动停止与程序指定吸附。Rust 回归覆盖中点取值、重复范围边界、重叠、缩放坐标换算和连续小步滚动。无效范围及其冲突项会被忽略，WinUI 在原生集合中会拒绝冲突。原生 Composition 的吸附时序和缩放后的滚动坐标仍待对照。[WinUI SnapPoint 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollPresenter/SnapPoint.cpp)
+
+Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `transform-content`，用 `zoom-factor` 计算正文尺寸。原生 Composition 惯性与回弹、系统偏好动态订阅、滚动锚点候选、外部控制器和原生双轴 UI Automation ScrollPattern 仍待对齐。现在通过两个范围控件暴露滚动值。Pinch 和触摸平移已接入 Slint 手势，触屏实机与手柄仍待验证。模板、行为、Gallery 示例和照片保存在 `.refs/WinUI/`。[ScrollView 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollView/ScrollView.xaml) · [Gallery ScrollView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ScrollView/ScrollViewPage.xaml)
 
 #### AnnotatedScrollBar
 
