@@ -139,7 +139,7 @@ Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、
 ### Collections
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ListView | ✅ | |
+| ListView | 🚧 | `components/collections/list_view.slint`、`list_view_item.slint`，支持 WinUI 条目模板、四种选择模式、分组、吸顶、同列表拖动和虚拟化 |
 | GridView | 🚧 | `components/collections/grid_view.slint`，支持自适应行列、四种选择模式、拖动重排和视口虚拟化 |
 | ItemsRepeater | 🚧 | `components/collections/items_repeater.slint`，提供 StackLayout、UniformGridLayout、FlowLayout、LinedFlowLayout 和自定义位置，支持宿主模板和视口虚拟化 |
 | ItemsView / ItemContainer | 🚧 | `components/collections/items_view.slint`、`item_container.slint`，支持三种 Gallery 布局、四种选择模式、独立条目调用和自定义内容 |
@@ -149,6 +149,14 @@ Windows 浅色已对照 WinUI Gallery 的 40×20px 轨道、12px 文字间距、
 运行 `cargo run -p lumatune --example tree_view` 可试用树形行、懒加载、单选和三态多选。模型按稳定 ID 与父 ID 组织，条目顺序决定同级顺序。节点展开回调可加载子项。复选框或空格切换多选，条目点击或 Enter 调用该条目。拖放支持同级插入和改父节点，Alt+Shift+上下键可重排同级项。循环改父、拖到自身和重复移动已由算法处理。
 
 Windows 浅色已实测展开折叠、键盘焦点、多选与半选、懒加载、拖放和键盘重排、RTL，以及 10,000 项列表跳到末行。UI Automation 已读取展开和选中状态。Slint 的无障碍树使用 Tree 容器与可选择列表项，独立提供展开和折叠按钮。WinUI 的自定义项模板、连续拖拽自动滚动、悬停展开、系统跨控件拖放、读屏播报与手柄仍待验收。对照模板和 Gallery 示例已存入 `.refs/WinUI/`。[WinUI TreeViewItem 行为](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/TreeView/TreeViewItem.cpp)
+
+#### ListView
+
+运行 `cargo run -p lumatune --example list_view` 查看基本联系人、双行自定义模板、分组标题和拖动排序。宿主注册 `ListViewBehavior`、`ItemsViewBehavior` 和 `ItemsRepeaterBehavior`，按显示顺序提供非空唯一键、可选分组及条目高度。自定义模板通过 `realized` 使用原始条目索引，以条目公开的 `content-width` 和 `content-height` 排列正文，并绑定行选择和操作回调。`ItemClick` 在本次选区更新前触发，`scroll-into-view` 支持最小滚动和顶端对齐。
+
+原生 Gallery 在 125% 下的基础行高为 50 物理像素，对应模板的 40px。复刻遵循 16/12px 正文内边距、4/2px 底板内收、20px 内联复选框、14px 复选框起点和 28px 正文偏移。单选和扩展选择显示指示条，多选使用可隐藏的复选框。指示条的原生 3px 宽度按项目约定取 4px。
+
+浅色 100% 和 125% 检查了基础与自定义行、点按和键盘、四种选择模式、禁用项、事件顺序、分组吸顶、RTL、同列表拖动和顶端滚动。跳到 10,000 项末行时创建 20 个条目。Windows UI Automation 验证了 List 与 ListItem 角色、单选互斥和条目禁用状态。RTL 下 Slint 滚动条的位置固定在右侧。跨列表拖放、拖动自动滚动、原生阶段式模板绑定、系统滚动位置恢复、完整 UI Automation Invoke 与多项选择动作、读屏和手柄仍待对齐。Gallery 示例、模板与原生行绘制源码已存入 `.refs/WinUI/`。[ListView 行绘制](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/ListViewBaseItemChrome.cpp) · [Gallery ListView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ListView/ListViewPage.xaml)
 
 #### GridView
 

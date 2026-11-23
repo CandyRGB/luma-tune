@@ -60,8 +60,9 @@ fn selection(
             Deselect => {
                 selected.remove(&item.key);
             }
-            Interact | Navigate if item.enabled => {
-                let focused = action == Navigate;
+            Interact | Navigate | ListInteract | ListNavigate if item.enabled => {
+                let focused = matches!(action, Navigate | ListNavigate);
+                let list_view = matches!(action, ListInteract | ListNavigate);
                 let was_selected = selected.contains(&item.key);
                 if mode == Single && (!focused || !ctrl) {
                     selected.clear();
@@ -70,14 +71,14 @@ fn selection(
                     }
                 } else if (mode == Multiple || mode == Extended) && shift && anchor >= 0 {
                     let mut set_range = true;
-                    if mode == Multiple {
+                    if mode == Multiple && !list_view {
                         set_range = items
                             .row_data(anchor as usize)
                             .is_some_and(|item| selected.contains(&item.key));
-                    } else if !focused || !ctrl {
+                    } else if mode == Extended && (!ctrl || !focused && !list_view) {
                         selected.clear();
                     }
-                    if focused || mode == Extended || set_range != was_selected {
+                    if focused || list_view || mode == Extended || set_range != was_selected {
                         for row in index.min(anchor)..=index.max(anchor) {
                             if let Some(item) =
                                 items.row_data(row as usize).filter(|item| item.enabled)
@@ -97,7 +98,7 @@ fn selection(
                         selected.insert(item.key);
                     }
                 } else if mode == Extended
-                    && (!focused && !was_selected || focused && !ctrl && !shift)
+                    && (!focused && (list_view || !was_selected) || focused && !ctrl && !shift)
                 {
                     selected.clear();
                     selected.insert(item.key);
@@ -205,6 +206,31 @@ fn navigation_target(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_view_plain_extended_click_replaces_existing_selection() {
+        let items = ModelRc::new(VecModel::from(
+            ["a", "b", "c"]
+                .map(|key| ItemsViewItem {
+                    key: key.into(),
+                    enabled: true,
+                })
+                .to_vec(),
+        ));
+        let old = ModelRc::new(VecModel::from(vec!["a".into(), "c".into()]));
+        let selected = selection(
+            items,
+            old,
+            ItemsViewSelectionMode::Extended,
+            ItemsViewSelectionAction::ListInteract,
+            2,
+            0,
+            false,
+            false,
+        );
+        assert_eq!(selected.row_count(), 1);
+        assert_eq!(selected.row_data(0).as_deref(), Some("c"));
+    }
 
     #[test]
     fn multiple_shift_extends_the_anchors_current_state() {

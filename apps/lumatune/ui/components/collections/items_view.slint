@@ -4,7 +4,7 @@ import { ItemsRepeater, ItemsRepeaterLayout, ItemsRepeaterSize, ItemsRepeaterPla
 
 export struct ItemsViewItem { key: string, enabled: bool }
 export enum ItemsViewSelectionMode { none, single, multiple, extended }
-export enum ItemsViewSelectionAction { reconcile, select, deselect, all, invert, interact, navigate }
+export enum ItemsViewSelectionAction { reconcile, select, deselect, all, invert, interact, navigate, list-interact, list-navigate }
 export enum ItemsViewNavigation { first, last, left, right, up, down, page-up, page-down, viewport-point }
 
 export global ItemsViewBehavior {
@@ -21,6 +21,8 @@ export component ItemsView inherits Rectangle {
     in property <bool> rtl;
     in property <string> label;
     in property <bool> is-item-invoked-enabled;
+    in property <bool> list-view-interaction;
+    in property <bool> single-selection-follows-focus: true;
     in property <ItemsViewSelectionMode> selection-mode: ItemsViewSelectionMode.single;
     in property <ItemsRepeaterLayout> layout: ItemsRepeaterLayout.stack;
     in property <Orientation> orientation: root.layout == ItemsRepeaterLayout.stack
@@ -36,6 +38,7 @@ export component ItemsView inherits Rectangle {
     in property <length> row-spacing;
 
     out property <[ItemsRepeaterPlacement]> realized: repeater.realized;
+    out property <[ItemsRepeaterPlacement]> placements: repeater.placements;
     out property <[string]> selected-keys;
     out property <int> current-item-index: ItemsViewBehavior.index-of(root.keys, root.current-key);
     out property <int> selected-item-index: root.selected-keys.length > 0
@@ -91,6 +94,13 @@ export component ItemsView inherits Rectangle {
 
     public function bring-item-into-view(index: int) { repeater.scroll-into-view(index); }
 
+    public function bring-item-to-top(index: int) {
+        let rect = repeater.placement(index);
+        if rect.index >= 0 {
+            scroll.content-y = -clamp(rect.y, 0px, max(0px, repeater.extent-height - root.viewport-height));
+        }
+    }
+
     public pure function item-at-viewport-ratio(horizontal: float, vertical: float) -> int {
         return ItemsViewBehavior.target(root.items, repeater.placements, -1, ItemsViewNavigation.viewport-point,
             root.horizontal-offset + clamp(horizontal, 0, 1) * root.viewport-width,
@@ -103,14 +113,11 @@ export component ItemsView inherits Rectangle {
         focus-scope.focus();
         root.show-focus = false;
         root.bring-item-into-view(index);
-        root.apply-selection(ItemsViewSelectionAction.interact, index, modifiers.control, modifiers.shift);
-        if root.selection-mode == ItemsViewSelectionMode.none && root.is-item-invoked-enabled {
-            root.item-invoked(index);
-        }
+        root.interact(index, modifiers, false);
     }
 
     public function double-tap-item(index: int) {
-        if root.selection-mode != ItemsViewSelectionMode.none { root.invoke-item(index); }
+        if !root.list-view-interaction && root.selection-mode != ItemsViewSelectionMode.none { root.invoke-item(index); }
     }
 
     public function invoke-item(index: int) {
@@ -131,13 +138,29 @@ export component ItemsView inherits Rectangle {
 
     pure function valid-index(index: int) -> bool { return index >= 0 && index < root.items.length; }
 
+    function interact(index: int, modifiers: KeyboardModifiers, enter: bool) {
+        let key = root.keys[index];
+        if root.list-view-interaction {
+            root.invoke-item(index);
+            let current = ItemsViewBehavior.index-of(root.keys, key);
+            if current >= 0 {
+                root.apply-selection(ItemsViewSelectionAction.list-interact, current, modifiers.control, modifiers.shift);
+            }
+        } else {
+            root.apply-selection(ItemsViewSelectionAction.interact, index, modifiers.control, modifiers.shift);
+            if enter || root.selection-mode == ItemsViewSelectionMode.none {
+                root.invoke-item(ItemsViewBehavior.index-of(root.keys, key));
+            }
+        }
+    }
+
     function apply-selection(action: ItemsViewSelectionAction, index: int, ctrl: bool, shift: bool) {
         let anchor = ItemsViewBehavior.index-of(root.keys, root.anchor-key);
         let next = ItemsViewBehavior.selection(root.items, root.selected-keys, root.selection-mode, action,
             index, anchor, ctrl, shift);
+        let navigating = action == ItemsViewSelectionAction.navigate || action == ItemsViewSelectionAction.list-navigate;
         if root.valid-index(index) && (!shift || anchor < 0)
-            && (action != ItemsViewSelectionAction.navigate || !ctrl)
-            && (root.selection-mode != ItemsViewSelectionMode.multiple || action != ItemsViewSelectionAction.navigate) {
+            && (!navigating || (!ctrl && root.selection-mode != ItemsViewSelectionMode.multiple)) {
             root.anchor-key = root.keys[index];
         }
         root.commit-selection(next);
@@ -155,7 +178,10 @@ export component ItemsView inherits Rectangle {
         if target >= 0 && target != root.current-item-index {
             root.current-key = root.keys[target];
             root.bring-item-into-view(target);
-            root.apply-selection(ItemsViewSelectionAction.navigate, target, modifiers.control, modifiers.shift);
+            if root.selection-mode != ItemsViewSelectionMode.single || root.single-selection-follows-focus {
+                root.apply-selection(root.list-view-interaction ? ItemsViewSelectionAction.list-navigate
+                    : ItemsViewSelectionAction.navigate, target, modifiers.control, modifiers.shift);
+            }
         }
     }
 
@@ -186,10 +212,7 @@ export component ItemsView inherits Rectangle {
                 root.show-focus = true;
                 let index = root.current-item-index;
                 if root.valid-index(index) && root.items[index].enabled {
-                    root.apply-selection(ItemsViewSelectionAction.interact, index, event.modifiers.control, event.modifiers.shift);
-                    if key == Key.Return || root.selection-mode == ItemsViewSelectionMode.none {
-                        root.invoke-item(index);
-                    }
+                    root.interact(index, event.modifiers, key == Key.Return);
                 }
                 return accept;
             }
