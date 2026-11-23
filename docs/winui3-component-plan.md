@@ -253,7 +253,8 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 ### Layout
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| Grid / StackPanel / RelativePanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
+| Grid / StackPanel / Canvas / Viewbox / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
+| RelativePanel | 🚧 | 面板与兄弟锚点、约束优先级、双边拉伸、自动首选尺寸和无效引用检测 |
 | Expander | 🚧 | `components/layout/expander.slint`，支持标题插槽、内容对齐、禁用和双向展开 |
 | SplitView | 🚧 | `components/layout/split_view.slint`，含四种窗格模式、左右放置、内容插槽与可取消的轻触关闭 |
 | WrapPanel | 🚧 | 双向换行、内边距、行和项间距、末项拉伸、折叠与 RTL |
@@ -280,6 +281,12 @@ Windows UI Automation 已验证展开、展开状态和绑定后的子控件失�
 WrapPanel 共享同一行或列的交叉轴尺寸，跳过折叠项。如果源模型最后一项折叠，前一项保留原尺寸。VariableSizedWrapGrid 从当前位置向前搜索连续空格，保留前面留下的空位，沿增长轴裁切跨出边界的槽。显式单元格尺寸省略时使用首项的测量尺寸。出界未摆放的条目保留原索引，其槽位尺寸为零。
 
 已对照本地 WinUI 代码和 Gallery XAML。Windows 浅色 100% 和 125% 用 Slint MCP 验证了行列位置、横纵切换、缩窄重排、间距、末项隐藏与拉伸、四色尺寸与颜色、跨格上限、对齐、RTL 及重排后保留编辑内容。Rust 回归测试覆盖跨格顺序、有限空间裁切和末项折叠。原生 Gallery 的基础 WrapPanel 已核对换行和相对位置。示例按偶数度量将常规卡片高度取为 38，仍需完成原生截图逐像素对照。Slint 插槽子项的测量与放置由宿主绑定，原生 XAML 的自动 Measure/Arrange 与无障碍树映射仍待验证。[WrapPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/WrapPanel/WrapPanel.cpp) · [VariableSizedWrapGrid 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/dxaml/lib/VariableSizedWrapGrid_Partial.cpp)
+
+#### RelativePanel
+
+运行 `cargo run -p lumatune --example relative_panel` 查看 Gallery 四色示例，以及可编辑的双边约束、内边距、RTL 和失效引用示例。宿主注册 `RelativePanelBehavior`，为子元素提供期望尺寸、外边距和两轴约束，按模型索引连接布局结果。约束可通过 ID 引用位置在前或在后的兄弟。两轴共同检测循环，连优先级较低而被覆盖的引用也参与检测。无效图通过 `layout-issue` 和 `issue-target` 报告。宿主可以在修正后恢复布局并保留原子元素。
+
+浅色 100% 和 125% 的 Slint 运行验证覆盖 Gallery 四色色块的颜色、50 × 50 尺寸、8 像素间隔和对齐位置，并检查了首选高度、变化宽度、双边拉伸、内边距、RTL、折叠、无效约束以及输入保留。回归测试对照原生优先级和居中链的预期结果。子项的测量尺寸由宿主提供。坐标按项目的偶数规则取整，原生截图对照、自动子元素测量、逐侧边框和原生布局裁切仍待验收。[WinUI 布局算法](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/components/relativepanel/lib/RPGraph.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/RelativePanel/RelativePanelPage.xaml)
 
 ### Navigation
 | 控件 | 现状 | 备注 |
