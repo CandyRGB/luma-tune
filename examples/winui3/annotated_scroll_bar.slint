@@ -1,6 +1,6 @@
 import { Palette } from "std-widgets.slint";
 import { Button } from "../../apps/lumatune/ui/components/basic-input/button.slint";
-import { AnnotatedScrollBar, AnnotatedScrollBarBehavior, AnnotatedScrollBarLabel, AnnotatedScrollBarMarker, AnnotatedScrollBarScrollingKind } from "../../apps/lumatune/ui/components/scrolling/annotated_scroll_bar.slint";
+import { AnnotatedScrollBar, AnnotatedScrollBarBehavior, AnnotatedScrollBarDetail, AnnotatedScrollBarLabel, AnnotatedScrollBarMarker, AnnotatedScrollBarScrollingKind } from "../../apps/lumatune/ui/components/scrolling/annotated_scroll_bar.slint";
 import { ScrollView, ScrollMode, ScrollBarVisibility } from "../../apps/lumatune/ui/components/scrolling/scroll_view.slint";
 import { ScrollControllerResult } from "../../apps/lumatune/ui/components/scrolling/scroll_controller.slint";
 
@@ -19,6 +19,8 @@ export component AnnotatedScrollBarExample inherits Window {
     private property <bool> rtl;
     private property <bool> cancel-requests;
     private property <bool> custom-step;
+    private property <bool> long-preview;
+    private property <bool> preview-in-grid;
     private property <int> columns: root.wide ? 4 : 1;
     private property <length> extent: ceil(250 / root.columns) * 90px + 4px;
     private property <string> kind;
@@ -91,6 +93,7 @@ export component AnnotatedScrollBarExample inherits Window {
         viewport-size: grid.vertical-controller-state.viewport;
         value: grid.vertical-controller-state.offset;
         enabled: grid.vertical-controller-state.can-scroll;
+        show-inline-detail: false;
         small-change: root.custom-step ? 90px : 0px;
         rtl: root.rtl;
         indicator-color: root.accent;
@@ -101,7 +104,10 @@ export component AnnotatedScrollBarExample inherits Window {
             { text: "Fuchsia", offset: root.row-start(90) },
             { text: "Gold", offset: root.row-start(160) },
         ];
-        detail-label-requested(offset) => { return root.color-name(offset); }
+        detail-label-requested(offset) => {
+            let name = root.color-name(offset);
+            return root.long-preview ? name + " · Color group at this position in the collection. Scroll here to see matching tiles." : name;
+        }
         scrolling(offset, kind) => {
             root.requests += 1;
             root.step-request = kind == AnnotatedScrollBarScrollingKind.increment-button
@@ -128,5 +134,23 @@ export component AnnotatedScrollBarExample inherits Window {
         text: "Offset \{round(bar.effective-value / 1px)} · Requests \{root.requests} · Accepted \{root.commits} · \{root.kind} · Completed \{root.last-completed}";
         color: Palette.foreground;
         accessible-label: self.text;
+    }
+
+    HorizontalLayout {
+        x: root.width - 250px;
+        y: 576px;
+        width: 226px;
+        height: 32px;
+        spacing: 8px;
+        alignment: end;
+        Button { text: "Long preview"; clicked => { root.long-preview = !root.long-preview; } }
+        Button { text: "Grid bounds"; clicked => { root.preview-in-grid = !root.preview-in-grid; } }
+    }
+
+    AnnotatedScrollBarDetail {
+        detail: bar.detail;
+        viewport: root.preview-in-grid
+            ? { x: min(grid.x, bar.x), y: grid.y, width: grid.width + bar.width + 4px, height: grid.height }
+            : { x: 0px, y: 0px, width: root.width, height: root.height };
     }
 }

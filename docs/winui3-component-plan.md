@@ -431,7 +431,9 @@ Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `
 
 运行 `cargo run -p lumatune --example annotated_scroll_bar` 可试用 Gallery 色块集合、轨道高度切换和滚动同步。宿主注册 `AnnotatedScrollBarBehavior`，按偏移升序传入标签，把当前滚动位置绑定到 `value`，并在 `scroll-requested` 中应用新位置。标签位置按整个内容范围计算，重叠时按原生顺序优先保留靠下的标签，并尽量保留首项。详细提示可以请求到视口底部所对应的内容偏移。宿主可在 `scrolling` 中取消单次请求。
 
-已与 Windows 浅色 Gallery 对照 30px 指示条、颜色、箭头与标签位置及浮动提示的锚点。实测按下跳转、拖动、触摸释放、取消、滚轮和键盘通过正文反向同步、箭头连发与 UI Automation Invoke、缩短轨道和 RTL。指示条由 3px 取整为 4px。箭头默认步进为首次使用时视口高度的八分之一。联动示例改用 ScrollView 的外部控制器，轨道提交绝对位置，箭头提交相对距离，正文滚轮和列数改变会同步更新范围与滑块。浅色 100% 和 125% 复验了拖动、取消、步进、范围缩小与 RTL。箭头仍逐步滚动，WinUI 开启动画时使用附加速度。原生组合线程滚动、自定义标签模板、跨窗口详情提示与读屏仍待补齐。[Gallery AnnotatedScrollBar 连接示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/AnnotatedScrollBar/AnnotatedscrollbarLinkedScrollview.txt)
+已与 Windows 浅色 Gallery 对照 30px 指示条、颜色、箭头与标签位置及浮动提示的锚点。实测按下跳转、拖动、触摸释放、取消、滚轮和键盘通过正文反向同步、箭头连发与 UI Automation Invoke、缩短轨道和 RTL。指示条由 3px 取整为 4px。箭头默认步进为首次使用时视口高度的八分之一。联动示例改用 ScrollView 的外部控制器，轨道提交绝对位置，箭头提交相对距离，正文滚轮和列数改变会同步更新范围与滑块。浅色 100% 和 125% 复验了拖动、取消、步进、范围缩小与 RTL。箭头仍逐步滚动，WinUI 开启动画时使用附加速度。原生组合线程滚动、自定义标签模板与读屏仍待补齐。[Gallery AnnotatedScrollBar 连接示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/AnnotatedScrollBar/AnnotatedscrollbarLinkedScrollview.txt)
+
+详情提示按 WinUI 的 40px 最小高度与 360px 最大宽度呈现。宿主可为内联提示传入窗口范围，也可复用轨道给出的绝对锚点，把 `AnnotatedScrollBarDetail` 放到窗口顶层，避免滚动容器裁切。提示优先在轨道点上方，空间不足时翻边，水平位置限制在宿主提供的视口内。浅色 100% 和 125% 已验证左右边缘长文本、缩短轨道、上边界翻边、鼠标移出及拖动。两档缩放下用 Windows 合成触摸复验了 22px 上移、拖动回显、抬手隐藏和鼠标再次悬停。跨窗口与物理触屏仍待验收。[WinUI 提示模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/AnnotatedScrollBar/AnnotatedScrollBar.xaml)
 
 #### PagerControl
 
