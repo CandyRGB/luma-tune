@@ -253,7 +253,9 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 ### Layout
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| Grid / StackPanel / Canvas / Border | ✅ | `GridBox/HorizontalBox/VerticalBox` + 矩形 |
+| Grid / StackPanel | ✅ | `GridBox/HorizontalBox/VerticalBox` |
+| Border | 🚧 | 逐边厚度、逐角圆角、内容内边距与两种背景边界 |
+| Canvas | 🚧 | 绝对布局、原始子项尺寸、动态层级、RTL 及显式裁切 |
 | RelativePanel | 🚧 | 面板与兄弟锚点、约束优先级、双边拉伸、自动首选尺寸和无效引用检测 |
 | Viewbox | 🚧 | 整体变换、四种缩放模式、方向限制、对齐及裁切 |
 | Expander | 🚧 | `components/layout/expander.slint`，支持标题插槽、内容对齐、禁用和双向展开 |
@@ -294,6 +296,12 @@ WrapPanel 共享同一行或列的交叉轴尺寸，跳过折叠项。如果源�
 运行 `cargo run -p lumatune --example viewbox` 查看 Gallery 色条、`Slices.png`、文字和可交互子项。组件根据插槽的首选尺寸计算比例，宿主可显式覆盖原始尺寸。支持 None、Fill、Uniform、UniformToFill 及 Both、UpOnly、DownOnly。单轴有上限时沿用该轴比例，双轴无上限时保持原始大小。超出视口时裁切，默认 Stretch 对齐在溢出轴锚定起点，显式 Center 则居中裁切。
 
 Windows 浅色 FemtoVG 100% 和 125% 已检查缩放后的颜色、原始图片、比例、对齐、剪裁像素、放大后的指针和键盘激活，以及裁切范围外的点按。无窗口回归测试覆盖无上限轴、空尺寸和方向钳制。软件渲染示例以显式尺寸接入 `scale-x` 和 `scale-y`，在 125% 验证了几何、图像裁切和交互。Slint 软件渲染器的任意子树变换不可用，示例的按钮文字也保留正常字号。Gallery 边框按偶数规则由 15 取为 16 像素。原生截图逐像素对照和变换后 Windows UI Automation 边界仍待验收。[WinUI Viewbox 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/Viewbox.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Viewbox/ViewboxPage.xaml)
+
+#### Border 与 Canvas
+
+运行 `cargo run -p lumatune --example border_canvas` 查看 Gallery 的金色边框、白底文字和 140 × 140 画布上的四个色块。Border 将各边厚度和内边距加入首选尺寸，按内边界或外边界绘制背景。非对称圆角由相邻两边的厚度分别调整，相遇时按比例收拢。方角边框使用矩形。Canvas 的首选尺寸为零，子项保持自身尺寸并按 `left` 和 `top` 放置。直接在子项实例上绑定 Slint 的 `z`，同层级的后声明项优先绘制和命中。画布默认允许溢出，宿主可以开启 `clip`。
+
+浅色 FemtoVG 和软件渲染器均在 100% 和 125% 下实测边框颜色、零厚度、内外背景、狭窄圆角、内容位置、画布重叠层级、键鼠命中、RTL 以及溢出裁切。Gallery 文字的纵向边距按偶数约定由 5 取为 6 像素。原生逐像素截图对照、Border 的圆角命中和 Windows UI Automation 仍待验收。[WinUI Border 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/Border.cpp) · [WinUI Canvas 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/canvas.cpp) · [Gallery Border](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Border/BorderPage.xaml) · [Gallery Canvas](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Canvas/CanvasPage.xaml)
 
 ### Navigation
 | 控件 | 现状 | 备注 |
