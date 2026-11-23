@@ -403,7 +403,7 @@ Windows 浅色已实测尺寸、轨道、升降动画、活动状态和自定义
 ### Scrolling
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| ScrollView / ScrollViewer | 🚧 | `components/scrolling/scroll_view.slint`、`scroll_bar.slint`，支持覆盖滚动条、锚点缩放、内容重排锚定、滚动链、离散与重复吸附点及程序滚动 |
+| ScrollView / ScrollViewer | 🚧 | `components/scrolling/scroll_view.slint`、`scroll_bar.slint`，支持覆盖滚动条、锚点缩放、重排锚定、滚动链、吸附点及外部滚动控制器 |
 | PipsPager | 🚧 | `components/scrolling/pips_pager.slint`，支持有限和无限分页、横竖方向、循环与按需显示前后按钮 |
 | AnnotatedScrollBar | 🚧 | `components/scrolling/annotated_scroll_bar.slint`，支持标记、详细提示、拖动、连发箭头及滚动联动 |
 | PagerControl | 🚧 | `components/scrolling/pager_control.slint`，支持自动、下拉、数字输入和页码按钮模式 |
@@ -423,13 +423,15 @@ Windows 浅色已实测分页点尺寸、首尾隐藏、选中点移动、鼠标
 
 内容重排锚定支持两个轴的锚点比例。宿主注册 `ScrollAnchorBehavior`、启用所需轴并以稳定 ID 和未缩放矩形提交候选快照。布局变更时替换候选模型，以便保留重排前的几何。组件按 WinUI 规则从重排前可见候选中选取锚点，也接受 `anchor-requested` 指定候选。近端已到边界时保持起点，远端已到边界时跟随内容增长或视口缩小。浅色 100% 和 125% 下验证了段前插入和移除、原行位置保留、调整视口、滚动末端跟随和关闭锚定。Rust 回归覆盖缩放后的偏移、指定和移除锚点。Slint 由宿主提供候选矩形，原生 WinUI 从已注册的元素解析可见性和变换。[WinUI 锚定实现](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollPresenter/ScrollPresenterAnchoring.cpp)
 
-Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `transform-content`，用 `zoom-factor` 计算正文尺寸。原生 Composition 惯性与回弹、系统偏好动态订阅、外部控制器和原生双轴 UI Automation ScrollPattern 仍待对齐。现在通过两个范围控件暴露滚动值。Pinch 和触摸平移已接入 Slint 手势，触屏实机与手柄仍待验证。模板、行为、Gallery 示例和照片保存在 `.refs/WinUI/`。[ScrollView 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollView/ScrollView.xaml) · [Gallery ScrollView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ScrollView/ScrollViewPage.xaml)
+在 `scroll_view` 示例中选择 **External controller** 可验证两轴的外部滚动请求。每轴实时提供最小值、最大值、偏移、视口长度及可滚动状态。控制器可请求绝对位置、相对距离或附加速度，位置请求可指定时长并忽略吸附点。有效请求以 ID 回报完成或中断，即时请求可在返回前回报结果。禁用轴或无位移的请求返回 `-1`。浅色 100% 和 125% 已验证方向独立、吸附开关、取消、禁用与同轴速度合并。Slint 使用一条动画时间线处理位置请求，以定时衰减计算附加速度。WinUI 的多轴同帧请求合并、Composition 独立平移及原生衰减曲线仍待对齐。[WinUI 控制器接口](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollPresenter/ScrollPresenterPrimitives.idl)
+
+Slint 软件渲染器忽略通用缩放变换。该后端的照片示例关闭 `transform-content`，用 `zoom-factor` 计算正文尺寸。原生 Composition 惯性与回弹、系统偏好动态订阅和原生双轴 UI Automation ScrollPattern 仍待对齐。现在通过两个范围控件暴露滚动值。Pinch 和触摸平移已接入 Slint 手势，触屏实机与手柄仍待验证。模板、行为、Gallery 示例和照片保存在 `.refs/WinUI/`。[ScrollView 模板](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/controls/dev/ScrollView/ScrollView.xaml) · [Gallery ScrollView 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/ScrollView/ScrollViewPage.xaml)
 
 #### AnnotatedScrollBar
 
 运行 `cargo run -p lumatune --example annotated_scroll_bar` 可试用 Gallery 色块集合、轨道高度切换和滚动同步。宿主注册 `AnnotatedScrollBarBehavior`，按偏移升序传入标签，把当前滚动位置绑定到 `value`，并在 `scroll-requested` 中应用新位置。标签位置按整个内容范围计算，重叠时按原生顺序优先保留靠下的标签，并尽量保留首项。详细提示可以请求到视口底部所对应的内容偏移。宿主可在 `scrolling` 中取消单次请求。
 
-已与 Windows 浅色 Gallery 对照 30px 指示条、颜色、箭头与标签位置及浮动提示的锚点。实测按下跳转、拖动、触摸释放、取消、滚轮和键盘通过正文反向同步、箭头连发与 UI Automation Invoke、缩短轨道和 RTL。指示条由 3px 取整为 4px。箭头默认步进为首次使用时视口高度的八分之一。示例用回调连接 Slint 滚动视口，原生组合线程滚动、连续惯性、自定义标签模板、跨窗口详情提示与读屏仍待补齐。模板、源码和 Gallery 示例已保存在 `.refs/WinUI/`。
+已与 Windows 浅色 Gallery 对照 30px 指示条、颜色、箭头与标签位置及浮动提示的锚点。实测按下跳转、拖动、触摸释放、取消、滚轮和键盘通过正文反向同步、箭头连发与 UI Automation Invoke、缩短轨道和 RTL。指示条由 3px 取整为 4px。箭头默认步进为首次使用时视口高度的八分之一。联动示例改用 ScrollView 的外部控制器，轨道提交绝对位置，箭头提交相对距离，正文滚轮和列数改变会同步更新范围与滑块。浅色 100% 和 125% 复验了拖动、取消、步进、范围缩小与 RTL。箭头仍逐步滚动，WinUI 开启动画时使用附加速度。原生组合线程滚动、自定义标签模板、跨窗口详情提示与读屏仍待补齐。[Gallery AnnotatedScrollBar 连接示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/AnnotatedScrollBar/AnnotatedscrollbarLinkedScrollview.txt)
 
 #### PagerControl
 

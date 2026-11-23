@@ -1,6 +1,8 @@
 import { Palette } from "std-widgets.slint";
 import { Button } from "../../apps/lumatune/ui/components/basic-input/button.slint";
 import { AnnotatedScrollBar, AnnotatedScrollBarBehavior, AnnotatedScrollBarLabel, AnnotatedScrollBarMarker, AnnotatedScrollBarScrollingKind } from "../../apps/lumatune/ui/components/scrolling/annotated_scroll_bar.slint";
+import { ScrollView, ScrollMode, ScrollBarVisibility } from "../../apps/lumatune/ui/components/scrolling/scroll_view.slint";
+import { ScrollControllerResult } from "../../apps/lumatune/ui/components/scrolling/scroll_controller.slint";
 
 export { AnnotatedScrollBarBehavior, AnnotatedScrollBarLabel, AnnotatedScrollBarMarker, AnnotatedScrollBarScrollingKind }
 
@@ -19,10 +21,11 @@ export component AnnotatedScrollBarExample inherits Window {
     private property <bool> custom-step;
     private property <int> columns: root.wide ? 4 : 1;
     private property <length> extent: ceil(250 / root.columns) * 90px + 4px;
-    private property <length> limit: max(0px, root.extent - grid.height);
     private property <string> kind;
+    private property <bool> step-request;
     private property <int> requests;
     private property <int> commits;
+    private property <int> last-completed;
 
     pure function row-start(item: int) -> length {
         return floor(item / root.columns) * 90px;
@@ -32,12 +35,6 @@ export component AnnotatedScrollBarExample inherits Window {
         return offset <= root.row-start(31) ? "Azure" : offset <= root.row-start(81) ? "Crimson"
             : offset <= root.row-start(89) ? "Cyan" : offset <= root.row-start(159) ? "Fuchsia" : "Gold";
     }
-
-    function scroll-to(offset: length) {
-        grid.content-y = -clamp(offset, 0px, root.limit);
-    }
-
-    changed limit => { root.scroll-to(-grid.content-y); }
 
     HorizontalLayout {
         x: 24px;
@@ -50,48 +47,37 @@ export component AnnotatedScrollBarExample inherits Window {
         Button { text: "Four columns"; clicked => { root.wide = !root.wide; } }
         Button { text: "Mirror RTL"; clicked => { root.rtl = !root.rtl; } }
         Button { text: "Cancel scroll"; clicked => { root.cancel-requests = !root.cancel-requests; } }
-        Button { text: "Jump to Gold"; clicked => { root.scroll-to(root.row-start(160)); } }
+        Button { text: "Jump to Gold"; clicked => { grid.scroll-to(0px, root.row-start(160)); } }
         Button { text: "Step 90"; clicked => { root.custom-step = !root.custom-step; } }
     }
 
-    FocusScope {
+    grid := ScrollView {
         x: root.rtl ? 24px + bar.width + 4px : 24px;
         y: 68px;
         width: root.columns * 120px + 4px;
         height: 500px;
-        accessible-role: groupbox;
-        accessible-label: "Color grid";
-        key-pressed(event) => {
-            let value = -grid.content-y;
-            if event.text == Key.UpArrow { root.scroll-to(value - 62.5px); }
-            else if event.text == Key.DownArrow { root.scroll-to(value + 62.5px); }
-            else if event.text == Key.PageUp { root.scroll-to(value - grid.height); }
-            else if event.text == Key.PageDown { root.scroll-to(value + grid.height); }
-            else if event.text == Key.Home { root.scroll-to(0px); }
-            else if event.text == Key.End { root.scroll-to(root.limit); }
-            else { return reject; }
-            return accept;
+        label: "Color grid";
+        is-tab-stop: true;
+        horizontal-scroll-mode: ScrollMode.disabled;
+        vertical-scroll-bar-visibility: ScrollBarVisibility.hidden;
+        vertical-controller-dragging: bar.dragging;
+        extent-width: self.width;
+        extent-height: root.extent;
+        rtl: root.rtl;
+        background: #d3d3d3;
+        border-radius: 4px;
+        clip: true;
+        controller-scroll-completed(operation, result) => {
+            if result == ScrollControllerResult.completed { root.last-completed = operation.id; }
         }
-
-        Rectangle {
-            background: #d3d3d3;
+        for index in 250: Rectangle {
+            x: 6px + Math.mod(index, root.columns) * 120px;
+            y: 6px + root.row-start(index);
+            width: 112px;
+            height: 82px;
             border-radius: 4px;
-            clip: true;
-            grid := Flickable {
-                width: parent.width;
-                height: parent.height;
-                content-width: self.width;
-                content-height: root.extent;
-                for index in 250: Rectangle {
-                    x: 6px + Math.mod(index, root.columns) * 120px;
-                    y: 6px + root.row-start(index);
-                    width: 112px;
-                    height: 82px;
-                    border-radius: 4px;
-                    background: index < 32 ? #f0ffff : index < 82 ? #dc143c : index < 90 ? #00ffff
-                        : index < 160 ? #ff00ff : #ffd700;
-                }
-            }
+            background: index < 32 ? #f0ffff : index < 82 ? #dc143c : index < 90 ? #00ffff
+                : index < 160 ? #ff00ff : #ffd700;
         }
     }
 
@@ -100,9 +86,11 @@ export component AnnotatedScrollBarExample inherits Window {
         y: 68px;
         width: self.preferred-width;
         height: root.short-bar ? 144px : 500px;
-        maximum: root.limit;
-        viewport-size: grid.height;
-        value: -grid.content-y;
+        minimum: grid.vertical-controller-state.minimum;
+        maximum: grid.vertical-controller-state.maximum;
+        viewport-size: grid.vertical-controller-state.viewport;
+        value: grid.vertical-controller-state.offset;
+        enabled: grid.vertical-controller-state.can-scroll;
         small-change: root.custom-step ? 90px : 0px;
         rtl: root.rtl;
         indicator-color: root.accent;
@@ -116,6 +104,8 @@ export component AnnotatedScrollBarExample inherits Window {
         detail-label-requested(offset) => { return root.color-name(offset); }
         scrolling(offset, kind) => {
             root.requests += 1;
+            root.step-request = kind == AnnotatedScrollBarScrollingKind.increment-button
+                || kind == AnnotatedScrollBarScrollingKind.decrement-button;
             root.kind = kind == AnnotatedScrollBarScrollingKind.click ? "click"
                 : kind == AnnotatedScrollBarScrollingKind.drag ? "drag"
                 : kind == AnnotatedScrollBarScrollingKind.increment-button ? "up" : "down";
@@ -123,14 +113,19 @@ export component AnnotatedScrollBarExample inherits Window {
         }
         scroll-requested(offset) => {
             root.commits += 1;
-            root.scroll-to(offset);
+            if root.step-request {
+                grid.controller-scroll-by(Orientation.vertical, offset - grid.vertical-controller-state.offset,
+                    { ignore-snap-points: true });
+            } else {
+                grid.controller-scroll-to(Orientation.vertical, offset, { ignore-snap-points: true });
+            }
         }
     }
 
     Text {
         x: 24px;
         y: 588px;
-        text: "Offset \{round(bar.effective-value / 1px)} · Requests \{root.requests} · Accepted \{root.commits} · \{root.kind}";
+        text: "Offset \{round(bar.effective-value / 1px)} · Requests \{root.requests} · Accepted \{root.commits} · \{root.kind} · Completed \{root.last-completed}";
         color: Palette.foreground;
         accessible-label: self.text;
     }
