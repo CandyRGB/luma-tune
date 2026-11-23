@@ -253,7 +253,7 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 ### Layout
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| Grid | ✅ | `GridBox` |
+| Grid | 🚧 | 动态行列定义、固定／Auto／星号尺寸、跨格、上下限、独立间距与 RTL |
 | StackPanel | 🚧 | 横纵堆叠、折叠间距、边框内边距、RTL 与原生吸附点规则 |
 | Border | 🚧 | 逐边厚度、逐角圆角、内容内边距与两种背景边界 |
 | Canvas | 🚧 | 绝对布局、原始子项尺寸、动态层级、RTL 及显式裁切 |
@@ -309,6 +309,12 @@ Windows 浅色 FemtoVG 100% 和 125% 已检查缩放后的颜色、原始图片�
 运行 `cargo run -p lumatune --example stack_panel` 查看 Gallery 的四个 40 × 40 色块、横纵布局、折叠、边框和间距。宿主注册 `StackPanelBehavior`，按源索引提供子项测量结果，并把插槽子项绑定到对应位置。折叠项没有长度或间距。主轴按子项测量尺寸排列，交叉轴以可用尺寸和遇到的最大子项尺寸扩展。边框和内边距复用 Border。
 
 组件提供堆叠轴的规则与非规则吸附点、近端、居中和远端对齐以及变化通知。非规则点按原始子项顺序累计，保留折叠项的零尺寸位置，最多 254 个。计算沿用 WinUI 源码，吸附坐标不计布局间距。规则点使用第一项尺寸作为步长。示例用上一点和下一点将这些坐标交给 ScrollView。浅色 100% 和 125% 已实测色块、RTL、重排、间距和折叠、吸附偏移与通知以及键盘和输入保留。原生截图逐像素对照、宿主自动测量，以及滚动手势中的原生吸附提供者接线仍待验收。[WinUI StackPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/StackPanel.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/StackPanel/StackPanelPage.xaml)
+
+#### Grid
+
+运行 `cargo run -p lumatune --example grid` 查看 Gallery 固定网格和混合尺寸示例。固定网格按运行页使用 240 × 160 的灰底区域、三行三列各 50 和四个色块，红块可动态换行列并受布局边界裁切。混合示例可改变可用宽度、星号列上限、折叠状态和横纵跨度。宿主按稳定子项提供初始尺寸，通过 `GridMeasureRequest` 接收每次测量约束，并把实际插槽绑定到 `placements`。
+
+固定、Auto 和星号定义按 WinUI 的分组测量顺序分配。无界测量中星号按 Auto 贡献尺寸，最终排列仍按权重分配空间。交叉依赖时先无界测量星号行中的 Auto 列子项，列与行分配后再限高测量。跨度包含内部间距，单轴缺少定义时使用隐式星号轨，双轴都省略时叠放子项。浅色 100% 和 125% 已检查色块、间距、索引更新、裁切、Auto 和星号分配、双向跨度、RTL 及重排后保留输入。回归测试覆盖分组顺序、无界约束、跨度冲突和边界。Slint 子树的实际测量需由宿主接线，轨道坐标按项目约定取偶数。原生截图逐像素对照和 Windows UI Automation 边界仍待验收。[WinUI Grid 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/Grid.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Grid/GridPage.xaml)
 
 ### Navigation
 | 控件 | 现状 | 备注 |
