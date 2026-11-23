@@ -2,6 +2,7 @@ import { Button, CheckBox, ComboBox } from "std-widgets.slint";
 import { ScrollView, ScrollViewer, ScrollMode, ScrollBarVisibility, ScrollViewMotion }
     from "../../apps/lumatune/ui/components/scrolling/scroll_view.slint";
 import { ScrollSnapAlignment } from "../../apps/lumatune/ui/components/scrolling/scroll_snap.slint";
+import { ScrollAnchorCandidate } from "../../apps/lumatune/ui/components/scrolling/scroll_anchor.slint";
 
 export struct ScrollPhoto { name: string, image: image, height: length }
 export struct ScrollPhotoStrip { photos: [ScrollPhoto], height: length }
@@ -22,10 +23,20 @@ export component ScrollViewExample inherits Window {
     private property <bool> photo: sample.current-index == 0;
     private property <bool> nested: sample.current-index == 3;
     private property <bool> snap-sample: sample.current-index == 4;
+    private property <bool> anchor-sample: sample.current-index == 5;
+    private property <length> anchor-prefix: prepend.checked ? 64px : 0px;
+    private property <[ScrollAnchorCandidate]> anchor-rows: [
+        root.anchor-row(0), root.anchor-row(1), root.anchor-row(2),
+        root.anchor-row(3), root.anchor-row(4), root.anchor-row(5),
+    ];
     private property <[length]> snap-marks: [0px, 96px, 236px, 430px, 520px, 600px, 680px, 760px, 900px];
     private property <ScrollPhotoStrip> active-strip: sample.current-index == 2 ? root.velocity-strip : root.animation-strip;
     private property <int> completions;
     private property <length> nested-offset;
+
+    pure function anchor-row(index: int) -> ScrollAnchorCandidate {
+        return { id: "Row " + (index + 1), y: root.anchor-prefix + index * 96px, width: 400px, height: 96px };
+    }
 
     VerticalLayout {
         padding: 24px;
@@ -39,7 +50,7 @@ export component ScrollViewExample inherits Window {
                 Text { text: "ScrollView"; font-size: 28px; }
                 sample := ComboBox {
                     accessible-label: "Sample";
-                    model: ["Content image", "Animated scrolling", "Constant velocity", "Nested scrolling", "Snap points"];
+                    model: ["Content image", "Animated scrolling", "Constant velocity", "Nested scrolling", "Snap points", "Scroll anchoring"];
                     current-index: 0;
                     selected(_) => {
                         root.nested-offset = 0px;
@@ -48,7 +59,7 @@ export component ScrollViewExample inherits Window {
                 }
                 modern := ScrollView {
                     width: 400px;
-                    height: root.photo ? 266px : 300px;
+                    height: root.photo ? 266px : root.anchor-sample && short-view.checked ? 240px : 300px;
                     label: "Gallery ScrollView";
                     is-tab-stop: true;
                     rtl: mirror.checked;
@@ -60,7 +71,11 @@ export component ScrollViewExample inherits Window {
                     center-content: root.photo;
                     extent-width: root.photo ? max(640px, root.cliff.width * 1px) : root.snap-sample ? 940px : 400px;
                     extent-height: root.photo ? max(480px, root.cliff.height * 1px)
-                        : root.nested ? 900px : root.snap-sample ? 1100px : root.active-strip.height;
+                        : root.nested ? 900px : root.snap-sample ? 1100px
+                        : root.anchor-sample ? root.anchor-prefix + 576px + (append.checked ? 64px : 0px) : root.active-strip.height;
+                    vertical-anchor-ratio: !root.anchor-sample || anchor-alignment.current-index == 3 ? -1
+                        : anchor-alignment.current-index == 0 ? 0 : anchor-alignment.current-index == 1 ? 0.5 : 1;
+                    anchor-candidates: root.anchor-sample ? root.anchor-rows : [];
                     horizontal-scroll-mode: axes.current-index == 1 ? ScrollMode.disabled : ScrollMode.auto;
                     vertical-scroll-mode: axes.current-index == 2 ? ScrollMode.disabled : ScrollMode.auto;
                     vertical-scroll-bar-visibility: hidden.checked ? ScrollBarVisibility.hidden : ScrollBarVisibility.auto;
@@ -89,7 +104,7 @@ export component ScrollViewExample inherits Window {
                         image-fit: cover;
                         accessible-label: "cliff";
                     }
-                    if !root.photo && !root.nested && !root.snap-sample: VerticalLayout {
+                    if !root.photo && !root.nested && !root.snap-sample && !root.anchor-sample: VerticalLayout {
                         x: 0px;
                         y: 0px;
                         width: 400px * modern.layout-scale;
@@ -128,6 +143,24 @@ export component ScrollViewExample inherits Window {
                             background: #4074a5;
                         }
                     }
+                    if root.anchor-sample: Rectangle {
+                        width: modern.extent-width * modern.layout-scale;
+                        height: modern.extent-height * modern.layout-scale;
+                        background: #d9e9f9;
+                        for row[index] in root.anchor-rows: Rectangle {
+                            x: 0px; y: row.y * modern.layout-scale;
+                            width: parent.width;
+                            height: (row.height - 2px) * modern.layout-scale;
+                            background: mod(index, 2) == 0 ? #eaf1f8 : #f9fafb;
+                            Text {
+                                x: 12px * modern.layout-scale;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.id;
+                                font-size: 14px * modern.layout-scale;
+                            }
+                        }
+                    }
                     if root.nested: Rectangle {
                         x: 0px;
                         y: 0px;
@@ -158,6 +191,10 @@ export component ScrollViewExample inherits Window {
                 Text { text: "Offset " + round(modern.horizontal-offset / 1px) + ", "
                     + round(modern.vertical-offset / 1px) + "   Zoom " + round(modern.zoom-factor * 100) + "%"
                     + (root.nested ? "   Inner " + round(root.nested-offset / 1px) : "   Completed " + root.completions); }
+                Text {
+                    visible: root.anchor-sample;
+                    text: "Anchor: " + (modern.current-anchor == "" ? "None" : modern.current-anchor);
+                }
             }
 
             VerticalLayout {
@@ -199,15 +236,39 @@ export component ScrollViewExample inherits Window {
                     + round(legacy.vertical-offset / 1px) + "   Zoom " + round(legacy.zoom-factor * 100) + "%"; }
             }
         }
-        HorizontalLayout {
-            alignment: start;
-            spacing: 16px;
-            zooming := CheckBox { text: "Zoom enabled"; checked: true; }
-            persist := CheckBox { text: "Always show bars"; }
-            hidden := CheckBox { text: "Hide bars"; }
-            mirror := CheckBox { text: "Right to left"; }
-            snap := CheckBox { text: "Snap to 100px"; }
-            chaining := CheckBox { text: "Chain wheel"; checked: true; visible: root.nested; }
+        Rectangle {
+            height: 32px;
+            HorizontalLayout {
+                visible: root.anchor-sample;
+                width: parent.width; height: parent.height;
+                alignment: start;
+                spacing: 8px;
+                anchor-alignment := ComboBox {
+                    width: 124px;
+                    accessible-label: "Anchor alignment";
+                    model: ["Near", "Center", "Far", "Off"];
+                    current-index: 0;
+                }
+                prepend := CheckBox { text: "Insert before rows"; }
+                append := CheckBox { text: "Append after rows"; }
+                short-view := CheckBox { text: "Shorter viewport"; }
+                Button {
+                    text: "Scroll to end";
+                    clicked => { modern.scroll-to(0px, modern.scrollable-height); }
+                }
+            }
+            HorizontalLayout {
+                visible: !root.anchor-sample;
+                width: parent.width; height: parent.height;
+                alignment: start;
+                spacing: 16px;
+                zooming := CheckBox { text: "Zoom enabled"; checked: true; }
+                persist := CheckBox { text: "Always show bars"; }
+                hidden := CheckBox { text: "Hide bars"; }
+                mirror := CheckBox { text: "Right to left"; }
+                snap := CheckBox { text: "Snap to 100px"; }
+                chaining := CheckBox { text: "Chain wheel"; checked: true; visible: root.nested; }
+            }
         }
         HorizontalLayout {
             alignment: start;

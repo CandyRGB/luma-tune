@@ -1,5 +1,6 @@
 import { ButtonFocusVisual } from "../basic-input/button_input.slint";
 import { ScrollBar } from "scroll_bar.slint";
+import { ScrollAnchorBehavior, ScrollAnchorCandidate, ScrollAnchorLayout } from "scroll_anchor.slint";
 import { ScrollSnapBehavior, ScrollSnapIntent, ScrollSnapPoints } from "scroll_snap.slint";
 
 export enum ScrollMode { auto, enabled, disabled }
@@ -23,6 +24,9 @@ export component ScrollView inherits Rectangle {
     in property <float> max-zoom-factor: 10;
     in property <length> extent-width;
     in property <length> extent-height;
+    in property <float> horizontal-anchor-ratio: -1;
+    in property <float> vertical-anchor-ratio: -1;
+    in property <[ScrollAnchorCandidate]> anchor-candidates;
     in property <length> horizontal-snap-interval;
     in property <length> vertical-snap-interval;
     in property <ScrollSnapPoints> horizontal-snap-points;
@@ -39,6 +43,7 @@ export component ScrollView inherits Rectangle {
     out property <length> horizontal-offset: 0px - viewport.content-x;
     out property <length> vertical-offset: 0px - viewport.content-y;
     out property <float> zoom-factor: 1;
+    out property <string> current-anchor;
     out property <ScrollViewMotion> motion: ScrollViewMotion.idle;
     out property <ScrollViewPosition> position: {
         horizontal: root.horizontal-offset, vertical: root.vertical-offset, zoom: root.zoom-factor
@@ -48,11 +53,19 @@ export component ScrollView inherits Rectangle {
     callback view-completed(ScrollViewPosition);
     callback scroll-animation-starting(ScrollViewPosition, ScrollViewPosition, duration) -> duration;
     callback scroll-chained(length, length) -> EventResult;
+    callback anchor-requested([ScrollAnchorCandidate]) -> string;
 
     private property <length> content-left: root.center-content
         ? max(0px, (root.viewport-width - max(0px, root.extent-width) * root.zoom-factor) / 2) : 0px;
     private property <length> content-top: root.center-content
         ? max(0px, (root.viewport-height - max(0px, root.extent-height) * root.zoom-factor) / 2) : 0px;
+    private property <ScrollAnchorLayout> anchor-layout: {
+        viewport-width: root.viewport-width, viewport-height: root.viewport-height,
+        extent-width: root.extent-width, extent-height: root.extent-height,
+        candidates: root.anchor-candidates,
+    };
+    private property <ScrollAnchorLayout> previous-anchor-layout;
+    private property <ScrollViewPosition> anchor-position;
     private property <bool> show-horizontal: root.horizontal-scroll-bar-visibility == ScrollBarVisibility.visible
         || (root.horizontal-scroll-bar-visibility == ScrollBarVisibility.auto && root.scrollable-width > 0px);
     private property <bool> show-vertical: root.vertical-scroll-bar-visibility == ScrollBarVisibility.visible
@@ -76,9 +89,17 @@ export component ScrollView inherits Rectangle {
     forward-focus: keys;
     scroll-chained(_, _) => { return reject; }
 
-    init => { hide-indicators.start(); }
+    init => {
+        root.previous-anchor-layout = root.anchor-layout;
+        root.anchor-position = root.position;
+        hide-indicators.start();
+    }
+    changed anchor-layout => { root.adjust-layout-anchor(); }
+    changed horizontal-anchor-ratio => { root.current-anchor = ""; }
+    changed vertical-anchor-ratio => { root.current-anchor = ""; }
     changed position => {
         root.last-position = root.position;
+        if root.anchor-size-current() { root.anchor-position = root.position; }
         if root.tracking-flick { root.queue-settle(); }
         root.reveal-indicators();
         root.view-changed(root.position, root.motion != ScrollViewMotion.idle);
@@ -86,6 +107,41 @@ export component ScrollView inherits Rectangle {
     changed enabled => { if !root.enabled { root.stop-motion(); } }
     changed min-zoom-factor => { root.normalize-zoom(); }
     changed max-zoom-factor => { root.normalize-zoom(); }
+
+    pure function anchor-size-current() -> bool {
+        return root.previous-anchor-layout.viewport-width == root.viewport-width
+            && root.previous-anchor-layout.viewport-height == root.viewport-height
+            && root.previous-anchor-layout.extent-width == root.extent-width
+            && root.previous-anchor-layout.extent-height == root.extent-height;
+    }
+
+    function adjust-layout-anchor() {
+        let previous = root.previous-anchor-layout;
+        root.previous-anchor-layout = root.anchor-layout;
+        if !ScrollAnchorBehavior.ready || (root.horizontal-anchor-ratio < 0 && root.vertical-anchor-ratio < 0)
+            || root.motion == ScrollViewMotion.animation || previous.viewport-width <= 0px || previous.viewport-height <= 0px {
+            root.current-anchor = "";
+            root.anchor-position = root.position;
+            return;
+        }
+        // Flickable may already have clamped the offset to the new content bounds.
+        let x = root.horizontal-offset == root.scrollable-width
+            ? max(root.horizontal-offset, root.anchor-position.horizontal) : root.horizontal-offset;
+        let y = root.vertical-offset == root.scrollable-height
+            ? max(root.vertical-offset, root.anchor-position.vertical) : root.vertical-offset;
+        let preferred = root.anchor-requested(previous.candidates);
+        let result = ScrollAnchorBehavior.resolve(previous, root.anchor-layout, {
+            x: x, y: y, zoom: root.zoom-factor,
+            horizontal-ratio: root.horizontal-anchor-ratio, vertical-ratio: root.vertical-anchor-ratio,
+            horizontal-enabled: root.horizontal-scroll-mode != ScrollMode.disabled,
+            vertical-enabled: root.vertical-scroll-mode != ScrollMode.disabled,
+            center-content: root.center-content, preferred-id: preferred,
+        });
+        root.current-anchor = result.id;
+        if result.x != root.horizontal-offset { viewport.content-x = -result.x; }
+        if result.y != root.vertical-offset { viewport.content-y = -result.y; }
+        root.anchor-position = root.position;
+    }
 
     public function scroll-to(x: length, y: length) {
         root.scroll-to-with-options(x, y, 0ms, false);
@@ -240,6 +296,7 @@ export component ScrollView inherits Rectangle {
     function place(horizontal: length, vertical: length) {
         viewport.content-x = -clamp(horizontal, 0px, root.scrollable-width);
         viewport.content-y = -clamp(vertical, 0px, root.scrollable-height);
+        root.anchor-position = root.position;
     }
 
     function stop-motion() {
