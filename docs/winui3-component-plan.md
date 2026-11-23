@@ -253,7 +253,8 @@ Windows 浅色已实测定位、尾箭头、主图和正文滚动、操作按钮
 ### Layout
 | 控件 | 现状 | 备注 |
 | --- | --- | --- |
-| Grid / StackPanel | ✅ | `GridBox/HorizontalBox/VerticalBox` |
+| Grid | ✅ | `GridBox` |
+| StackPanel | 🚧 | 横纵堆叠、折叠间距、边框内边距、RTL 与原生吸附点规则 |
 | Border | 🚧 | 逐边厚度、逐角圆角、内容内边距与两种背景边界 |
 | Canvas | 🚧 | 绝对布局、原始子项尺寸、动态层级、RTL 及显式裁切 |
 | RelativePanel | 🚧 | 面板与兄弟锚点、约束优先级、双边拉伸、自动首选尺寸和无效引用检测 |
@@ -302,6 +303,12 @@ Windows 浅色 FemtoVG 100% 和 125% 已检查缩放后的颜色、原始图片�
 运行 `cargo run -p lumatune --example border_canvas` 查看 Gallery 的金色边框、白底文字和 140 × 140 画布上的四个色块。Border 将各边厚度和内边距加入首选尺寸，按内边界或外边界绘制背景。非对称圆角由相邻两边的厚度分别调整，相遇时按比例收拢。方角边框使用矩形。Canvas 的首选尺寸为零，子项保持自身尺寸并按 `left` 和 `top` 放置。直接在子项实例上绑定 Slint 的 `z`，同层级的后声明项优先绘制和命中。画布默认允许溢出，宿主可以开启 `clip`。
 
 浅色 FemtoVG 和软件渲染器均在 100% 和 125% 下实测边框颜色、零厚度、内外背景、狭窄圆角、内容位置、画布重叠层级、键鼠命中、RTL 以及溢出裁切。Gallery 文字的纵向边距按偶数约定由 5 取为 6 像素。原生逐像素截图对照、Border 的圆角命中和 Windows UI Automation 仍待验收。[WinUI Border 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/Border.cpp) · [WinUI Canvas 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/canvas.cpp) · [Gallery Border](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Border/BorderPage.xaml) · [Gallery Canvas](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/Canvas/CanvasPage.xaml)
+
+#### StackPanel
+
+运行 `cargo run -p lumatune --example stack_panel` 查看 Gallery 的四个 40 × 40 色块、横纵布局、折叠、边框和间距。宿主注册 `StackPanelBehavior`，按源索引提供子项测量结果，并把插槽子项绑定到对应位置。折叠项没有长度或间距。主轴按子项测量尺寸排列，交叉轴以可用尺寸和遇到的最大子项尺寸扩展。边框和内边距复用 Border。
+
+组件提供堆叠轴的规则与非规则吸附点、近端、居中和远端对齐以及变化通知。非规则点按原始子项顺序累计，保留折叠项的零尺寸位置，最多 254 个。计算沿用 WinUI 源码，吸附坐标不计布局间距。规则点使用第一项尺寸作为步长。示例用上一点和下一点将这些坐标交给 ScrollView。浅色 100% 和 125% 已实测色块、RTL、重排、间距和折叠、吸附偏移与通知以及键盘和输入保留。原生截图逐像素对照、宿主自动测量，以及滚动手势中的原生吸附提供者接线仍待验收。[WinUI StackPanel 源码](https://github.com/microsoft/microsoft-ui-xaml/blob/905a4f6cb8e810d086a1382101cf19c4ce1f61a9/dxaml/xcp/core/core/elements/StackPanel.cpp) · [Gallery 示例](https://github.com/microsoft/WinUI-Gallery/blob/6de91feccadfbb0a796b71caedead5a2284f730e/WinUIGallery/Samples/StackPanel/StackPanelPage.xaml)
 
 ### Navigation
 | 控件 | 现状 | 备注 |
