@@ -36,6 +36,21 @@ struct CoverChoice {
     changed: bool,
 }
 
+export global SystemIcons {
+    in property <image> edit;
+    in property <image> add;
+    in property <image> more;
+    in property <image> settings;
+    in property <image> refresh;
+    in property <image> favorite;
+    in property <image> favorite-fill;
+    in property <image> check;
+    in property <image> monitor;
+    in property <image> apps;
+    in property <image> library;
+    in property <image> info;
+}
+
 global Design {
     out property <color> text: Palette.color-scheme == ColorScheme.dark ? Palette.foreground : #17243a;
     out property <color> subtle: Palette.color-scheme == ColorScheme.dark ? Palette.foreground.with-alpha(0.74) : #4c5b70;
@@ -127,7 +142,7 @@ component PrimaryAction inherits Button {
     height: 34px;
 
     Image {
-        source: @image-url("icons/add_16_regular.svg");
+        source: SystemIcons.add;
         colorize: root.foreground;
         width: 16px;
         height: 16px;
@@ -175,7 +190,7 @@ component PresetCard inherits Surface {
                 border-radius: 6px;
                 background: #ffffffec;
                 Image {
-                    source: @image-url("icons/edit_16_regular.svg");
+                    source: SystemIcons.edit;
                     colorize: Design.text;
                     width: 16px;
                     height: 16px;
@@ -215,7 +230,7 @@ component PresetCard inherits Surface {
                 }
                 IconAction {
                     accessible-name: root.preset.favorite ? "取消收藏 " + root.preset.name : "收藏 " + root.preset.name;
-                    glyph: root.preset.favorite ? @image-url("icons/star_checkmark_16_regular.svg") : @image-url("icons/star_16_regular.svg");
+                    glyph: root.preset.favorite ? SystemIcons.favorite-fill : SystemIcons.favorite;
                     ink: root.preset.favorite ? #926013 : Design.subtle;
                     clicked => { root.toggle-favorite(); }
                 }
@@ -268,7 +283,7 @@ component BindingRow inherits Rectangle {
         VerticalLayout {
             width: 40px;
             alignment: center;
-            Mark { glyph: @image-url("icons/apps_16_regular.svg"); }
+            Mark { glyph: SystemIcons.apps; }
         }
         VerticalLayout {
             alignment: center;
@@ -293,7 +308,7 @@ component BindingRow inherits Rectangle {
         VerticalLayout {
             alignment: center;
             IconAction {
-                glyph: @image-url("icons/more_horizontal_16_regular.svg");
+                glyph: SystemIcons.more;
                 accessible-name: "管理 " + root.rule.executable + " 的绑定";
                 clicked => { root.edit(); }
             }
@@ -313,12 +328,13 @@ component SettingRow inherits Rectangle {
         padding-right: 16px;
         spacing: 12px;
         VerticalLayout {
-            width: 40px;
+            width: 20px;
             alignment: center;
-            Mark {
-                glyph: root.glyph;
-                base: #f3f6fb;
-                ink: #405a79;
+            Image {
+                width: 20px;
+                height: 20px;
+                source: root.glyph;
+                colorize: Design.text;
             }
         }
         VerticalLayout {
@@ -473,11 +489,11 @@ export component AppWindow inherits Window {
         selected-id: root.page-id;
         is-back-enabled: root.editing;
         menu-items: [
-            { id: "library", label: "预设库", icon: @image-url("icons/library_16_regular.svg") },
-            { id: "favorites", label: "我的收藏", icon: @image-url("icons/star_16_regular.svg") },
-            { id: "bindings", label: "应用绑定", icon: @image-url("icons/apps_16_regular.svg") },
+            { id: "library", label: "预设库", icon: SystemIcons.library },
+            { id: "favorites", label: "我的收藏", icon: SystemIcons.favorite },
+            { id: "bindings", label: "应用绑定", icon: SystemIcons.apps },
         ];
-        settings: { id: "settings", label: "设置", icon: @image-url("icons/settings_16_regular.svg") };
+        settings: { id: "settings", label: "设置", icon: SystemIcons.settings };
         back-requested => { root.finish-edit(); }
         item-invoked(id) => {
             if (id != root.page-id) {
@@ -581,7 +597,7 @@ export component AppWindow inherits Window {
                                 VerticalLayout {
                                     width: 40px;
                                     alignment: center;
-                                    Mark { glyph: @image-url("icons/checkmark_16_regular.svg"); }
+                                    Mark { glyph: SystemIcons.check; }
                                 }
                                 VerticalLayout {
                                     spacing: 4px;
@@ -796,7 +812,7 @@ export component AppWindow inherits Window {
                         Surface {
                             height: 70px;
                             SettingRow {
-                                glyph: @image-url("icons/settings_16_regular.svg");
+                                glyph: SystemIcons.settings;
                                 label: "应用主题";
                                 detail: "选择界面配色";
                                 ComboBox {
@@ -816,7 +832,7 @@ export component AppWindow inherits Window {
                             VerticalLayout {
                                 spacing: 0;
                                 SettingRow {
-                                    glyph: @image-url("icons/image_16_regular.svg");
+                                    glyph: SystemIcons.monitor;
                                     label: "当前显示器";
                                     detail: root.display-text;
                                     Pill {
@@ -827,7 +843,7 @@ export component AppWindow inherits Window {
                                 }
                                 Hairline {}
                                 SettingRow {
-                                    glyph: @image-url("icons/arrow_clockwise_16_regular.svg");
+                                    glyph: SystemIcons.refresh;
                                     label: "退出时恢复显示";
                                     detail: "关闭 LumaTune 时恢复启动前的显示参数";
                                     Caption { text: "已启用"; }
@@ -838,7 +854,7 @@ export component AppWindow inherits Window {
                         Surface {
                             height: 70px;
                             SettingRow {
-                                glyph: @image-url("icons/info_16_filled.svg");
+                                glyph: SystemIcons.info;
                                 label: "LumaTune";
                                 detail: "版本 0.1.0";
                             }

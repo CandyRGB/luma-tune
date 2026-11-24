@@ -143,7 +143,7 @@ function apply-theme() {
 
 调校参数分为光照和色彩，常用参数默认展开。编辑页通过滚动容纳更多参数，参数变更以 30ms 周期写入。对比按钮在预览参数及启动时记录的显示状态之间切换。
 
-应用图标使用 Fluent UI System Icons 的 SVG。界面通过 `@image-url("icons/…")` 引用实际使用的文件，该目录附有 [图标的 MIT 许可](../apps/lumatune/ui/icons/LICENSE)。
+应用自身的界面图标由 Windows 系统字体提供。应用优先使用 Segoe Fluent Icons，通过相同码位兼容 Segoe MDL2 Assets。设置页使用单色图标，「当前显示器」使用显示器字形。[Microsoft 的 Windows 图标指南](https://learn.microsoft.com/windows/apps/develop/ui/controls/icons)
 
 ## 验收标准
 
