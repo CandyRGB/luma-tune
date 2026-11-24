@@ -235,6 +235,8 @@ fn main() -> Result<(), slint::PlatformError> {
             ui.set_display_mode(mode.into());
             if d.hdr() {
                 notes.push("该显示器已开启 HDR，滤镜可能无法生效");
+            } else if session.is_none() {
+                notes.push("当前显示器无法使用调校功能");
             } else if d.looks_virtual() {
                 notes.push("检测到虚拟显示适配器，调校效果可能不同");
             }
@@ -242,9 +244,18 @@ fn main() -> Result<(), slint::PlatformError> {
         None => {
             ui.set_display_text("未找到可用显示器".into());
             ui.set_display_mode("不可用".into());
+            notes.push("未找到可用显示器");
         }
     }
-    ui.set_status(notes.join("；").into());
+    if !notes.is_empty() {
+        let severity = if session.is_none() || target.is_some_and(|d| d.hdr() || d.looks_virtual())
+        {
+            InfoSeverity::Warning
+        } else {
+            InfoSeverity::Informational
+        };
+        ui.invoke_notify(severity, "显示器状态".into(), notes.join("；").into());
+    }
 
     let runtime = Rc::new(RefCell::new(Runtime {
         presets: presets::list(),
@@ -266,7 +277,11 @@ fn main() -> Result<(), slint::PlatformError> {
         prefs.theme = ThemeMode::from_index(index);
         ui.set_theme_mode(prefs.theme.index());
         if let Err(error) = settings::save(&prefs) {
-            ui.set_status(format!("主题保存失败：{error}").into());
+            ui.invoke_notify(
+                InfoSeverity::Error,
+                "主题保存失败".into(),
+                error.to_string().into(),
+            );
         }
     });
 
@@ -296,9 +311,24 @@ fn main() -> Result<(), slint::PlatformError> {
         };
         let mut rt = runtime.borrow_mut();
         if !rt.foreground.eq_ignore_ascii_case(&fg.exe) {
+            let previous = rt.active;
             rt.foreground = fg.exe;
             rt.refresh_active();
             fill_bindings(&ui, &rt);
+            if rt.active != previous {
+                if let Some(index) = rt.active {
+                    ui.invoke_notify_foreground(
+                        "应用预设已生效".into(),
+                        format!(
+                            "{} 正在使用「{}」。",
+                            rt.foreground, rt.presets[index].preset.name
+                        )
+                        .into(),
+                    );
+                } else {
+                    ui.invoke_notify_foreground("已恢复桌面调校".into(), "".into());
+                }
+            }
         }
     });
 
@@ -401,7 +431,11 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         rt.dirty = true;
         fill_desktop(&ui, &rt);
         if let Some(index) = rt.desktop {
-            ui.set_status(format!("已应用「{}」", rt.presets[index].preset.name).into());
+            ui.invoke_notify(
+                InfoSeverity::Success,
+                "已应用预设".into(),
+                rt.presets[index].preset.name.as_str().into(),
+            );
         }
     });
 
@@ -415,11 +449,19 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         match rt.save_draft(name.as_str(), &cover) {
             Ok(()) => {
                 fill_library(&ui, &rt);
-                ui.set_status(format!("已保存「{}」", name.trim()).into());
+                ui.invoke_notify(
+                    InfoSeverity::Success,
+                    "已保存预设".into(),
+                    name.trim().into(),
+                );
                 true
             }
             Err(error) => {
-                ui.set_status(format!("保存失败：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "保存失败".into(),
+                    error.to_string().into(),
+                );
                 false
             }
         }
@@ -434,11 +476,15 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         match rt.delete_draft() {
             Ok(()) => {
                 fill_library(&ui, &rt);
-                ui.set_status("已删除预设".into());
+                ui.invoke_notify(InfoSeverity::Success, "已删除预设".into(), "".into());
                 true
             }
             Err(error) => {
-                ui.set_status(format!("删除失败：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "删除失败".into(),
+                    error.to_string().into(),
+                );
                 false
             }
         }
@@ -458,7 +504,11 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         updated.favorite = !updated.favorite;
         match entry.save(updated) {
             Ok(()) => fill_cards(&ui, &rt),
-            Err(error) => ui.set_status(format!("收藏保存失败：{error}").into()),
+            Err(error) => ui.invoke_notify(
+                InfoSeverity::Error,
+                "收藏保存失败".into(),
+                error.to_string().into(),
+            ),
         }
     });
     let weak = ui.as_weak();
@@ -466,7 +516,6 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         let Some(ui) = weak.upgrade() else {
             return CoverChoice::default();
         };
-        ui.set_status("".into());
         match file_picker::cover() {
             Ok(Some(path)) => match Image::load_from_path(&path) {
                 Ok(artwork) => CoverChoice {
@@ -475,13 +524,21 @@ fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
                     changed: true,
                 },
                 Err(error) => {
-                    ui.set_status(format!("无法打开图片：{error}").into());
+                    ui.invoke_notify(
+                        InfoSeverity::Error,
+                        "无法打开图片".into(),
+                        error.to_string().into(),
+                    );
                     CoverChoice::default()
                 }
             },
             Ok(None) => CoverChoice::default(),
             Err(error) => {
-                ui.set_status(format!("无法选择图片：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "无法选择图片".into(),
+                    error.to_string().into(),
+                );
                 CoverChoice::default()
             }
         }
@@ -495,15 +552,17 @@ fn install_bindings(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
             return SharedString::default();
         };
         match file_picker::executable() {
-            Ok(Some(path)) => {
-                ui.set_status("".into());
-                path.file_name()
-                    .map(|name| name.to_string_lossy().as_ref().into())
-                    .unwrap_or_default()
-            }
+            Ok(Some(path)) => path
+                .file_name()
+                .map(|name| name.to_string_lossy().as_ref().into())
+                .unwrap_or_default(),
             Ok(None) => SharedString::default(),
             Err(error) => {
-                ui.set_status(format!("无法选择程序：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "无法选择程序".into(),
+                    error.to_string().into(),
+                );
                 SharedString::default()
             }
         }
@@ -518,11 +577,15 @@ fn install_bindings(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         match rt.add_binding(exe.as_str(), index) {
             Ok(()) => {
                 fill_bindings(&ui, &rt);
-                ui.set_status("已保存应用绑定".into());
+                ui.invoke_notify(InfoSeverity::Success, "已保存应用绑定".into(), "".into());
                 true
             }
             Err(error) => {
-                ui.set_status(format!("绑定失败：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "绑定失败".into(),
+                    error.to_string().into(),
+                );
                 false
             }
         }
@@ -537,11 +600,15 @@ fn install_bindings(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
         match rt.remove_binding(exe.as_str(), index) {
             Ok(()) => {
                 fill_bindings(&ui, &rt);
-                ui.set_status("已解除应用绑定".into());
+                ui.invoke_notify(InfoSeverity::Success, "已解除应用绑定".into(), "".into());
                 true
             }
             Err(error) => {
-                ui.set_status(format!("解除失败：{error}").into());
+                ui.invoke_notify(
+                    InfoSeverity::Error,
+                    "解除失败".into(),
+                    error.to_string().into(),
+                );
                 false
             }
         }
@@ -620,17 +687,6 @@ fn fill_bindings(ui: &AppWindow, rt: &Runtime) {
             })
             .collect(),
     ));
-    ui.set_active_binding(
-        rt.active
-            .map(|index| {
-                format!(
-                    "{} 正在使用「{}」。",
-                    rt.foreground, rt.presets[index].preset.name
-                )
-                .into()
-            })
-            .unwrap_or_default(),
-    );
 }
 
 fn push_params(ui: &AppWindow, params: &FilterParams) {

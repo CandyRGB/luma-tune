@@ -2,7 +2,7 @@ import { Palette, ScrollView, Slider } from "std-widgets.slint";
 import {
     BreadcrumbBar, BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb,
     Button, ButtonFocusVisual, ButtonInput, ButtonStyle, ComboBox, ComboBoxBehavior, ComboBoxItem,
-    ContentDialog, ContentDialogButton, ContentDialogDecision, InfoBar,
+    ContentDialog, ContentDialogButton, ContentDialogDecision, ContrastTheme, InfoBar, InfoSeverity,
     NavigationView, NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind,
     NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewRow,
     NavigationViewTopContentWidths, NavigationViewTopLayout, TextBox,
@@ -13,7 +13,7 @@ export {
     BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb,
     ComboBoxBehavior, ComboBoxItem, NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind,
     NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewRow,
-    NavigationViewTopContentWidths, NavigationViewTopLayout, PresetCardData, BindingDisplay, CoverChoice,
+    NavigationViewTopContentWidths, NavigationViewTopLayout, PresetCardData, BindingDisplay, CoverChoice, InfoSeverity,
 }
 
 struct PresetCardData {
@@ -388,8 +388,6 @@ export component AppWindow inherits Window {
     in property <string> display-text;
     in property <string> display-mode;
     in property <string> desktop-preset: "未应用预设";
-    in property <string> active-binding;
-    in-out property <string> status;
     in-out property <int> theme-mode;
     in property <bool> built-in-draft;
     in property <bool> existing-draft;
@@ -429,6 +427,16 @@ export component AppWindow inherits Window {
     pure callback filter-presets([PresetCardData], string, bool) -> [PresetCardData];
 
     private property <string> query;
+    private property <bool> notice-open;
+    private property <InfoSeverity> notice-severity: InfoSeverity.informational;
+    private property <string> notice-title;
+    private property <string> notice-message;
+    private property <bool> modal-open: cover-dialog.open || binding-dialog.open
+        || unbind-dialog.open || delete-dialog.open;
+    // ContentDialog's modal popup takes input above the main window. Leave the
+    // notification outside its bounds so the form remains usable.
+    private property <length> dialog-inset: root.modal-open && root.notice-open
+        ? banner.y + banner.height + 12px : 0px;
     private property <string> page-id: "library";
     private property <bool> editing;
     private property <bool> advanced-light;
@@ -448,8 +456,34 @@ export component AppWindow inherits Window {
             : root.theme-mode == 2 ? ColorScheme.dark : ColorScheme.unknown;
     }
 
+    public function notify(severity: InfoSeverity, title: string, message: string) {
+        root.notice-severity = severity;
+        root.notice-title = title;
+        root.notice-message = message;
+        root.notice-open = true;
+        notice-timer.start();
+        notice-timer.restart();
+    }
+
+    public function notify-foreground(title: string, message: string) {
+        if (!root.modal-open && !root.notice-open) {
+            root.notify(InfoSeverity.informational, title, message);
+        }
+    }
+
+    function dismiss-notice() {
+        root.notice-open = false;
+        notice-timer.stop();
+    }
+
+    notice-timer := Timer {
+        running: false;
+        interval: root.notice-severity == InfoSeverity.warning || root.notice-severity == InfoSeverity.error
+            ? 8000ms : 4500ms;
+        triggered => { root.dismiss-notice(); }
+    }
+
     function begin-edit(index: int) {
-        root.status = "";
         root.open-preset(index);
         root.advanced-light = false;
         root.advanced-color = false;
@@ -483,7 +517,6 @@ export component AppWindow inherits Window {
         item-invoked(id) => {
             if (id != root.page-id) {
                 if root.editing { root.finish-edit(); }
-                root.status = "";
                 root.page-id = id;
                 scroller.content-y = 0px;
             }
@@ -520,7 +553,6 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.pending-executable = "";
                         root.pending-preset = -1;
-                        root.status = "";
                         binding-dialog.open = true;
                     }
                 }
@@ -564,12 +596,6 @@ export component AppWindow inherits Window {
                     padding: 24px;
                     spacing: 16px;
                     alignment: start;
-
-                    if root.status != "" && !binding-dialog.open && !cover-dialog.open: InfoBar {
-                        title: root.status;
-                        open: true;
-                        closed => { root.status = ""; }
-                    }
 
                     if !root.editing && root.page-id == "library": VerticalLayout {
                         spacing: 16px;
@@ -646,7 +672,6 @@ export component AppWindow inherits Window {
                                             text: "更换主图";
                                             clicked => {
                                                 root.pending-cover = root.edit-cover;
-                                                root.status = "";
                                                 cover-dialog.open = true;
                                             }
                                         }
@@ -752,12 +777,6 @@ export component AppWindow inherits Window {
 
                     if root.page-id == "bindings": VerticalLayout {
                         spacing: 16px;
-                        InfoBar {
-                            title: "前台应用";
-                            message: root.active-binding == "" ? "当前没有应用触发绑定。" : root.active-binding;
-                            open: true;
-                            is-closable: false;
-                        }
                         if root.bindings.length == 0: Caption { text: "还没有绑定。"; }
                         if root.bindings.length > 0: Surface {
                             VerticalLayout {
@@ -850,110 +869,138 @@ export component AppWindow inherits Window {
         }
     }
 
-    cover-dialog := ContentDialog {
-        title: "更换主图";
-        primary-label: "确定";
-        default-button: ContentDialogButton.primary;
-        accepted => { root.edit-cover = root.pending-cover; }
-        VerticalLayout {
-            preferred-width: 432px;
-            spacing: 12px;
-            CoverArtwork { height: 216px; cover: root.pending-cover.artwork; }
-            if root.status != "": Caption { text: root.status; wrap: word-wrap; }
-            HorizontalLayout {
-                spacing: 8px;
-                alignment: start;
-                Button {
-                    text: "选择图片…";
-                    clicked => {
-                        let selected = root.browse-cover();
-                        if selected.changed { root.pending-cover = selected; }
-                    }
-                }
-                Button {
-                    text: "恢复默认";
-                    enabled: root.pending-cover.artwork.width > 0;
-                    clicked => { root.pending-cover = { changed: true }; }
-                }
-            }
-        }
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.dialog-inset;
+        visible: self.height > 0px;
+        background: ContrastTheme.colors.active ? ContrastTheme.colors.window.with-alpha(0.80) : #0000004d;
     }
 
-    binding-dialog := ContentDialog {
-        title: "添加绑定";
-        primary-label: "保存绑定";
-        default-button: ContentDialogButton.primary;
-        primary-enabled: root.pending-executable != "" && root.pending-preset >= 0;
-        button-clicked(button, request) => {
-            if (button == ContentDialogButton.primary && !root.save-binding(root.pending-executable, root.pending-preset)) {
-                return ContentDialogDecision.cancel;
+    banner := InfoBar {
+        x: round((root.width - self.width) / 4px) * 2px;
+        y: 16px;
+        width: min(464px, root.width - 32px);
+        height: self.preferred-height;
+        open <=> root.notice-open;
+        severity: root.notice-severity;
+        title: root.notice-title;
+        message: root.notice-message;
+        accessible-name: root.notice-title;
+        is-closable: !root.modal-open;
+        close-button-accessible-name: "关闭提示";
+        close-button-tooltip: "关闭提示";
+        closed(reason) => { root.dismiss-notice(); }
+    }
+
+    Rectangle {
+        x: 0px;
+        y: root.dialog-inset;
+        width: root.width;
+        height: max(0px, root.height - self.y);
+
+        cover-dialog := ContentDialog {
+            title: "更换主图";
+            primary-label: "确定";
+            default-button: ContentDialogButton.primary;
+            accepted => { root.edit-cover = root.pending-cover; }
+            VerticalLayout {
+                preferred-width: 432px;
+                spacing: 12px;
+                CoverArtwork { height: 216px; cover: root.pending-cover.artwork; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Button {
+                        text: "选择图片…";
+                        clicked => {
+                            let selected = root.browse-cover();
+                            if selected.changed { root.pending-cover = selected; }
+                        }
+                    }
+                    Button {
+                        text: "恢复默认";
+                        enabled: root.pending-cover.artwork.width > 0;
+                        clicked => { root.pending-cover = { changed: true }; }
+                    }
+                }
             }
-            return ContentDialogDecision.proceed;
         }
-        VerticalLayout {
-            preferred-width: 416px;
-            spacing: 12px;
-            HorizontalLayout {
-                spacing: 8px;
-                TextBox {
+
+        binding-dialog := ContentDialog {
+            title: "添加绑定";
+            primary-label: "保存绑定";
+            default-button: ContentDialogButton.primary;
+            primary-enabled: root.pending-executable != "" && root.pending-preset >= 0;
+            button-clicked(button, request) => {
+                if (button == ContentDialogButton.primary && !root.save-binding(root.pending-executable, root.pending-preset)) {
+                    return ContentDialogDecision.cancel;
+                }
+                return ContentDialogDecision.proceed;
+            }
+            VerticalLayout {
+                preferred-width: 416px;
+                spacing: 12px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    TextBox {
+                        height: 34px;
+                        horizontal-stretch: 1;
+                        accessible-name: "应用程序文件名";
+                        placeholder-text: "例如 Game.exe";
+                        text <=> root.pending-executable;
+                    }
+                    Button {
+                        text: "选择程序…";
+                        clicked => {
+                            let name = root.browse-application();
+                            if (name != "") { root.pending-executable = name; }
+                        }
+                    }
+                }
+                ComboBox {
                     height: 34px;
-                    horizontal-stretch: 1;
-                    accessible-name: "应用程序文件名";
-                    placeholder-text: "例如 Game.exe";
-                    text <=> root.pending-executable;
-                }
-                Button {
-                    text: "选择程序…";
-                    clicked => {
-                        let name = root.browse-application();
-                        if (name != "") { root.pending-executable = name; }
-                    }
+                    accessible-name: "关联预设";
+                    placeholder-text: "选择预设";
+                    selected-index <=> root.pending-preset;
+                    items: root.binding-presets;
+                    popup-viewport: { width: root.width, height: root.height };
                 }
             }
-            ComboBox {
-                height: 34px;
-                accessible-name: "关联预设";
-                placeholder-text: "选择预设";
-                selected-index <=> root.pending-preset;
-                items: root.binding-presets;
-                popup-viewport: { width: root.width, height: root.height };
-            }
-            if root.status != "": Caption { text: root.status; wrap: word-wrap; }
         }
-    }
 
-    unbind-dialog := ContentDialog {
-        title: "解除应用绑定";
-        primary-label: "解除绑定";
-        button-clicked(button, request) => {
-            if (button == ContentDialogButton.primary && !root.remove-binding(root.removing-binding.executable, root.removing-binding.index)) {
-                return ContentDialogDecision.cancel;
+        unbind-dialog := ContentDialog {
+            title: "解除应用绑定";
+            primary-label: "解除绑定";
+            button-clicked(button, request) => {
+                if (button == ContentDialogButton.primary && !root.remove-binding(root.removing-binding.executable, root.removing-binding.index)) {
+                    return ContentDialogDecision.cancel;
+                }
+                return ContentDialogDecision.proceed;
             }
-            return ContentDialogDecision.proceed;
+            VerticalLayout {
+                preferred-width: 368px;
+                spacing: 8px;
+                Body { text: root.removing-binding.executable + " · " + root.removing-binding.preset; wrap: word-wrap; }
+            }
         }
-        VerticalLayout {
-            preferred-width: 368px;
-            spacing: 8px;
-            Body { text: root.removing-binding.executable + " · " + root.removing-binding.preset; wrap: word-wrap; }
-            if root.status != "": Caption { text: root.status; wrap: word-wrap; }
-        }
-    }
 
-    delete-dialog := ContentDialog {
-        title: "删除预设";
-        primary-label: "删除";
-        button-clicked(button, request) => {
-            if (button == ContentDialogButton.primary && !root.delete-preset()) {
-                return ContentDialogDecision.cancel;
+        delete-dialog := ContentDialog {
+            title: "删除预设";
+            primary-label: "删除";
+            button-clicked(button, request) => {
+                if (button == ContentDialogButton.primary && !root.delete-preset()) {
+                    return ContentDialogDecision.cancel;
+                }
+                return ContentDialogDecision.proceed;
             }
-            return ContentDialogDecision.proceed;
-        }
-        accepted => { root.finish-edit(); }
-        VerticalLayout {
-            preferred-width: 368px;
-            spacing: 8px;
-            Body { text: "将删除「" + root.original-name + "」及它的应用绑定。"; wrap: word-wrap; }
-            if root.status != "": Caption { text: root.status; wrap: word-wrap; }
+            accepted => { root.finish-edit(); }
+            VerticalLayout {
+                preferred-width: 368px;
+                spacing: 8px;
+                Body { text: "将删除「" + root.original-name + "」及它的应用绑定。"; wrap: word-wrap; }
+            }
         }
     }
 }
