@@ -4068,9 +4068,9 @@ dependencies = [
 
 [[package]]
 name = "slint-winui"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "268aeb462327c3d8cae52b52a5ca4a70a61ab3778061d96bf5419813323bad55"
+checksum = "572bfab89376ddf0260affe7d2683b46e3b9871b7a7f1d24e2254f3d29e1e27f"
 dependencies = [
  "chrono",
  "windows",
