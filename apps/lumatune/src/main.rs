@@ -1,435 +1,636 @@
 use std::cell::RefCell;
+use std::io;
+use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 
 use lumatune_core::{FilterParams, Preset, Ramp};
-use lumatune_win::settings::{self, Settings, ThemeMode};
-use lumatune_win::{Session, display, foreground, presets, state};
-use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use lumatune_win::presets::StoredPreset;
+use lumatune_win::settings::{self, ThemeMode};
+use lumatune_win::{Session, display, file_picker, foreground, presets, state};
+use slint::{ComponentHandle, Image, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-mod breadcrumb_bar;
 mod contrast_theme;
-mod navigation_view;
 
 slint::include_modules!();
+include!(concat!(env!("OUT_DIR"), "/slint_winui_behaviors.rs"));
+
+struct Draft {
+    index: Option<usize>,
+    params: FilterParams,
+}
 
 struct Runtime {
-    params: FilterParams,
-    settings: Settings,
-    session: Option<Session>,
-    presets: Vec<Preset>,
+    presets: Vec<StoredPreset>,
+    desktop: Option<usize>,
     active: Option<usize>,
-    suppressing: bool,
-    dirty: bool,
+    foreground: String,
+    draft: Option<Draft>,
     comparing: bool,
+    dirty: bool,
+}
+
+impl Runtime {
+    fn current_ramp(&self) -> Option<Ramp> {
+        if let Some(index) = self.active {
+            return Some(self.presets[index].preset.params.to_ramp());
+        }
+        if self.comparing {
+            return None;
+        }
+        let params = match &self.draft {
+            Some(draft) => &draft.params,
+            None => &self.presets.get(self.desktop?)?.preset.params,
+        };
+        (!params.is_neutral()).then(|| params.to_ramp())
+    }
+
+    fn refresh_active(&mut self) {
+        let next = self
+            .presets
+            .iter()
+            .position(|entry| entry.preset.matches_exe(&self.foreground));
+        self.dirty |= self.active != next;
+        self.active = next;
+    }
+
+    fn forget_cover(&self, name: Option<&str>) {
+        let Some(name) = name else { return };
+        if self.presets.iter().any(|entry| {
+            entry
+                .preset
+                .cover
+                .as_deref()
+                .is_some_and(|cover| cover.eq_ignore_ascii_case(name))
+        }) {
+            return;
+        }
+        if let Some(path) = presets::cover_path(name) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    fn save_draft(&mut self, name: &str, cover: &CoverChoice) -> io::Result<()> {
+        let draft = self
+            .draft
+            .as_ref()
+            .ok_or_else(|| invalid("没有正在编辑的预设"))?;
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(invalid("请输入预设名称"));
+        }
+        let previous = draft.index.and_then(|index| self.presets.get(index));
+        let renamed = previous.is_none_or(|entry| entry.preset.name != name);
+        if renamed
+            && self
+                .presets
+                .iter()
+                .any(|entry| entry.preset.name.to_lowercase() == name.to_lowercase())
+        {
+            return Err(invalid("此名称已被其他预设使用"));
+        }
+        let mut updated = previous
+            .map(|entry| entry.preset.clone())
+            .unwrap_or_else(|| Preset::new(name, FilterParams::default()));
+        updated.name = name.into();
+        updated.params = draft.params.clone();
+        let old_cover = updated.cover.clone();
+        let imported = if cover.changed && !cover.source.is_empty() {
+            let name = presets::import_cover(Path::new(cover.source.as_str()))?;
+            let readable =
+                presets::cover_path(&name).is_some_and(|path| Image::load_from_path(&path).is_ok());
+            if !readable {
+                self.forget_cover(Some(&name));
+                return Err(invalid("无法读取所选主图"));
+            }
+            Some(name)
+        } else {
+            None
+        };
+        if cover.changed {
+            updated.cover = imported.clone();
+        }
+        let saved = if let Some(index) = draft.index {
+            self.presets[index].save(updated).map(|()| index)
+        } else {
+            presets::create(updated).map(|entry| {
+                let index = self.presets.len();
+                self.presets.push(entry);
+                index
+            })
+        };
+        match saved {
+            Ok(index) => {
+                self.desktop = Some(index);
+                self.dirty = true;
+                if cover.changed {
+                    self.forget_cover(old_cover.as_deref());
+                }
+                Ok(())
+            }
+            Err(error) => {
+                self.forget_cover(imported.as_deref());
+                Err(error)
+            }
+        }
+    }
+
+    fn delete_draft(&mut self) -> io::Result<()> {
+        let index = self
+            .draft
+            .as_ref()
+            .and_then(|draft| draft.index)
+            .ok_or_else(|| invalid("没有可删除的预设"))?;
+        self.presets[index].delete()?;
+        let removed = self.presets.remove(index);
+        self.draft = None;
+        self.desktop = self.desktop.and_then(|current| match current.cmp(&index) {
+            std::cmp::Ordering::Less => Some(current),
+            std::cmp::Ordering::Equal => None,
+            std::cmp::Ordering::Greater => Some(current - 1),
+        });
+        self.refresh_active();
+        self.dirty = true;
+        self.forget_cover(removed.preset.cover.as_deref());
+        Ok(())
+    }
+
+    fn add_binding(&mut self, name: &str, index: i32) -> io::Result<()> {
+        let name = name.trim();
+        if !name.to_ascii_lowercase().ends_with(".exe")
+            || name.len() <= 4
+            || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|'])
+            || name.chars().any(char::is_control)
+            || name.eq_ignore_ascii_case("lumatune.exe")
+        {
+            return Err(invalid("请输入目标程序的 .exe 文件名"));
+        }
+        let index = usize::try_from(index).map_err(|_| invalid("请选择关联预设"))?;
+        if let Some(entry) =
+            self.presets.iter().enumerate().find_map(|(i, entry)| {
+                (i != index && entry.preset.matches_exe(name)).then_some(entry)
+            })
+        {
+            return Err(invalid(format!(
+                "该应用已绑定到「{}」，请先解除原绑定",
+                entry.preset.name
+            )));
+        }
+        let entry = self
+            .presets
+            .get_mut(index)
+            .ok_or_else(|| invalid("请选择关联预设"))?;
+        let mut updated = entry.preset.clone();
+        updated.bind_to(name);
+        entry.save(updated)?;
+        self.refresh_active();
+        Ok(())
+    }
+
+    fn remove_binding(&mut self, name: &str, index: i32) -> io::Result<()> {
+        let entry = usize::try_from(index)
+            .ok()
+            .and_then(|i| self.presets.get_mut(i))
+            .ok_or_else(|| invalid("找不到该绑定"))?;
+        let mut updated = entry.preset.clone();
+        updated.unbind(name);
+        entry.save(updated)?;
+        self.refresh_active();
+        Ok(())
+    }
+}
+
+fn invalid(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message.into())
 }
 
 fn main() -> Result<(), slint::PlatformError> {
     display::set_dpi_awareness();
-
     let displays = display::enumerate();
     let healed = state::heal(&displays);
-    let target = display::primary(&displays).cloned();
-
+    let target = display::primary(&displays);
     let ui = AppWindow::new()?;
     breadcrumb_bar::install(ui.global::<BreadcrumbBarBehavior>());
+    combo_box::install(ui.global::<ComboBoxBehavior>());
     navigation_view::install(ui.global::<NavigationViewBehavior>(), &ui);
-    let prefs = settings::load();
-    ui.set_theme_mode(prefs.theme.index());
-    let _contrast_watcher = contrast_theme::watch(&ui);
 
-    let mut notes: Vec<String> = Vec::new();
+    let prefs = RefCell::new(settings::load());
+    ui.set_theme_mode(prefs.borrow().theme.index());
+    let _contrast_watcher = contrast_theme::watch(&ui);
+    let mut session = target.and_then(Session::open);
+    let mut notes = Vec::new();
     if healed {
-        notes.push("上次未正常退出，已把显示器还原为原始状态".into());
+        notes.push("上次未正常退出，已恢复显示状态");
     }
-    match &target {
+    match target {
         Some(d) => {
-            ui.set_display_text(SharedString::from(format!(
-                "{}  {}x{}  {}  {}",
-                d.device,
-                d.width,
-                d.height,
-                if d.hdr() { "HDR" } else { "SDR" },
-                d.adapter
-            )));
+            ui.set_display_text(format!("{} · {} × {}", d.device, d.width, d.height).into());
+            let mode = if d.hdr() {
+                "HDR"
+            } else if session.is_some() {
+                "SDR · 调校可用"
+            } else {
+                "SDR · 调校不可用"
+            };
+            ui.set_display_mode(mode.into());
             if d.hdr() {
-                notes.push("该显示器 HDR 已开启，查表被系统忽略，滤镜不会生效".into());
+                notes.push("该显示器已开启 HDR，滤镜可能无法生效");
             } else if d.looks_virtual() {
-                notes.push("检测到虚拟显示适配器，效果与真实显卡可能不一致".into());
+                notes.push("检测到虚拟显示适配器，调校效果可能不同");
             }
         }
         None => {
-            ui.set_display_text(SharedString::from("未找到可用显示器"));
-            notes.push("未找到可用显示器".into());
+            ui.set_display_text("未找到可用显示器".into());
+            ui.set_display_mode("不可用".into());
         }
     }
-    ui.set_status(SharedString::from(notes.join("；")));
-
-    let loaded = presets::list();
-    fill_model(&ui, &loaded);
-    fill_bindings(&ui, &loaded);
+    ui.set_status(notes.join("；").into());
 
     let runtime = Rc::new(RefCell::new(Runtime {
-        params: FilterParams::default(),
-        settings: prefs,
-        session: target.as_ref().and_then(Session::open),
-        presets: loaded,
+        presets: presets::list(),
+        desktop: None,
         active: None,
-        suppressing: false,
-        dirty: false,
+        foreground: String::new(),
+        draft: None,
         comparing: false,
+        dirty: false,
     }));
+    fill_library(&ui, &runtime.borrow());
+    install_editor(&ui, &runtime);
+    install_bindings(&ui, &runtime);
 
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_changed(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            if rt.borrow().suppressing {
-                return;
-            }
-            let mut params = { rt.borrow().params.clone() };
-            params.gamma = ui.get_gamma();
-            params.contrast = ui.get_contrast();
-            params.brightness = ui.get_brightness();
-            params.shadows = ui.get_shadows();
-            params.highlights = ui.get_highlights();
-            params.levels.in_black = ui.get_black_point();
-            params.levels.in_white = ui.get_white_point();
-            params.levels.out_black = ui.get_black_level();
-            params.levels.out_white = ui.get_white_level();
-            params.temperature = ui.get_temperature() as u32;
-            params.tint = ui.get_tint();
-            params.gains = [ui.get_gain_r(), ui.get_gain_g(), ui.get_gain_b()];
-            let mut rt = rt.borrow_mut();
-            rt.params = params;
-            rt.dirty = true;
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_toggle_compare(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let value = {
-                let mut rt = rt.borrow_mut();
-                rt.comparing = !rt.comparing;
-                rt.dirty = true;
-                rt.comparing
-            };
-            ui.set_comparing(value);
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_reset(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let params = FilterParams::default();
-            {
-                let mut rt = rt.borrow_mut();
-                rt.params = params.clone();
-                rt.comparing = false;
-                rt.dirty = true;
-                rt.suppressing = true;
-            }
-            push_params(&ui, &params);
-            rt.borrow_mut().suppressing = false;
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        ui.on_clear_selection(move || {
-            let mut rt = rt.borrow_mut();
-            rt.active = None;
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_pick_theme(move |mode| {
-            let Some(ui) = weak.upgrade() else { return };
-            let theme = ThemeMode::from_index(mode);
-            let snapshot = {
-                let mut rt = rt.borrow_mut();
-                rt.settings.theme = theme;
-                rt.settings.clone()
-            };
-            ui.set_theme_mode(theme.index());
-            if let Err(err) = settings::save(&snapshot) {
-                ui.set_status(SharedString::from(format!("主题已切换，但保存失败：{err}")));
-            }
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_choose(move |index| {
-            let Some(ui) = weak.upgrade() else { return };
-            let chosen = {
-                let rt = rt.borrow();
-                rt.presets.get(index.max(0) as usize).cloned()
-            };
-            let Some(preset) = chosen else { return };
-            {
-                let mut rt = rt.borrow_mut();
-                rt.params = preset.params.clone();
-                rt.comparing = false;
-                rt.dirty = true;
-                rt.suppressing = true;
-            }
-            ui.set_preset_name(SharedString::from(preset.name.clone()));
-            ui.set_active_name(SharedString::from(preset.name.clone()));
-            push_params(&ui, &preset.params);
-            rt.borrow_mut().suppressing = false;
-            ui.set_status(SharedString::from(format!("已载入「{}」", preset.name)));
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_save_preset(move |name| {
-            let Some(ui) = weak.upgrade() else { return };
-            let name = name.trim().to_string();
-            if name.is_empty() {
-                ui.set_status(SharedString::from("预设名称不能为空"));
-                return;
-            }
-            let params = {
-                let rt = rt.borrow();
-                rt.params.clone()
-            };
-            match presets::save(&Preset::new(name.clone(), params)) {
-                Ok(path) => {
-                    let list = {
-                        let mut rt = rt.borrow_mut();
-                        rt.presets = presets::list();
-                        rt.presets.clone()
-                    };
-                    fill_model(&ui, &list);
-                    fill_bindings(&ui, &list);
-                    if let Some(pos) = list.iter().position(|p| p.name == name) {
-                        ui.set_current_preset(pos as i32);
-                    }
-                    ui.set_active_name(SharedString::from(name.clone()));
-                    ui.set_status(SharedString::from(format!(
-                        "已保存到 {}",
-                        path.display()
-                    )));
-                }
-                Err(err) => {
-                    ui.set_status(SharedString::from(format!("保存失败：{err}")));
-                }
-            }
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_delete_preset(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let index = ui.get_current_preset().max(0) as usize;
-            let target = {
-                let rt = rt.borrow();
-                rt.presets.get(index).cloned()
-            };
-            let Some(preset) = target else {
-                ui.set_status(SharedString::from("没有可删除的预设"));
-                return;
-            };
-            match presets::remove(&preset.name) {
-                Ok(()) => {
-                    let list = {
-                        let mut rt = rt.borrow_mut();
-                        rt.presets = presets::list();
-                        rt.active = None;
-                        rt.presets.clone()
-                    };
-                    fill_model(&ui, &list);
-                    fill_bindings(&ui, &list);
-                    ui.set_current_preset(0);
-                    ui.set_active_name(SharedString::from(""));
-                    ui.set_preset_name(SharedString::from(""));
-                    ui.set_status(SharedString::from(format!("已删除「{}」", preset.name)));
-                }
-                Err(err) => {
-                    ui.set_status(SharedString::from(format!("删除失败：{err}")));
-                }
-            }
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_bind_foreground(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let Some(fg) = foreground::current() else {
-                ui.set_status(SharedString::from("取不到前台窗口"));
-                return;
-            };
-            if fg.exe.eq_ignore_ascii_case("lumatune.exe") {
-                ui.set_status(SharedString::from("不能绑定本程序自己，先切到目标应用再点"));
-                return;
-            }
-            let index = ui.get_current_preset().max(0) as usize;
-            let updated = {
-                let mut rt = rt.borrow_mut();
-                let Some(mut preset) = rt.presets.get(index).cloned() else {
-                    return;
-                };
-                preset.bind_to(fg.exe.clone());
-                if presets::save(&preset).is_err() {
-                    return;
-                }
-                rt.presets = presets::list();
-                rt.presets.clone()
-            };
-            fill_bindings(&ui, &updated);
-            ui.set_status(SharedString::from(format!(
-                "已把「{}」绑定到 {}",
-                ui.get_preset_name(),
-                fg.exe
-            )));
-        });
-    }
-
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        ui.on_unbind_foreground(move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let Some(fg) = foreground::current() else {
-                return;
-            };
-            let updated = {
-                let mut rt = rt.borrow_mut();
-                let mut touched = false;
-                for preset in rt.presets.iter_mut() {
-                    if preset.matches_exe(&fg.exe) {
-                        preset.unbind(&fg.exe);
-                        let _ = presets::save(preset);
-                        touched = true;
-                    }
-                }
-                if !touched {
-                    return;
-                }
-                rt.active = None;
-                rt.presets = presets::list();
-                rt.presets.clone()
-            };
-            fill_bindings(&ui, &updated);
-            ui.set_status(SharedString::from(format!("已解除 {}", fg.exe)));
-        });
-    }
+    let weak = ui.as_weak();
+    ui.on_pick_theme(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut prefs = prefs.borrow_mut();
+        prefs.theme = ThemeMode::from_index(index);
+        ui.set_theme_mode(prefs.theme.index());
+        if let Err(error) = settings::save(&prefs) {
+            ui.set_status(format!("主题保存失败：{error}").into());
+        }
+    });
 
     let writer = Timer::default();
-    {
-        let rt = runtime.clone();
-        writer.start(TimerMode::Repeated, Duration::from_millis(30), move || {
-            let mut rt = rt.borrow_mut();
-            if !rt.dirty {
-                return;
-            }
-            rt.dirty = false;
-            let table: Option<Ramp> = if rt.comparing {
-                None
-            } else if let Some(index) = rt.active {
-                rt.presets.get(index).map(|p| p.params.to_ramp())
-            } else if rt.params.is_neutral() {
-                None
-            } else {
-                Some(rt.params.to_ramp())
-            };
-            if let Some(session) = rt.session.as_mut() {
-                match table {
-                    Some(ramp) => {
-                        session.apply(&ramp);
-                    }
-                    None => session.restore(),
+    let rt = runtime.clone();
+    writer.start(TimerMode::Repeated, Duration::from_millis(30), move || {
+        let mut rt = rt.borrow_mut();
+        if !std::mem::take(&mut rt.dirty) {
+            return;
+        }
+        if let Some(session) = session.as_mut() {
+            match rt.current_ramp() {
+                Some(ramp) => {
+                    session.apply(&ramp);
                 }
+                None => session.restore(),
             }
-        });
-    }
+        }
+    });
 
     let watcher = Timer::default();
-    {
-        let rt = runtime.clone();
-        let weak = ui.as_weak();
-        watcher.start(TimerMode::Repeated, Duration::from_millis(400), move || {
-            let Some(ui) = weak.upgrade() else { return };
-            let Some(fg) = foreground::current() else { return };
-            let switched = {
-                let mut rt = rt.borrow_mut();
-                let matched = rt.presets.iter().position(|p| p.matches_exe(&fg.exe));
-                if matched == rt.active {
-                    return;
-                }
-                rt.active = matched;
-                rt.dirty = true;
-                match matched {
-                    Some(index) => Some((
-                        rt.presets[index].params.clone(),
-                        rt.presets[index].name.clone(),
-                    )),
-                    None => None,
-                }
-            };
-            let (params, label) = match switched {
-                Some((params, name)) => (params, format!("「{name}」接管中")),
-                None => {
-                    let params = rt.borrow().params.clone();
-                    (params, String::new())
-                }
-            };
-            rt.borrow_mut().suppressing = true;
-            push_params(&ui, &params);
-            rt.borrow_mut().suppressing = false;
-            ui.set_status(SharedString::from(label));
-        });
-    }
+    let weak = ui.as_weak();
+    watcher.start(TimerMode::Repeated, Duration::from_millis(400), move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let Some(fg) = foreground::current() else {
+            return;
+        };
+        let mut rt = runtime.borrow_mut();
+        if !rt.foreground.eq_ignore_ascii_case(&fg.exe) {
+            rt.foreground = fg.exe;
+            rt.refresh_active();
+            fill_bindings(&ui, &rt);
+        }
+    });
 
     let result = ui.run();
-
-    if let Some(session) = runtime.borrow_mut().session.as_mut() {
-        session.restore();
-    }
+    // The timer owns the display session. Dropping it restores the original table.
     drop(writer);
     drop(watcher);
     result
 }
 
-fn fill_model(ui: &AppWindow, list: &[Preset]) {
-    let names: Vec<SharedString> = list
-        .iter()
-        .map(|p| SharedString::from(p.name.clone()))
-        .collect();
-    let model = Rc::new(VecModel::from(names));
-    ui.set_presets(ModelRc::from(model));
+fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
+    ui.on_filter_presets(|items, query, only_favorites| {
+        let query = query.trim().to_lowercase();
+        let cards: Vec<_> = items
+            .iter()
+            .filter(|card| {
+                (!only_favorites || card.favorite) && card.name.to_lowercase().contains(&query)
+            })
+            .collect();
+        model(cards)
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_open_preset(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        let index = usize::try_from(index)
+            .ok()
+            .filter(|&i| i < rt.presets.len());
+        let entry = index.map(|i| &rt.presets[i]);
+        let params = entry.map(|e| e.preset.params.clone()).unwrap_or_default();
+        let name = entry
+            .map(|e| SharedString::from(&e.preset.name))
+            .unwrap_or_default();
+        let cover = entry.map(|e| load_cover(&e.preset)).unwrap_or_default();
+        ui.set_existing_draft(entry.is_some());
+        ui.set_built_in_draft(entry.is_some_and(|e| e.defaults.is_some()));
+        ui.set_preset_name(name.clone());
+        ui.set_original_name(name);
+        ui.set_edit_cover(CoverChoice {
+            artwork: cover,
+            ..CoverChoice::default()
+        });
+        push_params(&ui, &params);
+        rt.draft = Some(Draft { index, params });
+        rt.dirty = true;
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_parameters_edited(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        if let Some(draft) = rt.draft.as_mut() {
+            read_params(&ui, &mut draft.params);
+            rt.dirty = true;
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_restore_defaults(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        let defaults = rt
+            .draft
+            .as_ref()
+            .and_then(|draft| draft.index)
+            .and_then(|i| rt.presets[i].defaults.clone());
+        if let (Some(draft), Some(params)) = (rt.draft.as_mut(), defaults) {
+            push_params(&ui, &params);
+            draft.params = params;
+            rt.dirty = true;
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_close_editor(move || {
+        let mut rt = rt.borrow_mut();
+        rt.draft = None;
+        rt.comparing = false;
+        rt.dirty = true;
+        if let Some(ui) = weak.upgrade() {
+            ui.set_comparing(false);
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_toggle_compare(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        rt.comparing = !rt.comparing;
+        rt.dirty = true;
+        ui.set_comparing(rt.comparing);
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_apply_preset(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        rt.desktop = rt.draft.as_ref().and_then(|draft| draft.index);
+        rt.dirty = true;
+        fill_desktop(&ui, &rt);
+        if let Some(index) = rt.desktop {
+            ui.set_status(format!("已应用「{}」", rt.presets[index].preset.name).into());
+        }
+    });
+
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_save_preset(move |name, cover| {
+        let Some(ui) = weak.upgrade() else {
+            return false;
+        };
+        let mut rt = rt.borrow_mut();
+        match rt.save_draft(name.as_str(), &cover) {
+            Ok(()) => {
+                fill_library(&ui, &rt);
+                ui.set_status(format!("已保存「{}」", name.trim()).into());
+                true
+            }
+            Err(error) => {
+                ui.set_status(format!("保存失败：{error}").into());
+                false
+            }
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_delete_preset(move || {
+        let Some(ui) = weak.upgrade() else {
+            return false;
+        };
+        let mut rt = rt.borrow_mut();
+        match rt.delete_draft() {
+            Ok(()) => {
+                fill_library(&ui, &rt);
+                ui.set_status("已删除预设".into());
+                true
+            }
+            Err(error) => {
+                ui.set_status(format!("删除失败：{error}").into());
+                false
+            }
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_toggle_favorite(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut rt = rt.borrow_mut();
+        let Some(entry) = usize::try_from(index)
+            .ok()
+            .and_then(|i| rt.presets.get_mut(i))
+        else {
+            return;
+        };
+        let mut updated = entry.preset.clone();
+        updated.favorite = !updated.favorite;
+        match entry.save(updated) {
+            Ok(()) => fill_cards(&ui, &rt),
+            Err(error) => ui.set_status(format!("收藏保存失败：{error}").into()),
+        }
+    });
+    let weak = ui.as_weak();
+    ui.on_browse_cover(move || {
+        let Some(ui) = weak.upgrade() else {
+            return CoverChoice::default();
+        };
+        ui.set_status("".into());
+        match file_picker::cover() {
+            Ok(Some(path)) => match Image::load_from_path(&path) {
+                Ok(artwork) => CoverChoice {
+                    artwork,
+                    source: path.to_string_lossy().as_ref().into(),
+                    changed: true,
+                },
+                Err(error) => {
+                    ui.set_status(format!("无法打开图片：{error}").into());
+                    CoverChoice::default()
+                }
+            },
+            Ok(None) => CoverChoice::default(),
+            Err(error) => {
+                ui.set_status(format!("无法选择图片：{error}").into());
+                CoverChoice::default()
+            }
+        }
+    });
 }
 
-fn fill_bindings(ui: &AppWindow, list: &[Preset]) {
-    let rows: Vec<SharedString> = list
+fn install_bindings(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
+    let weak = ui.as_weak();
+    ui.on_browse_application(move || {
+        let Some(ui) = weak.upgrade() else {
+            return SharedString::default();
+        };
+        match file_picker::executable() {
+            Ok(Some(path)) => {
+                ui.set_status("".into());
+                path.file_name()
+                    .map(|name| name.to_string_lossy().as_ref().into())
+                    .unwrap_or_default()
+            }
+            Ok(None) => SharedString::default(),
+            Err(error) => {
+                ui.set_status(format!("无法选择程序：{error}").into());
+                SharedString::default()
+            }
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_save_binding(move |exe, index| {
+        let Some(ui) = weak.upgrade() else {
+            return false;
+        };
+        let mut rt = rt.borrow_mut();
+        match rt.add_binding(exe.as_str(), index) {
+            Ok(()) => {
+                fill_bindings(&ui, &rt);
+                ui.set_status("已保存应用绑定".into());
+                true
+            }
+            Err(error) => {
+                ui.set_status(format!("绑定失败：{error}").into());
+                false
+            }
+        }
+    });
+    let weak = ui.as_weak();
+    let rt = runtime.clone();
+    ui.on_remove_binding(move |exe, index| {
+        let Some(ui) = weak.upgrade() else {
+            return false;
+        };
+        let mut rt = rt.borrow_mut();
+        match rt.remove_binding(exe.as_str(), index) {
+            Ok(()) => {
+                fill_bindings(&ui, &rt);
+                ui.set_status("已解除应用绑定".into());
+                true
+            }
+            Err(error) => {
+                ui.set_status(format!("解除失败：{error}").into());
+                false
+            }
+        }
+    });
+}
+
+fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
+    ModelRc::new(VecModel::from(rows))
+}
+
+fn load_cover(preset: &Preset) -> Image {
+    preset
+        .cover
+        .as_deref()
+        .and_then(presets::cover_path)
+        .and_then(|path| Image::load_from_path(&path).ok())
+        .unwrap_or_default()
+}
+
+fn fill_cards(ui: &AppWindow, rt: &Runtime) {
+    let (built_in, custom): (Vec<_>, Vec<_>) = rt
+        .presets
         .iter()
-        .map(|p| {
-            let bound = if p.bindings.is_empty() {
-                "未绑定".to_string()
-            } else {
-                p.bindings.join("、")
-            };
-            SharedString::from(format!("{}　{}", p.name, bound))
-        })
-        .collect();
-    let model = Rc::new(VecModel::from(rows));
-    ui.set_binding_rows(ModelRc::from(model));
+        .enumerate()
+        .partition(|(_, entry)| entry.defaults.is_some());
+    ui.set_presets(model(
+        built_in
+            .into_iter()
+            .chain(custom)
+            .map(|(index, entry)| PresetCardData {
+                index: index as i32,
+                name: entry.preset.name.as_str().into(),
+                cover: load_cover(&entry.preset),
+                favorite: entry.preset.favorite,
+            })
+            .collect(),
+    ));
+}
+
+fn fill_library(ui: &AppWindow, rt: &Runtime) {
+    fill_cards(ui, rt);
+    fill_desktop(ui, rt);
+    fill_bindings(ui, rt);
+    ui.set_binding_presets(model(
+        rt.presets
+            .iter()
+            .map(|entry| ComboBoxItem {
+                text: entry.preset.name.as_str().into(),
+                ..ComboBoxItem::default()
+            })
+            .collect(),
+    ));
+}
+
+fn fill_desktop(ui: &AppWindow, rt: &Runtime) {
+    ui.set_desktop_preset(
+        rt.desktop
+            .map(|i| rt.presets[i].preset.name.as_str())
+            .unwrap_or("未应用预设")
+            .into(),
+    );
+}
+
+fn fill_bindings(ui: &AppWindow, rt: &Runtime) {
+    ui.set_bindings(model(
+        rt.presets
+            .iter()
+            .enumerate()
+            .flat_map(|(index, entry)| {
+                entry.preset.bindings.iter().map(move |exe| BindingDisplay {
+                    index: index as i32,
+                    executable: exe.as_str().into(),
+                    preset: entry.preset.name.as_str().into(),
+                    active: Some(index) == rt.active && exe.eq_ignore_ascii_case(&rt.foreground),
+                })
+            })
+            .collect(),
+    ));
+    ui.set_active_binding(
+        rt.active
+            .map(|index| {
+                format!(
+                    "{} 正在使用「{}」。",
+                    rt.foreground, rt.presets[index].preset.name
+                )
+                .into()
+            })
+            .unwrap_or_default(),
+    );
 }
 
 fn push_params(ui: &AppWindow, params: &FilterParams) {
@@ -447,5 +648,19 @@ fn push_params(ui: &AppWindow, params: &FilterParams) {
     ui.set_gain_r(params.gains[0]);
     ui.set_gain_g(params.gains[1]);
     ui.set_gain_b(params.gains[2]);
-    ui.set_comparing(false);
+}
+
+fn read_params(ui: &AppWindow, params: &mut FilterParams) {
+    params.gamma = ui.get_gamma();
+    params.contrast = ui.get_contrast();
+    params.brightness = ui.get_brightness();
+    params.shadows = ui.get_shadows();
+    params.highlights = ui.get_highlights();
+    params.levels.in_black = ui.get_black_point();
+    params.levels.in_white = ui.get_white_point();
+    params.levels.out_black = ui.get_black_level();
+    params.levels.out_white = ui.get_white_level();
+    params.temperature = ui.get_temperature() as u32;
+    params.tint = ui.get_tint();
+    params.gains = [ui.get_gain_r(), ui.get_gain_g(), ui.get_gain_b()];
 }

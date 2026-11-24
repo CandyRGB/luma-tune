@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use lumatune_win::contrast::{self, ContrastColors};
 use slint::{Color, ComponentHandle, Timer, TimerMode};
+use slint_winui::platform::contrast::{self, ContrastColors};
 
 use crate::{AppWindow, ContrastTheme, SystemContrastColors};
 

@@ -1,8 +1,9 @@
 use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::io::{self, Write};
+use std::path::{Component, Path, PathBuf};
 
-use lumatune_core::Preset;
+use lumatune_core::{FilterParams, Preset};
+use tempfile::NamedTempFile;
 
 fn base() -> PathBuf {
     std::env::var_os("APPDATA")
@@ -14,7 +15,7 @@ fn root_in(base: &Path) -> PathBuf {
     base.join("LumaTune").join("presets")
 }
 
-pub fn dir() -> PathBuf {
+fn dir() -> PathBuf {
     root_in(&base())
 }
 
@@ -41,11 +42,37 @@ fn path_in(root: &Path, name: &str) -> PathBuf {
     root.join(format!("{}.json", sanitize(name)))
 }
 
-pub fn path_for(name: &str) -> PathBuf {
-    path_in(&dir(), name)
+pub struct StoredPreset {
+    path: PathBuf,
+    pub preset: Preset,
+    pub defaults: Option<FilterParams>,
 }
 
-fn list_in(root: &Path) -> Vec<Preset> {
+impl StoredPreset {
+    pub fn save(&mut self, preset: Preset) -> io::Result<()> {
+        write(&self.path, &preset, true)?;
+        self.preset = preset;
+        Ok(())
+    }
+
+    pub fn delete(&self) -> io::Result<()> {
+        if self.defaults.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "初始预设不能删除",
+            ));
+        }
+        fs::remove_file(&self.path)
+    }
+}
+
+fn read(path: &Path) -> Option<Preset> {
+    let text = fs::read_to_string(path).ok()?;
+    let preset: Preset = serde_json::from_str(&text).ok()?;
+    preset.is_compatible().then_some(preset)
+}
+
+fn list_in(root: &Path) -> Vec<StoredPreset> {
     let mut out = Vec::new();
     let Ok(entries) = fs::read_dir(root) else {
         return out;
@@ -55,40 +82,161 @@ fn list_in(root: &Path) -> Vec<Preset> {
         if path.extension().is_none_or(|e| e != "json") {
             continue;
         }
-        if let Ok(text) = fs::read_to_string(&path) {
-            if let Ok(preset) = serde_json::from_str::<Preset>(&text) {
-                if preset.is_compatible() {
-                    out.push(preset);
-                }
-            }
+        if let Some(preset) = read(&path) {
+            out.push(StoredPreset {
+                path,
+                preset,
+                defaults: None,
+            });
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|entry| entry.preset.name.to_lowercase());
     out
 }
 
-fn save_in(root: &Path, preset: &Preset) -> io::Result<PathBuf> {
-    fs::create_dir_all(root)?;
-    let path = path_in(root, &preset.name);
+fn write(path: &Path, preset: &Preset, replace: bool) -> io::Result<()> {
+    let parent = path.parent().expect("preset path has a parent directory");
+    fs::create_dir_all(parent)?;
     let text = serde_json::to_string_pretty(preset).map_err(io::Error::other)?;
-    fs::write(&path, text)?;
-    Ok(path)
+    let mut pending = NamedTempFile::new_in(parent)?;
+    pending.write_all(text.as_bytes())?;
+    if replace {
+        pending.persist(path)?;
+    } else {
+        pending.persist_noclobber(path)?;
+    }
+    Ok(())
 }
 
-fn remove_in(root: &Path, name: &str) -> io::Result<()> {
-    fs::remove_file(path_in(root, name))
+fn create_in(root: &Path, preset: Preset) -> io::Result<StoredPreset> {
+    let mut path = path_in(root, &preset.name);
+    let mut suffix = 2;
+    loop {
+        match write(&path, &preset, false) {
+            Ok(()) => {
+                return Ok(StoredPreset {
+                    path,
+                    preset,
+                    defaults: None,
+                });
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                if read(&path).is_some_and(|existing| existing.name == preset.name) {
+                    return Err(error);
+                }
+                // An older file can retain this name after the preset is renamed.
+                path = root.join(format!("{}-{suffix}.json", sanitize(&preset.name)));
+                suffix += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
-pub fn list() -> Vec<Preset> {
-    list_in(&dir())
+pub fn create(preset: Preset) -> io::Result<StoredPreset> {
+    create_in(&dir(), preset)
 }
 
-pub fn save(preset: &Preset) -> io::Result<PathBuf> {
-    save_in(&dir(), preset)
+fn built_ins(root: &Path) -> impl Iterator<Item = StoredPreset> {
+    let root = root.join("built-in");
+    [
+        ("daily", "日常", FilterParams::default()),
+        (
+            "reading",
+            "夜间阅读",
+            FilterParams {
+                temperature: 4800,
+                brightness: -0.02,
+                ..FilterParams::default()
+            },
+        ),
+        ("photo", "照片校色", FilterParams::default()),
+        (
+            "game",
+            "游戏",
+            FilterParams {
+                temperature: 7200,
+                shadows: 0.08,
+                ..FilterParams::default()
+            },
+        ),
+        (
+            "movie",
+            "观影",
+            FilterParams {
+                temperature: 6000,
+                contrast: 1.12,
+                ..FilterParams::default()
+            },
+        ),
+        (
+            "office",
+            "办公",
+            FilterParams {
+                temperature: 5800,
+                ..FilterParams::default()
+            },
+        ),
+    ]
+    .into_iter()
+    .map(move |(id, name, defaults)| {
+        let path = root.join(format!("{id}.json"));
+        let preset = read(&path).unwrap_or_else(|| Preset::new(name, defaults.clone()));
+        StoredPreset {
+            path,
+            preset,
+            defaults: Some(defaults),
+        }
+    })
 }
 
-pub fn remove(name: &str) -> io::Result<()> {
-    remove_in(&dir(), name)
+pub fn list() -> Vec<StoredPreset> {
+    let root = dir();
+    // Keep the previous precedence when a legacy preset already binds an executable.
+    list_in(&root).into_iter().chain(built_ins(&root)).collect()
+}
+
+pub fn cover_path(name: &str) -> Option<PathBuf> {
+    let mut parts = Path::new(name).components();
+    if !matches!(parts.next(), Some(Component::Normal(_))) || parts.next().is_some() {
+        return None;
+    }
+    // Only accept an app-managed file name, including on Windows ADS paths.
+    if !name.starts_with("cover-")
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    {
+        return None;
+    }
+    Some(dir().join("covers").join(name))
+}
+
+pub fn import_cover(source: &Path) -> io::Result<String> {
+    let ext = source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "bmp") {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "不支持的图片格式",
+        ));
+    }
+    let covers = dir().join("covers");
+    fs::create_dir_all(&covers)?;
+    let mut pending = tempfile::Builder::new()
+        .prefix("cover-")
+        .suffix(&format!(".{ext}"))
+        .tempfile_in(covers)?;
+    io::copy(&mut fs::File::open(source)?, &mut pending)?;
+    let (_, path) = pending.keep()?;
+    Ok(path
+        .file_name()
+        .expect("generated file name")
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[cfg(test)]
@@ -130,32 +278,56 @@ mod tests {
         params.gamma = 2.2;
         let preset = Preset::new("暗部增强", params);
 
-        let path = save_in(&root, &preset).unwrap();
-        assert!(path.exists());
+        let entry = create_in(&root, preset).unwrap();
+        assert!(entry.path.exists());
 
         let loaded = list_in(&root);
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].name, "暗部增强");
-        assert!((loaded[0].params.gamma - 2.2).abs() < 1e-6);
+        assert_eq!(loaded[0].preset.name, "暗部增强");
+        assert!((loaded[0].preset.params.gamma - 2.2).abs() < 1e-6);
 
-        remove_in(&root, &preset.name).unwrap();
+        entry.delete().unwrap();
         assert!(list_in(&root).is_empty());
     }
 
     #[test]
-    fn saving_same_name_overwrites_instead_of_duplicating() {
+    fn saving_an_existing_record_preserves_its_file_and_metadata() {
         let scratch = Scratch::new("overwrite");
         let root = scratch.root();
 
         let mut params = FilterParams::default();
         params.contrast = 1.1;
-        save_in(&root, &Preset::new("高对比", params.clone())).unwrap();
+        let mut original = Preset::new("高对比", params.clone());
+        original.bind_to("viewer.exe");
+        original.favorite = true;
+        let mut entry = create_in(&root, original.clone()).unwrap();
+        assert!(create_in(&root, original).is_err());
         params.contrast = 1.4;
-        save_in(&root, &Preset::new("高对比", params)).unwrap();
+        let mut updated = entry.preset.clone();
+        updated.name = "高对比 2".into();
+        updated.params = params;
+        entry.save(updated.clone()).unwrap();
 
         let loaded = list_in(&root);
         assert_eq!(loaded.len(), 1);
-        assert!((loaded[0].params.contrast - 1.4).abs() < 1e-6);
+        assert_eq!(loaded[0].path, entry.path);
+        assert_eq!(loaded[0].preset, updated);
+        let separate = create_in(&root, Preset::new("高对比", FilterParams::default())).unwrap();
+        assert_ne!(separate.path, entry.path);
+    }
+
+    #[test]
+    fn built_in_defaults_are_independent_of_saved_edits() {
+        let scratch = Scratch::new("built-in");
+        let root = scratch.root();
+        let mut entry = built_ins(&root).nth(1).unwrap();
+        let mut edited = entry.preset.clone();
+        edited.params.temperature = 8200;
+        entry.save(edited).unwrap();
+        let loaded = built_ins(&root).nth(1).unwrap();
+        assert_eq!(loaded.preset.params.temperature, 8200);
+        assert_eq!(loaded.defaults.as_ref().unwrap().temperature, 4800);
+        assert!(loaded.delete().is_err());
     }
 
     #[test]
@@ -164,11 +336,11 @@ mod tests {
         let root = scratch.root();
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("bad.json"), "{ not json").unwrap();
-        save_in(&root, &Preset::new("好预设", FilterParams::default())).unwrap();
+        create_in(&root, Preset::new("好预设", FilterParams::default())).unwrap();
 
         let loaded = list_in(&root);
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].name, "好预设");
+        assert_eq!(loaded[0].preset.name, "好预设");
     }
 
     #[test]

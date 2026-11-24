@@ -2557,15 +2557,11 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 name = "lumatune"
 version = "0.1.0"
 dependencies = [
- "arboard",
  "lumatune-core",
  "lumatune-win",
- "quick-xml",
- "raw-window-handle",
- "serde_json",
  "slint",
  "slint-build",
- "tempfile",
+ "slint-winui",
 ]
 
 [[package]]
@@ -2580,14 +2576,11 @@ dependencies = [
 name = "lumatune-win"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "lumatune-core",
  "serde",
  "serde_json",
+ "tempfile",
  "windows",
- "windows-collections",
- "windows-core",
- "windows-numerics",
 ]
 
 [[package]]
@@ -4043,7 +4036,6 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
- "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",
@@ -4072,6 +4064,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "spin_on",
+]
+
+[[package]]
+name = "slint-winui"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "268aeb462327c3d8cae52b52a5ca4a70a61ab3778061d96bf5419813323bad55"
+dependencies = [
+ "chrono",
+ "windows",
+ "windows-collections",
+ "windows-core",
+ "windows-numerics",
 ]
 
 [[package]]

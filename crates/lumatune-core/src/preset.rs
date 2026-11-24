@@ -13,6 +13,10 @@ pub struct Preset {
     pub display: Option<String>,
     #[serde(default)]
     pub bindings: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub favorite: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
     #[serde(rename = "operators")]
     pub params: FilterParams,
 }
@@ -24,6 +28,8 @@ impl Preset {
             name: name.into(),
             display: None,
             bindings: Vec::new(),
+            favorite: false,
+            cover: None,
             params,
         }
     }
@@ -58,7 +64,9 @@ mod tests {
         params.gamma = 2.2;
         params.temperature = 7200;
         params.curve = vec![[0.0, 0.0], [0.5, 0.45], [1.0, 1.0]];
-        let preset = Preset::new("暗部增强", params);
+        let mut preset = Preset::new("暗部增强", params);
+        preset.favorite = true;
+        preset.cover = Some("cover-example.png".into());
 
         let text = serde_json::to_string_pretty(&preset).unwrap();
         let back: Preset = serde_json::from_str(&text).unwrap();
@@ -74,6 +82,8 @@ mod tests {
         let preset: Preset = serde_json::from_str(text).unwrap();
         assert!(preset.bindings.is_empty());
         assert!(preset.display.is_none());
+        assert!(!preset.favorite);
+        assert!(preset.cover.is_none());
     }
 
     #[test]

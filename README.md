@@ -9,9 +9,10 @@
 LumaTune ships as a small desktop app built with [Slint](https://slint.dev/) and the [`windows`](https://crates.io/crates/windows) crate. Every adjustment is composited into a 256-entry `Gamma Ramp` and pushed to the display adapter.
 
 - **No injection** — purely the display path, the same lookup applied to desktop, games, and screenshots alike.
-- **Per-app presets** — bind a named preset to an executable and it is applied automatically when that process launches.
+- **Preset library** — browse preset cards, save favorites, and set your own cover images. Built-in presets can return to their original parameters.
+- **Per-app presets** — bind a preset to an executable and apply it automatically while that app is in the foreground.
 - **Self-healing** — if the app is killed, a dirty flag on disk restores the identity ramp on next launch, so the screen never keeps a leftover tint.
-- **A/B compare** — hold a key to temporarily switch to the identity ramp and judge the difference against the unedited picture.
+- **A/B compare** — use the editor’s compare button to switch between the preview and the original display state.
 
 ## How it works
 
@@ -69,6 +70,8 @@ cargo run -p gamma-probe --release -- report
 ```
 
 `gamma-probe` also offers `visual` (on-screen curve check), `watch` (continuous write/verify loop), `focus` (foreground process detection), and `restore` (write back the identity ramp).
+
+The desktop UI uses the published [`slint-winui` crate](https://crates.io/crates/slint-winui) for its navigation components.
 
 ## Tests
 

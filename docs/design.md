@@ -80,62 +80,19 @@ Windows 上的画面调校工具，用显示层查表改善游戏暗部可见度
 
 ## 预设
 
-`%APPDATA%\LumaTune\presets\*.json`，一个预设一个文件。损坏隔离，可直接分享，可进版本控制。
+用户预设存放在 `%APPDATA%\LumaTune\presets`，每个预设一个版本化 JSON 文件。改名后继续写回原文件，保留应用绑定、收藏和主图。初始预设随应用提供，用户保存的覆盖存于 `presets\built-in`，恢复默认参数读取随应用提供的原始值。
 
-```json
-{
-  "schemaVersion": 1,
-  "name": "暗部增强",
-  "display": null,
-  "bindings": ["cs2.exe"],
-  "operators": {
-    "levels": { "inBlack": 0.0, "inWhite": 1.0, "outBlack": 0.0, "outWhite": 1.0 },
-    "brightness": 0.0,
-    "contrast": 1.0,
-    "gamma": 1.0,
-    "gains": { "r": 1.0, "g": 1.0, "b": 1.0 },
-    "temperature": 6500,
-    "tint": 0.0,
-    "curve": [[0.0, 0.0], [0.25, 0.22], [0.5, 0.5], [0.75, 0.78], [1.0, 1.0]]
-  }
-}
-```
-
-只存参数，不存渲染结果。`.cube` 只支持导出，用于把参数变成可分享资产。
-
-已实现于 `crates/lumatune-core/src/preset.rs`（数据结构与校验）和 `crates/lumatune-win/src/presets.rs`（读写）。`display` 与 `bindings` 两个字段已经存在于 schema 中，但当前版本还不会填它们——多显示器绑定与按应用触发是下一步。
+JSON 的 `operators` 保存调校参数，`bindings` 保存可执行文件名，`favorite` 记录收藏。可选的 `cover` 引用 `presets\covers` 中应用复制的图片，缺少图片时使用随应用提供的主图。旧版 JSON 可以继续读取。
 
 ## 进程触发
 
-`CreateToolhelp32Snapshot` 每 1.5 秒轮询一次，按 exe 文件名匹配绑定列表。不用 WMI（延迟不稳、可能需提权），不用焦点钩子（启动器与中间层进程没有窗口）。
-
-多个绑定进程同时运行时，后进入的压在栈顶。
+每 400ms 读取前台窗口的可执行文件名，并以大小写不敏感的方式匹配绑定。切换到未绑定的应用时恢复会话中的桌面预设，或恢复启动时记录的显示状态。应用绑定页可添加和解除绑定，并显示当前生效项。
 
 ## 界面
 
-Slint 1.18，控件风格用内置的 **fluent**，不显式指定样式——编译器的默认值就是它（`typeloader.rs` 里 `unwrap_or_else(|| "fluent".into())`），并且它会跟随系统深浅色。
+主窗口通过 [slint-winui](https://github.com/CandyRGB/slint-winui) 提供导航、面包屑和常用控件。导航含预设库、我的收藏、应用绑定，设置固定在侧栏底部。默认导航窗格宽 208px，窗格切换直接采用目标布局。
 
-既然跟随系统，配色就**不能硬编码**。界面上所有颜色都走 `Palette` 语义色：`background`（内容层，浅色下 #FAFAFA）/ `alternate-background`（导航边栏，浅色下 #F0F0F0）/ `foreground` / `accent-background`（可点击的文字与强调）/ `border`（控件描边），次要文字用 `foreground.with-alpha(...)` 降透明度。硬编码任何 `#rrggbb` 都会在另一半配色下失效。
-
-窗口是**三层灰白**，与 WinUI `NavigationView` 的图层一致：
-
-| 层 | 令牌 | 浅色值 | 对应 WinUI |
-| --- | --- | --- | --- |
-| 导航边栏 / 标题带 | `background` + 3% 前景覆盖 | #F2F2F2（242） | 窗格底（acrylic 扁平化后的灰） |
-| 内容区 | `background` | #FAFAFA（250） | `LayerFillColorDefault` |
-| 卡片 | `background` + 1px `Theme.card-stroke` | #FAFAFA + 10% 前景描边 | `CardBackgroundFillColorDefault` + `CardStrokeColorDefault` |
-
-导航底与标题带之所以不是直接用 `alternate-background`（#F0F0F0 = 240），是因为对着官方示例取色发现它的窗格是 **243–244**，我们的要暗 3–4 级。现在用「`background` 打底 + 3% 前景覆盖」压到 **242**，与官方基本重合；深色下则变成 35（内容 28），层次比原来的 44 更接近 WinUI 那种若隐若现的分层。
-
-卡片与内容区同色是 WinUI 的做法：卡片不靠填色区分，靠**细描边 + 8px 圆角 + 2px 偏移的 5% 阴影**。所以卡片描边不能用 `Palette.border`——那是 45% 黑的控件描边，用在卡片上过重；`Theme.card-stroke`（10%）与 `Theme.divider`（8%）是应用内定义的两档细线。
-
-**唯一的硬编码颜色例外**：设置页里「跟随系统 / 浅色 / 深色」三张缩略图的配色写死为 `#fafafa` / `#1c1c1c` 等值。缩略图是**对某种模式的描绘**，深色缩略图在浅色主题下也必须是深色，否则它就无法表达自己代表什么。
-
-## 导航边栏组件与动效
-
-主窗口使用 `NavigationView`。`menu-items` 承载「预设库」和「应用」，`settings` 将「设置」固定在底部。应用以 `NavPage` 保存当前页面，并用稳定 ID 与 `selected-id` 同步。`item-invoked` 切换页面，`back-requested` 在预设编辑页返回列表。
-
-默认窗口使用 200px 宽的展开窗格，中等宽度收至 48px，窄窗口使用覆盖窗格。窗格切换直接采用目标布局。下面的性能数据来自早期宽度动画实验。
+预设库和收藏使用同一组卡片。图片和名称打开编辑页，星标控制收藏。预设库支持按名称搜索。编辑时预览参数，保存后应用到桌面，取消则恢复原先的桌面预设。初始预设在编辑页可恢复默认参数，自建预设可删除。
 
 ### 实测开销
 
@@ -163,15 +120,11 @@ Slint 自带 `SLINT_DEBUG_PERFORMANCE=refresh_lazy,console` 会打印帧率、�
 
 ## 面包屑（BreadcrumbBar）
 
-`NavigationView` 的 `page-header` 插槽显示当前页面的路径。预设列表显示「预设库」，编辑页显示「预设库 › 预设名」或「预设库 › 新建预设」，应用与设置页各显示一项。
-
-`BreadcrumbBar` 使用 `items: [Crumb]` 接收路径。宽度不足时，省略号收起最左侧的祖先，浮出菜单以由近到远的顺序列出这些祖先。`select(int)` 回传祖先在原路径中的索引。末项显示当前位置。
-
-预设库使用独立的列表和参数编辑页。点击「预设库」面包屑、导航返回按钮或在编辑时再次选择「预设库」会调用同一返回逻辑，清除 UI 选中项并通知 Rust 清除当前预设的索引。
+`NavigationView` 的 `page-header` 插槽显示当前页标题。编辑时切换为面包屑，首项是来源页面，末项是正在编辑的预设或「新建预设」。点击首项或导航返回按钮会回到来源页面。
 
 ## 主题模式
 
-设置页「外观 → 应用模式」提供三选一，改动立即生效并持久化。
+设置页「外观 → 应用主题」提供三选一，改动立即生效并持久化。
 
 难点在于 `Palette` 是 std-widgets 的全局量，Rust 侧拿不到（`ui.global::<Palette>()` 编译不过），所以切换只能写在 Slint 里——
 
@@ -188,53 +141,9 @@ function apply-theme() {
 
 持久化：`%APPDATA%\LumaTune\settings.json`，内容 `{ "theme": "system" | "light" | "dark" }`。文件缺失或损坏时回落 `system`，不阻塞启动（`lumatune-win::settings`，4 个单测覆盖缺失 / 往返 / 损坏 / 索引映射）。
 
-托盘常驻 + 主窗口（左预设列表，右参数面板），不做浮层——独占全屏下任何窗口都不可见。
+调校参数分为光照和色彩，常用参数默认展开。编辑页通过滚动容纳更多参数，参数变更以 30ms 周期写入。对比按钮在预览参数及启动时记录的显示状态之间切换。
 
-界面采用 Windows 11 设置页的卡片结构：组标题（光照 / 色彩）在卡片**外面**，卡片是 `border-radius: 8px` 的圆角块（`Palette.background`，1px `Theme.card-stroke` 描边）。参数行高 40px，行间用缩进 16px 的 1px 分隔线，首行不画线。
-
-导航窗格的行高度与收起宽度由 `NavigationView` 统一控制，应用在编辑预设时启用返回键。组件的交互验证记录见 [WinUI 3 组件复刻计划](winui3-component-plan.md#navigationview)。
-
-尺寸遵循 WinUI 规范：控件圆角 4px、卡片圆角 8px、标准控件高 32px、导航项高 36px。
-
-图标用 **Segoe Fluent Icons** 的字体字形，`icons.slint` 把语义枚举翻译成码位，`Icon` 组件继承 `Text`：
-
-```slint
-import { Icon, Icons } from "icons.slint";
-
-Icon { icon: Icons.save; size: 16px; tint: Palette.foreground; }
-```
-
-| 成员 | 说明 |
-| --- | --- |
-| `enum Icons` | 语义名（`Icons.save` 等），界面里不出现码位 |
-| `component Icon` | 继承 `Text`：`text` 由 `icon` 三元选出码位，`font-family: "Segoe Fluent Icons"`、`font-size: size`、`color: tint`；外框 `size + 4`、双向居中 |
-
-| 枚举 | 码位 | 枚举 | 码位 |
-| --- | --- | --- | --- |
-| `Icons.library` | `e8f1` | `Icons.save` | `e74e` |
-| `Icons.apps` | `e8a9` | `Icons.trash` | `e74d` |
-| `Icons.settings` | `e713` | `Icons.compare` | `e8ab` |
-| `Icons.add` | `e710` | `Icons.reset` | `e72c` |
-| `Icons.cancel` | `e711` | `Icons.back` | `e72b` |
-| `Icons.menu` | `e700` | `Icons.chevron` | `e76c` |
-
-加图标：在 [Segoe Fluent Icons 码位表](https://learn.microsoft.com/windows/apps/design/style/segoe-fluent-icons-font) 里查到码位 → 枚举尾部加成员 → `text` 三元链加一支。
-
-**为什么最终选了字体而不是 SVG**：SVG 方案要维护 1721 个文件（3.1 MB）、每个图标一句 `@image-url`、着色靠 `colorize`、留白靠外层盒子躲开 `image-fit: contain` 的缩放陷阱；字体方案一行一个码位，尺寸就是 `font-size`，颜色就是 `color`，没有缩放、没有解码。渲染上字形由 DirectWrite 按设备像素光栅化并做灰度校正，观感比 resvg 的线性 alpha 混合更轻、更贴 Win11 本体。
-
-**代价**：这套字形依赖系统字体（Win11 自带；Win10 只有 Segoe MDL2 Assets，码位不完全兼容），换到 macOS / Linux 会退化成方块。若将来真要跨平台，正确解法是内嵌 `FluentSystemIcons-Regular.ttf`（MIT，2.9 MB）再改 `font-family`——但 Slint 桌面端没有稳定的自定义字体注册 API，`import "xxx.ttf"` 只在 MCU 目标下生效，桌面要开 `unstable-fontique-011` 特性调 `shared_collection().register_fonts()`。原先的 1721 个 SVG（提交 `fd0d3c8`）已从工作区删除，需要时从历史里取。
-
-模块只依赖 `std-widgets` 的 `Palette`（`tint` 默认值），不依赖应用组件，可直接复制到别的 Slint 工程。
-
-行的排布仿设置页：标签靠左定宽 108px，滑块定宽 240px 与数值一起右对齐，中间留白。滑块不撑满整行——14 个满幅滑杆会变成一堵蓝色长条。
-
-参数区高度固定，内容超出时滚动，不靠加大窗口解决。滚动容器用 `Flickable` 而不是 `ScrollView`，并且必须设 `mouse-drag-pan-enabled: false`：该属性单独控制「鼠标按住拖动视口」，关掉之后鼠标拖拽才会落到滑块上；`interactive` 管的是触摸平移，保持默认。右侧自绘一条 6px 滚动指示条，位置由 `content-y` 与 `content-height` 推算。
-
-Spacing 只用 8 和 16 两档，不出现零散数值。
-
-**Slint 没有原生托盘支持**，需要 `tray-icon` + `muda` 补上。这是本项目 Slint 侧最大的未知量，应尽早验证。
-
-参数拖动即写入（节流到 30ms），另提供 A/B 对比键：按住临时切恒等表，松开恢复。人眼对绝对亮度不敏感、对差异敏感，没有对照物就调不准。
+应用图标使用 Fluent UI System Icons 的 SVG。界面通过 `@image-url("icons/…")` 引用实际使用的文件，该目录附有 [图标的 MIT 许可](../apps/lumatune/ui/icons/LICENSE)。
 
 ## 验收标准
 
