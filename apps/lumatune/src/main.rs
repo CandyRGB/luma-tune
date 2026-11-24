@@ -7,11 +7,8 @@ use std::time::Duration;
 use lumatune_core::{FilterParams, Preset, Ramp};
 use lumatune_win::presets::StoredPreset;
 use lumatune_win::settings::{self, ThemeMode};
-use lumatune_win::{Session, display, file_picker, foreground, presets, state, system_icons};
-use slint::{
-    ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer,
-    TimerMode, VecModel,
-};
+use lumatune_win::{Session, display, file_picker, foreground, presets, state};
+use slint::{ComponentHandle, Image, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 mod contrast_theme;
 
@@ -213,7 +210,6 @@ fn main() -> Result<(), slint::PlatformError> {
     let healed = state::heal(&displays);
     let target = display::primary(&displays);
     let ui = AppWindow::new()?;
-    install_system_icons(&ui);
     breadcrumb_bar::install(ui.global::<BreadcrumbBarBehavior>());
     combo_box::install(ui.global::<ComboBoxBehavior>());
     navigation_view::install(ui.global::<NavigationViewBehavior>(), &ui);
@@ -311,56 +307,6 @@ fn main() -> Result<(), slint::PlatformError> {
     drop(writer);
     drop(watcher);
     result
-}
-
-fn install_system_icons(ui: &AppWindow) {
-    // Glyph IDs from the Segoe Fluent Icons table, also present in Segoe MDL2 Assets.
-    let codes = [
-        0xe70f, 0xe710, 0xe712, 0xe713, 0xe72c, 0xe734, 0xe735, 0xe73e, 0xe7f4, 0xe8a9, 0xe8f1,
-        0xe946,
-    ];
-    let [
-        edit,
-        add,
-        more,
-        settings,
-        refresh,
-        favorite,
-        favorite_fill,
-        check,
-        monitor,
-        apps,
-        library,
-        info,
-    ] = system_icons::render(codes).map(|mask| {
-        let Some(mask) = mask else {
-            return Image::default();
-        };
-        let size = system_icons::SIZE as u32;
-        let mut pixels = SharedPixelBuffer::<Rgba8Pixel>::new(size, size);
-        for (pixel, alpha) in pixels.make_mut_slice().iter_mut().zip(mask) {
-            *pixel = Rgba8Pixel {
-                r: 255,
-                g: 255,
-                b: 255,
-                a: alpha,
-            };
-        }
-        Image::from_rgba8(pixels)
-    });
-    let icons = ui.global::<SystemIcons>();
-    icons.set_edit(edit);
-    icons.set_add(add);
-    icons.set_more(more);
-    icons.set_settings(settings);
-    icons.set_refresh(refresh);
-    icons.set_favorite(favorite);
-    icons.set_favorite_fill(favorite_fill);
-    icons.set_check(check);
-    icons.set_monitor(monitor);
-    icons.set_apps(apps);
-    icons.set_library(library);
-    icons.set_info(info);
 }
 
 fn install_editor(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) {
