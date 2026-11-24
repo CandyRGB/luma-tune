@@ -61,7 +61,7 @@ component Body inherits Text {
 }
 
 component Heading inherits Body {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 16px;
 }
 
@@ -105,18 +105,35 @@ component Pill inherits Rectangle {
     copy := Caption {
         text: root.label;
         color: root.ink;
-        font-weight: 600;
+        font-weight: 700;
         horizontal-alignment: center;
     }
 }
 
-component IconAction inherits Button {
+component IconAction inherits Rectangle {
     in property <image> glyph;
-    in property <color> ink: root.foreground;
-    appearance: ButtonStyle.subtle;
+    in property <color> ink: button.foreground;
+    in property <string> accessible-name;
+    callback clicked();
+
     width: 36px;
     height: 32px;
-    Image { width: 16px; height: 16px; source: root.glyph; colorize: root.ink; }
+
+    button := Button {
+        width: parent.width;
+        height: parent.height;
+        appearance: ButtonStyle.subtle;
+        accessible-name: root.accessible-name;
+        clicked => { root.clicked(); }
+    }
+    Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 16px;
+        height: 16px;
+        source: root.glyph;
+        colorize: root.ink;
+    }
 }
 
 component PrimaryAction inherits Button {
@@ -126,13 +143,52 @@ component PrimaryAction inherits Button {
     appearance: ButtonStyle.accent;
     height: 34px;
 
-    Image {
-        source: @image-url("@winui-icons/add_16_regular.svg");
-        colorize: root.foreground;
+    VerticalLayout {
         width: 16px;
-        height: 16px;
+        alignment: center;
+        Image {
+            source: @image-url("@winui-icons/add_16_regular.svg");
+            colorize: root.foreground;
+            width: 16px;
+            height: 16px;
+        }
     }
     Body { text: root.label; color: root.foreground; }
+}
+
+component EmptyState inherits Rectangle {
+    in property <image> glyph;
+    in property <string> message;
+    in property <string> action-label;
+    callback action();
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 12px;
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: center;
+            Mark { glyph: root.glyph; ink: Design.subtle; }
+        }
+        Body {
+            text: root.message;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        if root.action-label != "": HorizontalLayout {
+            alignment: center;
+            action-button := Button {
+                accessible-name: root.action-label;
+                Body {
+                    text: root.action-label;
+                    color: action-button.foreground;
+                    accessible-role: none;
+                }
+                clicked => { root.action(); }
+            }
+        }
+    }
 }
 
 component CoverArtwork inherits Rectangle {
@@ -205,7 +261,7 @@ component PresetCard inherits Surface {
                         width: parent.width;
                         height: parent.height;
                         text: root.preset.name;
-                        font-weight: 600;
+                        font-size: 16px;
                         overflow: elide;
                     }
                     ButtonInput {
@@ -274,7 +330,7 @@ component BindingRow inherits Rectangle {
             alignment: center;
             spacing: 4px;
             horizontal-stretch: 1;
-            Body { text: root.rule.executable; font-weight: 600; overflow: elide; }
+            Body { text: root.rule.executable; font-weight: 700; overflow: elide; }
         }
         Body { text: root.rule.preset; width: 180px; overflow: elide; }
         VerticalLayout {
@@ -326,7 +382,7 @@ component SettingRow inherits Rectangle {
             spacing: 4px;
             alignment: center;
             horizontal-stretch: 1;
-            Body { text: root.label; font-weight: 600; }
+            Body { text: root.label; font-weight: 700; }
             Caption { text: root.detail; }
         }
         VerticalLayout {
@@ -379,7 +435,7 @@ export component AppWindow inherits Window {
     preferred-height: 716px;
     min-width: 960px;
     min-height: 580px;
-    default-font-family: "Segoe UI Variable Text";
+    default-font-family: "Microsoft YaHei UI";
     default-font-size: 14px;
 
     in property <[PresetCardData]> presets;
@@ -447,9 +503,20 @@ export component AppWindow inherits Window {
     private property <BindingDisplay> removing-binding;
     private property <[PresetCardData]> visible-presets: root.filter-presets(root.presets, root.query, false);
     private property <[PresetCardData]> favorite-presets: root.filter-presets(root.presets, "", true);
+    private property <bool> favorites-empty: root.page-id == "favorites" && !root.editing
+        && root.favorite-presets.length == 0;
+    private property <bool> bindings-empty: root.page-id == "bindings" && root.bindings.length == 0;
     private property <string> page-name: root.page-id == "library" ? "预设库"
         : root.page-id == "favorites" ? "我的收藏"
         : root.page-id == "bindings" ? "应用绑定" : "设置";
+
+    function navigate(id: string) {
+        if (id != root.page-id) {
+            if root.editing { root.finish-edit(); }
+            root.page-id = id;
+            scroller.content-y = 0px;
+        }
+    }
 
     function apply-theme() {
         Palette.color-scheme = root.theme-mode == 1 ? ColorScheme.light
@@ -505,7 +572,7 @@ export component AppWindow inherits Window {
         height: parent.height;
         pane-title: root.title;
         open-pane-length: 208px;
-        selected-id: root.page-id;
+        selected-id <=> root.page-id;
         is-back-enabled: root.editing;
         menu-items: [
             { id: "library", label: "预设库", icon: @image-url("@winui-icons/library_16_regular.svg") },
@@ -514,13 +581,7 @@ export component AppWindow inherits Window {
         ];
         settings: { id: "settings", label: "设置", icon: @image-url("@winui-icons/settings_16_regular.svg") };
         back-requested => { root.finish-edit(); }
-        item-invoked(id) => {
-            if (id != root.page-id) {
-                if root.editing { root.finish-edit(); }
-                root.page-id = id;
-                scroller.content-y = 0px;
-            }
-        }
+        item-invoked(id) => { root.navigate(id); }
 
         page-header << HorizontalLayout {
             padding-right: 4px;
@@ -539,7 +600,7 @@ export component AppWindow inherits Window {
             if !root.editing: Body {
                 text: root.page-name;
                 font-size: 28px;
-                font-weight: 650;
+                font-weight: 700;
                 horizontal-stretch: 1;
             }
             if !root.editing && root.page-id == "library": VerticalLayout {
@@ -586,6 +647,7 @@ export component AppWindow inherits Window {
             scroller := ScrollView {
                 width: parent.width;
                 height: parent.height;
+                visible: !root.favorites-empty && !root.bindings-empty;
                 content-width: self.visible-width;
                 content-height: max(self.visible-height, page.preferred-height);
                 page := VerticalLayout {
@@ -646,9 +708,8 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    if !root.editing && root.page-id == "favorites": PresetGallery {
+                    if !root.editing && root.page-id == "favorites" && !root.favorites-empty: PresetGallery {
                         presets: root.favorite-presets;
-                        empty-message: "还没有收藏。可在预设库点击星标。";
                         open-preset(preset) => { root.begin-edit(preset.index); }
                         toggle-favorite(index) => { root.toggle-favorite(index); }
                     }
@@ -775,10 +836,9 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    if root.page-id == "bindings": VerticalLayout {
+                    if root.page-id == "bindings" && !root.bindings-empty: VerticalLayout {
                         spacing: 16px;
-                        if root.bindings.length == 0: Caption { text: "还没有绑定。"; }
-                        if root.bindings.length > 0: Surface {
+                        Surface {
                             VerticalLayout {
                                 spacing: 0;
                                 Rectangle {
@@ -865,6 +925,16 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+            }
+            if root.favorites-empty: EmptyState {
+                glyph: @image-url("@winui-icons/star_16_regular.svg");
+                message: "没有任何收藏";
+                action-label: "前往预设库";
+                action => { root.navigate("library"); }
+            }
+            if root.bindings-empty: EmptyState {
+                glyph: @image-url("@winui-icons/folder_open_16_regular.svg");
+                message: "未绑定任何应用，可点击右上角“添加绑定”哦！";
             }
         }
     }
