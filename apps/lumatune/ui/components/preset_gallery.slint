@@ -1,0 +1,123 @@
+import { ButtonFocusVisual, ButtonInput } from "@winui";
+import { PresetCardData } from "../models.slint";
+import { IconAction } from "actions.slint";
+import { Body, Caption, Design, Hairline, Surface } from "style.slint";
+
+export component CoverArtwork inherits Rectangle {
+    in property <image> cover;
+    clip: true;
+
+    Image {
+        source: root.cover.width > 0 ? root.cover : @image-url("../covers/default-preset.svg");
+        width: parent.width;
+        height: parent.height;
+        image-fit: ImageFit.cover;
+    }
+}
+
+component PresetCard inherits Surface {
+    in property <PresetCardData> preset;
+    callback open-preset();
+    callback toggle-favorite();
+
+    VerticalLayout {
+        padding: 1px;
+        spacing: 0;
+        art := CoverArtwork {
+            height: self.width * Design.cover-height-ratio;
+            cover: root.preset.cover;
+            forward-focus: cover-input;
+            accessible-role: button;
+            accessible-label: "编辑 " + root.preset.name;
+            accessible-action-default => { root.open-preset(); }
+
+            cover-input := ButtonInput {
+                clicked => { root.open-preset(); }
+            }
+
+            if cover-input.has-hover || cover-input.keyboard-focused: Rectangle {
+                x: parent.width - self.width - 10px;
+                y: 10px;
+                width: 32px;
+                height: 32px;
+                border-radius: 6px;
+                background: #ffffffec;
+                Image {
+                    source: @image-url("@winui-icons/edit_16_regular.svg");
+                    colorize: Design.text;
+                    width: 16px;
+                    height: 16px;
+                }
+            }
+
+            if cover-input.keyboard-focused: ButtonFocusVisual {
+                control-width: parent.width;
+                control-height: parent.height;
+                control-radius: 6px;
+            }
+        }
+        Hairline { }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                height: 32px;
+                padding-left: 16px;
+                padding-right: 10px;
+                spacing: 8px;
+                Rectangle {
+                    horizontal-stretch: 1;
+                    accessible-role: button;
+                    accessible-label: "打开 " + root.preset.name;
+                    accessible-action-default => { root.open-preset(); }
+                    Body {
+                        width: parent.width;
+                        height: parent.height;
+                        text: root.preset.name;
+                        overflow: elide;
+                    }
+                    ButtonInput {
+                        tab-stop: false;
+                        clicked => { root.open-preset(); }
+                    }
+                }
+                IconAction {
+                    accessible-name: root.preset.favorite ? "取消收藏 " + root.preset.name : "收藏 " + root.preset.name;
+                    glyph: @image-url("@winui-icons/star_16_regular.svg");
+                    ink: root.preset.favorite ? #926013 : Design.subtle;
+                    clicked => { root.toggle-favorite(); }
+                }
+            }
+        }
+    }
+}
+
+export component PresetGallery inherits Rectangle {
+    in property <[PresetCardData]> presets;
+    in property <string> empty-message;
+    callback open-preset(PresetCardData);
+    callback toggle-favorite(int);
+
+    private property <int> columns: root.width >= 680px ? 3 : 2;
+    private property <length> gutter: 16px;
+    private property <length> tile-width: floor(
+        (root.width - (root.columns - 1) * root.gutter) / root.columns / 2px
+    ) * 2px;
+    private property <length> tile-height: (root.tile-width - 2px) * Design.cover-height-ratio + 48px;
+    height: root.presets.length > 0
+        ? ceil(root.presets.length / root.columns) * (root.tile-height + root.gutter) - root.gutter
+        : 24px;
+
+    if root.presets.length == 0: Caption {
+        width: parent.width;
+        text: root.empty-message;
+    }
+    for preset[index] in root.presets: PresetCard {
+        x: Math.mod(index, root.columns) * (root.tile-width + root.gutter);
+        y: floor(index / root.columns) * (root.tile-height + root.gutter);
+        width: root.tile-width;
+        height: root.tile-height;
+        preset: preset;
+        open-preset => { root.open-preset(preset); }
+        toggle-favorite => { root.toggle-favorite(preset.index); }
+    }
+}

@@ -1,0 +1,30 @@
+import { TextBox } from "@winui";
+import { PresetGallery } from "../components/preset_gallery.slint";
+import { Heading } from "../components/style.slint";
+import { PresetCardData } from "../models.slint";
+
+export component PresetLibraryPage inherits VerticalLayout {
+    in property <[PresetCardData]> presets;
+    in-out property <string> query;
+    callback open-preset(int);
+    callback toggle-favorite(int);
+
+    spacing: 16px;
+    HorizontalLayout {
+        spacing: 12px;
+        Heading { text: "全部预设"; horizontal-stretch: 1; }
+        TextBox {
+            width: 256px;
+            height: 34px;
+            text <=> root.query;
+            accessible-name: "搜索预设";
+            placeholder-text: "搜索预设";
+        }
+    }
+    PresetGallery {
+        presets: root.presets;
+        empty-message: "没有找到预设。";
+        open-preset(preset) => { root.open-preset(preset.index); }
+        toggle-favorite(index) => { root.toggle-favorite(index); }
+    }
+}

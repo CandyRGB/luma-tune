@@ -27,6 +27,7 @@ fn main() {
             "navigation_view",
             "number_box",
             "radio_buttons",
+            "window_title_bar",
         ],
     )
     .expect("could not register Slint WinUI behavior modules");

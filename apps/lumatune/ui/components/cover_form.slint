@@ -1,0 +1,31 @@
+import { Button } from "@winui";
+import { CoverArtwork } from "preset_gallery.slint";
+import { Design } from "style.slint";
+import { CoverChoice } from "../models.slint";
+
+export component CoverForm inherits VerticalLayout {
+    in-out property <CoverChoice> pending-cover;
+    callback browse-cover() -> CoverChoice;
+
+    preferred-width: 432px;
+    spacing: 12px;
+
+    CoverArtwork { height: self.width * Design.cover-height-ratio; cover: root.pending-cover.artwork; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        Button {
+            text: "选择图片…";
+            clicked => {
+                let selected = root.browse-cover();
+                if (selected.changed) { root.pending-cover = selected; }
+            }
+        }
+        Button {
+            text: "恢复默认";
+            enabled: root.pending-cover.artwork.width > 0;
+            clicked => { root.pending-cover = { changed: true }; }
+        }
+    }
+}

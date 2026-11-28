@@ -1,0 +1,54 @@
+import { Body, Caption, Design, Surface } from "style.slint";
+
+export component DetailCard inherits Surface {
+    in property <image> glyph;
+    in property <string> symbol;
+    in property <string> label;
+    in property <[string]> details;
+    min-height: 68px;
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 16px;
+        VerticalLayout {
+            width: 20px;
+            alignment: center;
+            if root.symbol == "": Image {
+                width: 20px;
+                height: 20px;
+                source: root.glyph;
+                accessible-role: none;
+            }
+            if root.symbol != "": Text {
+                width: 20px;
+                height: 20px;
+                font-family: "Segoe MDL2 Assets";
+                font-size: 20px;
+                color: Design.text;
+                text: root.symbol;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+        }
+        VerticalLayout {
+            spacing: 2px;
+            alignment: center;
+            horizontal-stretch: 1;
+            Body { text: root.label; overflow: elide; }
+            for detail in root.details: Caption { text: detail; overflow: elide; }
+        }
+        VerticalLayout {
+            horizontal-stretch: 0;
+            alignment: center;
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+                @children
+            }
+        }
+    }
+}

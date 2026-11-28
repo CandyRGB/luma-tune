@@ -1,0 +1,31 @@
+import { InfoBar, InfoBarCloseReason, InfoSeverity } from "@winui";
+
+export struct NoticeData {
+    severity: InfoSeverity,
+    title: string,
+    message: string,
+}
+
+export component AppNotice inherits InfoBar {
+    in property <NoticeData> data;
+    in property <length> viewport-width;
+    in property <bool> active;
+    callback dismissed();
+
+    x: round((root.viewport-width - root.width) / 4px) * 2px;
+    width: min(464px, root.viewport-width - 32px);
+    height: self.preferred-height;
+    severity: root.data.severity;
+    title: root.data.title;
+    message: root.data.message;
+    accessible-name: root.data.title;
+    close-button-accessible-name: "关闭提示";
+    close-button-tooltip: "关闭提示";
+    init => { root.open = root.active; }
+    changed active => { root.open = root.active; }
+    closed(reason) => {
+        if (reason == InfoBarCloseReason.close-button) {
+            root.dismissed();
+        }
+    }
+}

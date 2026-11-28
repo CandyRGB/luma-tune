@@ -1,0 +1,101 @@
+import { Button, ButtonStyle } from "@winui";
+import { Body, Design } from "style.slint";
+
+component Mark inherits Rectangle {
+    in property <image> glyph;
+    in property <color> ink: Design.blue;
+    in property <color> base: Design.soft-blue;
+    width: 40px;
+    height: 40px;
+    background: root.base;
+    border-radius: 8px;
+    Image {
+        source: root.glyph;
+        colorize: root.ink;
+        width: 20px;
+        height: 20px;
+    }
+}
+
+export component IconAction inherits Rectangle {
+    in property <image> glyph;
+    in property <color> ink: button.foreground;
+    in property <string> accessible-name;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    width: 36px;
+    height: 32px;
+
+    button := Button {
+        width: parent.width;
+        height: parent.height;
+        appearance: ButtonStyle.subtle;
+        accessible-name: root.accessible-name;
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+    Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 16px;
+        height: 16px;
+        source: root.glyph;
+        colorize: root.ink;
+    }
+}
+
+export component PrimaryAction inherits Button {
+    in property <string> label;
+    accessible-name: root.label;
+    accent: Design.blue;
+    appearance: ButtonStyle.accent;
+    height: 34px;
+
+    VerticalLayout {
+        width: 16px;
+        alignment: center;
+        Image {
+            source: @image-url("@winui-icons/add_16_regular.svg");
+            colorize: root.foreground;
+            width: 16px;
+            height: 16px;
+        }
+    }
+    Body { text: root.label; color: root.foreground; }
+}
+
+export component EmptyState inherits Rectangle {
+    in property <image> glyph;
+    in property <string> message;
+    in property <string> action-label;
+    callback action();
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 12px;
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: center;
+            Mark { glyph: root.glyph; ink: Design.subtle; }
+        }
+        Body {
+            text: root.message;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        if root.action-label != "": HorizontalLayout {
+            alignment: center;
+            action-button := Button {
+                accessible-name: root.action-label;
+                Body {
+                    text: root.action-label;
+                    color: action-button.foreground;
+                    accessible-role: none;
+                }
+                clicked => { root.action(); }
+            }
+        }
+    }
+}

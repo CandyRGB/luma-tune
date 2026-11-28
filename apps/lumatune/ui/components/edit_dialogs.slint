@@ -1,0 +1,80 @@
+import { ComboBoxItem, ContentDialogButton, ContentDialogPopup } from "@winui";
+import { CoverChoice } from "../models.slint";
+import { BindingForm } from "binding_form.slint";
+import { CoverForm } from "cover_form.slint";
+import { AppNotice, NoticeData } from "notice.slint";
+
+enum EditDialog { binding, cover }
+
+export component EditDialogs inherits Rectangle {
+    in property <[ComboBoxItem]> binding-presets;
+    in property <NoticeData> notice;
+    in property <bool> notice-open;
+    in property <length> notice-top;
+    out property <bool> open: popup.is-open;
+
+    callback browse-application() -> string;
+    callback save-binding(string, int) -> bool;
+    callback browse-cover() -> CoverChoice;
+    callback accept-cover(CoverChoice);
+    callback dismiss-notice();
+
+    private property <EditDialog> kind;
+    private property <string> executable;
+    private property <int> preset-index: -1;
+    private property <CoverChoice> cover;
+
+    public function begin-binding() {
+        root.kind = EditDialog.binding;
+        root.executable = "";
+        root.preset-index = -1;
+        popup.show();
+    }
+
+    public function choose-cover(current: CoverChoice) {
+        root.kind = EditDialog.cover;
+        root.cover = current;
+        popup.show();
+    }
+
+    popup := ContentDialogPopup {
+        width: root.width;
+        height: root.height;
+        title: root.kind == EditDialog.binding ? "添加绑定" : "更换封面";
+        primary-label: root.kind == EditDialog.binding ? "保存绑定" : "确定";
+        close-label: "取消";
+        default-button: ContentDialogButton.primary;
+        primary-enabled: root.kind == EditDialog.cover || (root.executable != "" && root.preset-index >= 0);
+        button-requested(button) => {
+            if (button == ContentDialogButton.primary) {
+                if (root.kind == EditDialog.binding) {
+                    if (!root.save-binding(root.executable, root.preset-index)) { return; }
+                } else {
+                    root.accept-cover(root.cover);
+                }
+            }
+            self.close();
+        }
+
+        if root.kind == EditDialog.binding: BindingForm {
+            binding-presets: root.binding-presets;
+            viewport: { width: root.width, height: root.height };
+            executable <=> root.executable;
+            preset-index <=> root.preset-index;
+            browse-application => { return root.browse-application(); }
+        }
+
+        if root.kind == EditDialog.cover: CoverForm {
+            pending-cover <=> root.cover;
+            browse-cover => { return root.browse-cover(); }
+        }
+
+        foreground << AppNotice {
+            y: root.notice-top;
+            viewport-width: root.width;
+            active: root.open && root.notice-open;
+            data: root.notice;
+            dismissed => { root.dismiss-notice(); }
+        }
+    }
+}

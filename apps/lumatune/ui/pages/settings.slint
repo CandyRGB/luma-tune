@@ -1,0 +1,104 @@
+import { RadioButton, RadioButtonsBehavior, RadioButtonsItem } from "@winui";
+import { DetailCard } from "../components/detail_card.slint";
+import { Caption, Heading } from "../components/style.slint";
+
+component ThemeChoices inherits Rectangle {
+    in-out property <int> selected-index;
+    callback picked(int);
+
+    private property <[RadioButtonsItem]> options: [
+        { id: "system", text: "跟随系统" },
+        { id: "light", text: "浅色" },
+        { id: "dark", text: "深色" },
+    ];
+    private property <int> focused-index: -1;
+    private property <int> focus-target: -1;
+    private property <int> focus-request;
+
+    min-width: choices.min-width;
+    preferred-width: choices.preferred-width;
+    height: 32px;
+    horizontal-stretch: 0;
+    accessible-role: radio-group;
+    accessible-label: "应用主题";
+
+    function select(index: int) {
+        if root.selected-index != index {
+            root.selected-index = index;
+            root.picked(index);
+        }
+    }
+
+    choices := HorizontalLayout {
+        alignment: end;
+        spacing: 16px;
+        for option[index] in root.options: Rectangle {
+            width: ceil((measure.preferred-width + 28px) / 2px) * 2px;
+            measure := Text {
+                visible: false;
+                text: option.text;
+                font-family: "Segoe UI Variable Text";
+                font-size: 14px;
+                accessible-role: none;
+            }
+            RadioButton {
+                private property <int> focus-ticket: root.focus-target == index ? root.focus-request : 0;
+                width: parent.width;
+                text: option.text;
+                checked: index == root.selected-index;
+                index-in-set: index;
+                size-of-set: root.options.length;
+                tab-stop: index == (root.focused-index >= 0 ? root.focused-index : root.selected-index);
+                selection-requested => { root.select(index); }
+                changed focus-ticket => { if self.focus-ticket > 0 { self.focus(); } }
+                changed has-focus => {
+                    if self.has-focus { root.focused-index = index; }
+                    else if root.focused-index == index { root.focused-index = -1; }
+                }
+                unhandled-key-pressed(event) => {
+                    let backward = event.text == Key.LeftArrow || event.text == Key.UpArrow;
+                    let forward = event.text == Key.RightArrow || event.text == Key.DownArrow;
+                    if !backward && !forward { return reject; }
+                    let next = RadioButtonsBehavior.next-enabled(root.options, index, backward ? -1 : 1);
+                    if next >= 0 {
+                        root.focus-target = next;
+                        root.focus-request += 1;
+                        if !event.modifiers.control { root.select(next); }
+                    }
+                    return accept;
+                }
+            }
+        }
+    }
+}
+
+export component SettingsPage inherits VerticalLayout {
+    in property <image> app-icon;
+    in-out property <int> theme-mode;
+    callback pick-theme(int);
+
+    spacing: 24px;
+    VerticalLayout {
+        spacing: 8px;
+        Heading { text: "外观"; height: 24px; }
+        DetailCard {
+            symbol: "\u{E790}"; // Color
+            label: "应用主题";
+            details: ["选择界面配色"];
+            ThemeChoices {
+                selected-index <=> root.theme-mode;
+                picked(index) => { root.pick-theme(index); }
+            }
+        }
+    }
+    VerticalLayout {
+        spacing: 8px;
+        Heading { text: "关于"; height: 24px; }
+        DetailCard {
+            glyph: root.app-icon;
+            label: "LumaTune";
+            details: ["作者 · CandyRGB", "更新日期 · 2026-11-27"];
+            Caption { text: "版本 0.1.0"; horizontal-alignment: right; }
+        }
+    }
+}

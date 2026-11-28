@@ -1,0 +1,46 @@
+import { Palette } from "std-widgets.slint";
+import { ContrastTheme } from "@winui";
+
+export global Design {
+    out property <float> cover-height-ratio: 9 / 16;
+    out property <color> text: Palette.color-scheme == ColorScheme.dark ? Palette.foreground : #1b1b1b;
+    out property <color> subtle: Palette.color-scheme == ColorScheme.dark ? Palette.foreground.with-alpha(0.74) : #616161;
+    out property <color> separator: Palette.foreground.with-alpha(0.08);
+    // Match the card treatment of slint-winui's Expander headers.
+    out property <color> stroke: ContrastTheme.colors.active ? ContrastTheme.colors.button-text
+        : Palette.color-scheme == ColorScheme.dark ? #0000001a : #0000000f;
+    out property <brush> surface: ContrastTheme.colors.active ? ContrastTheme.colors.button-face
+        : Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #ffffffb3;
+    out property <color> blue: Palette.color-scheme == ColorScheme.dark ? Palette.accent-background : #0862bf;
+    out property <color> soft-blue: Palette.color-scheme == ColorScheme.dark ? Palette.accent-background.with-alpha(0.18) : #edf5ff;
+}
+
+export component Caption inherits Text {
+    color: Design.subtle;
+    font-size: 12px;
+    vertical-alignment: center;
+}
+
+export component Body inherits Text {
+    color: Design.text;
+    font-size: 14px;
+    font-weight: 400;
+    vertical-alignment: center;
+}
+
+export component Heading inherits Body {
+    font-weight: 600;
+}
+
+export component Surface inherits Rectangle {
+    background: Design.surface;
+    border-color: Design.stroke;
+    border-width: ContrastTheme.colors.active ? 2px : 1px;
+    border-radius: 4px;
+    clip: true;
+}
+
+export component Hairline inherits Rectangle {
+    height: 1px;
+    background: Design.separator;
+}

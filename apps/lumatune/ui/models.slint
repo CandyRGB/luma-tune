@@ -1,0 +1,28 @@
+export struct PresetCardData {
+    index: int,
+    name: string,
+    cover: image,
+    favorite: bool,
+}
+
+export struct BindingDisplay {
+    index: int,
+    executable: string,
+    icon: image,
+}
+
+export struct DisplayCard {
+    id: string,
+    title: string,
+    detail: string,
+    preset: string,
+    preset-index: int,
+    foreground: string,
+    ready: bool,
+}
+
+export struct CoverChoice {
+    artwork: image,
+    source: string,
+    changed: bool,
+}

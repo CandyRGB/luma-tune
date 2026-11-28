@@ -1,0 +1,406 @@
+import { Palette, ScrollView, Slider } from "std-widgets.slint";
+import {
+    Button, ComboBox, ComboBoxItem, Expander, ExpanderContentAlignment,
+    NumberBox, NumberBoxMath, NumberBoxValue, TextBox,
+} from "@winui";
+import { IconAction } from "../components/actions.slint";
+import { CoverArtwork } from "../components/preset_gallery.slint";
+import { Body, Caption, Design, Hairline, Surface } from "../components/style.slint";
+import { CoverChoice } from "../models.slint";
+
+component AdjustmentRow inherits Rectangle {
+    in property <string> label;
+    in property <float> lower;
+    in property <float> upper;
+    in property <float> step: 0.01;
+    in property <bool> whole-number;
+    in-out property <float> setting;
+    callback edited();
+    height: 54px;
+
+    private property <NumberBoxValue> box-value: { number: root.setting, has-value: true };
+
+    pure function round-value(n: float) -> float {
+        return root.whole-number ? round(n) : round(n * 100) / 100;
+    }
+
+    changed setting => {
+        if number.value != root.box-value { number.value = root.box-value; }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
+        Body { text: root.label; width: 72px; }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Slider {
+                height: 24px;
+                accessible-label: root.label;
+                minimum: root.lower;
+                maximum: root.upper;
+                step: root.step;
+                value <=> root.setting;
+                changed => { root.edited(); }
+            }
+        }
+        VerticalLayout {
+            width: 96px;
+            alignment: center;
+            number := NumberBox {
+                height: 32px;
+                accessible-name: root.label + "数值";
+                minimum: root.lower;
+                maximum: root.upper;
+                small-change: root.step;
+                large-change: root.step * 10;
+                text-alignment: right;
+                value: root.box-value;
+                format-number(n) => { return root.round-value(n); }
+                parse-text(text, expression) => {
+                    let parsed = NumberBoxMath.parse(text, expression, Platform.decimal-separator);
+                    if !parsed.valid || !parsed.value.has-value { return {}; }
+                    let bounded = clamp(parsed.value.number, root.lower, root.upper);
+                    return { valid: true, value: { number: root.round-value(bounded), has-value: true } };
+                }
+                value-changed(previous, next) => {
+                    if next.has-value && next.number != root.setting {
+                        root.setting = next.number;
+                        root.edited();
+                    }
+                }
+            }
+        }
+    }
+}
+
+component ComparePreview inherits Surface {
+    in property <image> before;
+    in property <image> after;
+    in property <float> aspect;
+    in property <string> status;
+    in-out property <float> split: 0.5;
+
+    background: Palette.color-scheme == ColorScheme.dark ? #181818 : #efefef;
+    vertical-stretch: 1;
+
+    if root.aspect <= 0: Caption {
+        x: 16px;
+        width: parent.width - 32px;
+        height: parent.height;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+        text: root.status;
+    }
+    if root.aspect > 0: image-area := Rectangle {
+        width: min(parent.width, parent.height * root.aspect);
+        height: self.width / root.aspect;
+        clip: true;
+
+        Image { source: root.after; width: parent.width; height: parent.height; }
+        original := Rectangle {
+            x: 0px;
+            width: parent.width * root.split;
+            height: parent.height;
+            clip: true;
+            Image { x: 0px; source: root.before; width: image-area.width; height: parent.height; }
+        }
+        Rectangle {
+            x: original.width - self.width / 2;
+            width: 2px;
+            height: parent.height;
+            background: white;
+        }
+        Rectangle {
+            x: clamp(original.width - self.width / 2, 0px, parent.width - self.width);
+            width: 40px;
+            height: 32px;
+            border-radius: 16px;
+            border-width: 1px;
+            border-color: #ffffffb0;
+            background: drag.pressed || drag.has-hover ? #222222 : #242424c9;
+            HorizontalLayout {
+                padding: 6px;
+                Image { source: @image-url("@winui-icons/chevron_left_16_regular.svg"); colorize: white; }
+                Image { source: @image-url("@winui-icons/chevron_right_16_regular.svg"); colorize: white; }
+            }
+        }
+        FocusScope {
+            width: parent.width;
+            height: parent.height;
+            accessible-role: slider;
+            accessible-label: "画面对比分割线";
+            accessible-value: "\{round(root.split * 100)}%";
+            key-pressed(event) => {
+                if event.text == Key.LeftArrow || event.text == Key.RightArrow {
+                    root.split = clamp(root.split + (event.text == Key.LeftArrow ? -0.05 : 0.05), 0, 1);
+                    return accept;
+                }
+                return reject;
+            }
+            drag := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: ew-resize;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                        root.split = clamp(self.mouse-x / self.width, 0, 1);
+                    }
+                }
+                moved => {
+                    if self.pressed { root.split = clamp(self.mouse-x / self.width, 0, 1); }
+                }
+            }
+        }
+    }
+}
+
+export component PresetEditor inherits Rectangle {
+    in property <bool> active;
+    in property <Size> viewport;
+    in-out property <float> preview-split: 0.5;
+    in property <[ComboBoxItem]> capture-sources;
+    in-out property <int> capture-index: -1;
+    in property <bool> capturing;
+    in property <image> preview-before;
+    in property <image> preview-after;
+    in property <float> preview-aspect;
+    in property <string> preview-status: "选择显示器或窗口开始预览";
+    in-out property <string> preset-name;
+    in-out property <CoverChoice> edit-cover;
+    in-out property <float> gamma: 1;
+    in-out property <float> contrast: 1;
+    in-out property <float> brightness: 0;
+    in-out property <float> shadows: 0;
+    in-out property <float> highlights: 0;
+    in-out property <float> black-point: 0;
+    in-out property <float> white-point: 1;
+    in-out property <float> black-level: 0;
+    in-out property <float> white-level: 1;
+    in-out property <float> temperature: 6500;
+    in-out property <float> tint: 0;
+    in-out property <float> gain-r: 1;
+    in-out property <float> gain-g: 1;
+    in-out property <float> gain-b: 1;
+    in-out property <float> hdr-toning;
+    in-out property <float> bloom;
+    in-out property <float> saturation;
+    in-out property <float> clarity;
+    in-out property <float> vibrance;
+    callback parameters-edited();
+    callback refresh-capture-sources();
+    callback select-capture-source(int);
+    callback choose-cover();
+
+    visible: root.active;
+
+    if root.active: HorizontalLayout {
+        padding-left: 24px;
+        padding-top: 24px;
+        padding-bottom: 24px;
+        spacing: 20px;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            min-width: 260px;
+            spacing: 12px;
+            HorizontalLayout {
+                spacing: 8px;
+                ComboBox {
+                    horizontal-stretch: 1;
+                    accessible-name: "捕获来源";
+                    placeholder-text: "选择捕获来源";
+                    items: root.capture-sources;
+                    selected-index <=> root.capture-index;
+                    popup-viewport: root.viewport;
+                    selection-changed(previous, index) => {
+                        if index >= 0 { root.select-capture-source(index); }
+                    }
+                }
+                Button {
+                    text: "刷新";
+                    accessible-name: "刷新捕获来源";
+                    clicked => { root.refresh-capture-sources(); }
+                }
+                Button {
+                    text: "停止";
+                    enabled: root.capturing;
+                    clicked => { root.select-capture-source(-1); }
+                }
+            }
+            HorizontalLayout {
+                Caption { text: "应用前"; horizontal-stretch: 1; }
+                Caption { text: "应用后"; horizontal-alignment: right; horizontal-stretch: 1; }
+            }
+            ComparePreview {
+                before: root.preview-before;
+                after: root.preview-after;
+                aspect: root.preview-aspect;
+                status: root.preview-status;
+                split <=> root.preview-split;
+            }
+        }
+
+        editor-scroll := ScrollView {
+            width: 24px + min(460px, max(352px, round((parent.width - 48px) * 0.42 / 2px) * 2px));
+            content-width: self.visible-width;
+            content-height: max(self.visible-height, editor-controls.preferred-height);
+            editor-controls := VerticalLayout {
+                x: 0px;
+                y: 0px;
+                width: editor-scroll.visible-width;
+                height: self.preferred-height;
+                padding-right: 28px;
+                spacing: 12px;
+                alignment: start;
+                Surface {
+                    height: self.width * Design.cover-height-ratio;
+                    CoverArtwork { cover: root.edit-cover.artwork; }
+                    Rectangle {
+                        x: 12px;
+                        y: 12px;
+                        width: 44px;
+                        height: 26px;
+                        background: white;
+                        border-radius: 4px;
+                        Body {
+                            width: parent.width;
+                            height: parent.height;
+                            text: "封面";
+                            color: black;
+                            horizontal-alignment: center;
+                        }
+                    }
+                    Surface {
+                        x: parent.width - self.width - 12px;
+                        y: parent.height - self.height - 12px;
+                        width: 36px;
+                        height: 32px;
+                        background: Palette.color-scheme == ColorScheme.dark ? Palette.control-background : #fbfbfb;
+                        IconAction {
+                            glyph: @image-url("@winui-icons/edit_16_regular.svg");
+                            accessible-name: "更换封面";
+                            clicked => { root.choose-cover(); }
+                        }
+                    }
+                }
+                Surface {
+                    height: 48px;
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 12px;
+                        name-label := Body {
+                            text: "名称";
+                            horizontal-stretch: 1;
+                        }
+                        VerticalLayout {
+                            width: round((parent.width - parent.padding-left - parent.padding-right
+                                - parent.spacing - name-label.preferred-width) / 4px) * 2px;
+                            alignment: center;
+                            TextBox {
+                                height: 32px;
+                                accessible-name: "名称";
+                                placeholder-text: "输入名称";
+                                text <=> root.preset-name;
+                            }
+                        }
+                    }
+                }
+                Expander {
+                    header: "光照";
+                    horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                    content-padding: 0px;
+                    VerticalLayout {
+                        spacing: 0;
+                        AdjustmentRow { label: "亮度"; lower: -0.12; upper: 0.12; setting <=> root.brightness; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "对比度"; lower: 0.2; upper: 3.0; setting <=> root.contrast; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "伽马"; lower: 0.2; upper: 5.0; setting <=> root.gamma; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "暗部"; lower: -0.3; upper: 0.3; setting <=> root.shadows; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "高光"; lower: -0.3; upper: 0.3; setting <=> root.highlights; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "输入黑位"; lower: 0; upper: 0.5; setting <=> root.black-point; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "输入白位"; lower: 0.5; upper: 1; setting <=> root.white-point; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "输出黑位"; lower: 0; upper: 0.15; setting <=> root.black-level; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "输出白位"; lower: 0.7; upper: 1; setting <=> root.white-level; edited => { root.parameters-edited(); } }
+                    }
+                }
+                Expander {
+                    header: "色彩";
+                    horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                    content-padding: 0px;
+                    VerticalLayout {
+                        spacing: 0;
+                        AdjustmentRow {
+                            label: "色温（K）";
+                            lower: 1000;
+                            upper: 10000;
+                            step: 100;
+                            whole-number: true;
+                            setting <=> root.temperature;
+                            edited => { root.parameters-edited(); }
+                        }
+                        Hairline {}
+                        AdjustmentRow { label: "色调"; lower: -1; upper: 1; setting <=> root.tint; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "红增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-r; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "绿增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-g; edited => { root.parameters-edited(); } }
+                        Hairline {}
+                        AdjustmentRow { label: "蓝增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-b; edited => { root.parameters-edited(); } }
+                    }
+                }
+                Expander {
+                    header: "画面后处理";
+                    horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                    content-padding: 0px;
+                    VerticalLayout {
+                        spacing: 0;
+                        AdjustmentRow {
+                            label: "HDR 色调";
+                            lower: -1;
+                            upper: 1;
+                            setting <=> root.hdr-toning;
+                        }
+                        Hairline {}
+                        AdjustmentRow {
+                            label: "散光";
+                            lower: 0;
+                            upper: 1;
+                            setting <=> root.bloom;
+                        }
+                        Hairline {}
+                        AdjustmentRow {
+                            label: "清晰度";
+                            lower: -1;
+                            upper: 1;
+                            setting <=> root.clarity;
+                        }
+                        Hairline {}
+                        AdjustmentRow {
+                            label: "饱和度";
+                            lower: -1;
+                            upper: 1;
+                            setting <=> root.saturation;
+                        }
+                        Hairline {}
+                        AdjustmentRow {
+                            label: "自然饱和度";
+                            lower: 0;
+                            upper: 1;
+                            setting <=> root.vibrance;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

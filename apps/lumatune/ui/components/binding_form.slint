@@ -1,0 +1,39 @@
+import { Button, ComboBox, ComboBoxItem, TextBox } from "@winui";
+
+export component BindingForm inherits VerticalLayout {
+    in property <[ComboBoxItem]> binding-presets;
+    in property <Size> viewport;
+    in-out property <string> executable;
+    in-out property <int> preset-index: -1;
+    callback browse-application() -> string;
+
+    preferred-width: 416px;
+    spacing: 12px;
+
+    HorizontalLayout {
+        spacing: 8px;
+        TextBox {
+            height: 34px;
+            horizontal-stretch: 1;
+            accessible-name: "应用程序文件名或路径";
+            placeholder-text: "例如 Game.exe 或完整路径";
+            text <=> root.executable;
+        }
+        Button {
+            text: "选择程序…";
+            clicked => {
+                let path = root.browse-application();
+                if (path != "") { root.executable = path; }
+            }
+        }
+    }
+
+    ComboBox {
+        height: 34px;
+        accessible-name: "关联预设";
+        placeholder-text: "选择预设";
+        selected-index <=> root.preset-index;
+        items: root.binding-presets;
+        popup-viewport: root.viewport;
+    }
+}

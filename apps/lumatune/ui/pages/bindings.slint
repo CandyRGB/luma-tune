@@ -1,0 +1,105 @@
+import { Palette } from "std-widgets.slint";
+import { ComboBox, ComboBoxItem } from "@winui";
+import { IconAction } from "../components/actions.slint";
+import { Body, Caption, Design, Hairline, Surface } from "../components/style.slint";
+import { BindingDisplay } from "../models.slint";
+
+component CardGlyph inherits Image {
+    width: 20px;
+    height: 20px;
+    colorize: Design.text;
+    accessible-role: none;
+}
+
+component BindingRow inherits Rectangle {
+    in property <BindingDisplay> rule;
+    in property <[ComboBoxItem]> presets;
+    in property <Size> viewport;
+    callback unbind();
+    callback rebind(int);
+    height: 68px;
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 16px;
+        VerticalLayout {
+            width: 24px;
+            alignment: center;
+            if root.rule.icon.width > 0: Image {
+                width: 24px;
+                height: 24px;
+                image-fit: contain;
+                source: root.rule.icon;
+            }
+            if root.rule.icon.width == 0: CardGlyph {
+                source: @image-url("@winui-icons/document_16_regular.svg");
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+            horizontal-stretch: 1;
+            Body { text: root.rule.executable; overflow: elide; }
+        }
+        VerticalLayout {
+            width: 180px;
+            alignment: center;
+            ComboBox {
+                height: 32px;
+                accessible-name: root.rule.executable + " 的关联预设";
+                items: root.presets;
+                selected-index: root.rule.index;
+                popup-viewport: root.viewport;
+                selection-changed(previous, index) => {
+                    if index >= 0 && index != root.rule.index {
+                        root.rebind(index);
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            IconAction {
+                glyph: @image-url("@winui-icons/delete_16_regular.svg");
+                accessible-name: "解除 " + root.rule.executable + " 的绑定";
+                clicked => { root.unbind(); }
+            }
+        }
+    }
+    Hairline { y: root.height - self.height; }
+}
+
+export component BindingsPage inherits VerticalLayout {
+    in property <[BindingDisplay]> bindings;
+    in property <[ComboBoxItem]> binding-presets;
+    in property <Size> viewport;
+    callback rebind-application(string, int);
+    callback remove-binding(string, int);
+
+    spacing: 16px;
+    Surface {
+        VerticalLayout {
+            spacing: 0;
+            Rectangle {
+                height: 38px;
+                background: Palette.foreground.with-alpha(0.04);
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    spacing: 16px;
+                    Caption { text: "应用"; horizontal-stretch: 1; }
+                    Caption { text: "关联预设"; width: 180px; }
+                    Rectangle { width: 36px; }
+                }
+            }
+            for rule in root.bindings: BindingRow {
+                rule: rule;
+                presets: root.binding-presets;
+                viewport: root.viewport;
+                rebind(index) => { root.rebind-application(rule.executable, index); }
+                unbind => { root.remove-binding(rule.executable, rule.index); }
+            }
+        }
+    }
+}

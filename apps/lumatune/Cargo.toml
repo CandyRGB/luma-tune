@@ -8,9 +8,9 @@ lumatune-core = { version = "0.1.0", path = "../../crates/lumatune-core" }
 lumatune-win = { version = "0.1.0", path = "../../crates/lumatune-win" }
 raw-window-handle = "0.6"
 slint = { version = "1.18.1", features = ["raw-window-handle-06", "unstable-winit-030"] }
-slint-winui = "=0.1.1"
+slint-winui = "=0.2.0"
 
 [build-dependencies]
 embed-resource = "3.0.12"
 slint-build = "1.18.1"
-slint-winui = { version = "=0.1.1", default-features = false }
+slint-winui = { version = "=0.2.0", default-features = false }

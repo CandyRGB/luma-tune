@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
+use std::num::NonZeroIsize;
 use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
@@ -9,13 +10,14 @@ use lumatune_core::{FilterParams, PostProcessParams, Preset, Ramp};
 use lumatune_win::postprocess;
 use lumatune_win::presets::StoredPreset;
 use lumatune_win::settings::{self, DesktopPreset, Settings, ThemeMode};
-use lumatune_win::{app_icons, display, file_picker, foreground, presets, state, title_bar};
+use lumatune_win::{app_icons, display, file_picker, foreground, presets, state};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{
     ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer,
     TimerMode, VecModel,
 };
+use slint_winui::platform::title_bar;
 
 mod contrast_theme;
 mod desktop;
@@ -493,9 +495,17 @@ fn run_window(ui: &AppWindow) -> Result<(), slint::PlatformError> {
         if let Some(ui) = weak.upgrade()
             && ui.window().winit_window().await.is_ok()
             && let Some(hwnd) = window_handle(&ui)
-            && title_bar::integrate(hwnd)
         {
-            ui.set_caption_height(title_bar::HEIGHT as f32);
+            let caption_height = ui.get_preferred_caption_height();
+            if let Err(error) = window_title_bar::attach(
+                ui.global::<WindowTitleBarBehavior>(),
+                hwnd,
+                caption_height as u16,
+            ) {
+                eprintln!("Could not attach native title bar: {error}");
+                return;
+            }
+            ui.set_caption_height(caption_height);
             ui.set_maximized_caption_inset(title_bar::maximized_inset(hwnd));
             update_caption_colors(&ui, hwnd);
             let weak = ui.as_weak();
@@ -518,7 +528,7 @@ fn run_window(ui: &AppWindow) -> Result<(), slint::PlatformError> {
     ui.run()
 }
 
-fn update_caption_colors(ui: &AppWindow, hwnd: usize) {
+fn update_caption_colors(ui: &AppWindow, hwnd: NonZeroIsize) {
     let color_ref = |color: slint::Color| {
         u32::from_le_bytes([color.red(), color.green(), color.blue(), 0])
     };
@@ -529,10 +539,10 @@ fn update_caption_colors(ui: &AppWindow, hwnd: usize) {
     );
 }
 
-fn window_handle(ui: &AppWindow) -> Option<usize> {
+fn window_handle(ui: &AppWindow) -> Option<NonZeroIsize> {
     let window = ui.window().window_handle();
     match window.window_handle().ok()?.as_raw() {
-        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as usize),
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd),
         _ => None,
     }
 }
@@ -772,7 +782,7 @@ fn install_preview(ui: &AppWindow, runtime: &Rc<RefCell<Runtime>>) -> Timer {
         capture.ramp = None;
         ui.set_capturing(false);
         if let Some(source) = selected {
-            let editor = window_handle(&ui).unwrap_or_default();
+            let editor = window_handle(&ui).map_or(0, |hwnd| hwnd.get() as usize);
             match postprocess::Preview::start(source, editor) {
                 Ok(worker) => {
                     capture.worker = Some(worker);

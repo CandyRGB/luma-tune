@@ -1,0 +1,44 @@
+import { Button, ButtonStyle, ComboBox, ComboBoxItem } from "@winui";
+import { DetailCard } from "../components/detail_card.slint";
+import { Caption, Heading } from "../components/style.slint";
+import { DisplayCard } from "../models.slint";
+
+export component HomePage inherits VerticalLayout {
+    in property <[DisplayCard]> display-cards;
+    in property <[ComboBoxItem]> binding-presets;
+    in property <Size> viewport;
+    callback apply-desktop(string, int);
+    callback restore-display(string);
+
+    spacing: 8px;
+    Heading { text: "显示器"; }
+    if root.display-cards.length == 0: Caption { text: "未检测到显示器"; }
+    for screen in root.display-cards: DetailCard {
+        symbol: "\u{E7F4}"; // TVMonitor
+        label: screen.title;
+        details: screen.foreground == ""
+            ? [screen.detail, "桌面预设 · " + screen.preset]
+            : [screen.detail, "桌面预设 · " + screen.preset, "前台应用预设 · " + screen.foreground];
+
+        selection := ComboBox {
+            width: 176px;
+            placeholder-text: "选择预设";
+            accessible-name: screen.title + "的预设";
+            items: root.binding-presets;
+            selected-index: screen.preset-index;
+            popup-viewport: root.viewport;
+            enabled: screen.ready;
+        }
+        Button {
+            text: "应用";
+            appearance: ButtonStyle.accent;
+            enabled: screen.ready && selection.selected-index >= 0;
+            clicked => { root.apply-desktop(screen.id, selection.selected-index); }
+        }
+        Button {
+            text: "恢复原始显示";
+            enabled: screen.ready && screen.preset-index >= 0;
+            clicked => { root.restore-display(screen.id); }
+        }
+    }
+}

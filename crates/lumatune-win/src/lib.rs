@@ -7,7 +7,6 @@ pub mod presets;
 pub mod ramp;
 pub mod settings;
 pub mod state;
-pub mod title_bar;
 
 pub use display::Display;
 pub use ramp::Session;
