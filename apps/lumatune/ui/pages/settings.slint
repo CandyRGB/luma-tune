@@ -74,6 +74,7 @@ component ThemeChoices inherits Rectangle {
 
 export component SettingsPage inherits VerticalLayout {
     in property <image> app-icon;
+    in property <string> app-version;
     in-out property <int> theme-mode;
     callback pick-theme(int);
 
@@ -98,7 +99,7 @@ export component SettingsPage inherits VerticalLayout {
             glyph: root.app-icon;
             label: "LumaTune";
             details: ["作者 · CandyRGB", "更新日期 · 2026-11-27"];
-            Caption { text: "版本 0.1.0"; horizontal-alignment: right; }
+            Caption { text: "版本 " + root.app-version; horizontal-alignment: right; }
         }
     }
 }

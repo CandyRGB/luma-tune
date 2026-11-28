@@ -21,6 +21,7 @@ import { PresetLibraryPage } from "pages/preset_library.slint";
 import { SettingsPage } from "pages/settings.slint";
 
 export { ContrastTheme, SystemContrastColors, WindowTitleBarBehavior } from "@winui";
+export { AppTray } from "components/app_tray.slint";
 export {
     BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb,
     ComboBoxBehavior, ComboBoxItem, NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind,
@@ -41,6 +42,7 @@ export component AppWindow inherits Window {
     default-font-family: "Microsoft YaHei UI";
     default-font-size: 14px;
 
+    in property <string> app-version;
     in property <length> caption-height;
     out property <length> preferred-caption-height: title-bar.preferred-row-height;
     in property <length> maximized-caption-inset;
@@ -309,6 +311,7 @@ export component AppWindow inherits Window {
 
                     if root.page-id == "settings": SettingsPage {
                         app-icon: root.icon;
+                        app-version: root.app-version;
                         theme-mode <=> root.theme-mode;
                         pick-theme(index) => { root.pick-theme(index); }
                     }

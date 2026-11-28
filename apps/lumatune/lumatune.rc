@@ -1,1 +1,33 @@
 1 ICON "ui/icons/lumatune.ico"
+
+#include <winver.h>
+
+#define STRINGIFY_VALUE(value) #value
+#define STRINGIFY(value) STRINGIFY_VALUE(value)
+
+1 VERSIONINFO
+ FILEVERSION LUMATUNE_FILE_VERSION
+ PRODUCTVERSION LUMATUNE_FILE_VERSION
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "CandyRGB"
+            VALUE "FileDescription", "LumaTune"
+            VALUE "FileVersion", STRINGIFY(LUMATUNE_VERSION)
+            VALUE "OriginalFilename", "lumatune.exe"
+            VALUE "ProductName", "LumaTune"
+            VALUE "ProductVersion", STRINGIFY(LUMATUNE_VERSION)
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

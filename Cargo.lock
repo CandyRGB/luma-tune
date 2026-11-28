@@ -1431,7 +1431,7 @@ dependencies = [
 
 [[package]]
 name = "gamma-probe"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "windows",
 ]
@@ -2569,7 +2569,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "lumatune"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "embed-resource",
  "lumatune-core",
@@ -2582,7 +2582,7 @@ dependencies = [
 
 [[package]]
 name = "lumatune-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2590,7 +2590,7 @@ dependencies = [
 
 [[package]]
 name = "lumatune-win"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cc",
  "lumatune-core",

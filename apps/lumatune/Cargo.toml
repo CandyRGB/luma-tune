@@ -7,7 +7,7 @@ version.workspace = true
 lumatune-core = { version = "0.1.0", path = "../../crates/lumatune-core" }
 lumatune-win = { version = "0.1.0", path = "../../crates/lumatune-win" }
 raw-window-handle = "0.6"
-slint = { version = "1.18.1", features = ["raw-window-handle-06", "unstable-winit-030"] }
+slint = { version = "1.18.1", features = ["raw-window-handle-06", "system-tray", "unstable-winit-030"] }
 slint-winui = "=0.2.0"
 
 [build-dependencies]

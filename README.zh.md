@@ -78,6 +78,19 @@ cargo run -p gamma-probe --release -- report
 
 桌面应用的导航组件来自已发布的 [`slint-winui` crate](https://crates.io/crates/slint-winui)。
 
+关闭主窗口后，LumaTune 留在 Windows 通知区域继续调校显示器。左击托盘图标可重新打开窗口。右击图标并选择「退出 LumaTune」会结束程序并恢复显示设置。
+
+### Windows 安装包
+
+构建 x64 程序时静态链接 C/C++ 运行库，再使用 NSIS 3 打包。
+
+```powershell
+cargo --config 'target.x86_64-pc-windows-msvc.rustflags=["-C","target-feature=+crt-static"]' build --locked --release -p lumatune --target x86_64-pc-windows-msvc
+makensis /INPUTCHARSET UTF8 installer/LumaTune.nsi
+```
+
+安装包生成在 `target/LumaTune-<版本>-Setup-x64.exe`。首次安装默认使用 `C:\Program Files\LumaTune`，可另选路径。升级沿用已登记的安装位置。安装程序比较本机与随包可执行文件的 Windows 文件版本，本机已有相同或更新版本时会跳过安装。更新或卸载前，请从托盘退出 LumaTune。
+
 ## 测试
 
 ```sh

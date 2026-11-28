@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
@@ -14,8 +16,8 @@ use lumatune_win::{app_icons, display, file_picker, foreground, presets, state};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{
-    ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer,
-    TimerMode, VecModel,
+    CloseRequestResponse, ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer,
+    SharedString, Timer, TimerMode, VecModel,
 };
 use slint_winui::platform::title_bar;
 
@@ -296,6 +298,7 @@ fn main() -> Result<(), slint::PlatformError> {
     display::set_dpi_awareness();
     let displays = display::enumerate();
     let ui = AppWindow::new()?;
+    ui.set_app_version(env!("CARGO_PKG_VERSION").into());
     breadcrumb_bar::install(ui.global::<BreadcrumbBarBehavior>());
     combo_box::install(ui.global::<ComboBoxBehavior>());
     navigation_view::install(ui.global::<NavigationViewBehavior>(), &ui);
@@ -477,7 +480,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    let result = run_window(&ui);
+    let result = run_with_tray(&ui);
     ui.invoke_select_capture_source(-1);
     drop(preview);
     drop(watcher);
@@ -487,6 +490,38 @@ fn main() -> Result<(), slint::PlatformError> {
     rt.refresh_displays(display::enumerate());
     rt.screens.clear();
     result
+}
+
+fn run_with_tray(ui: &AppWindow) -> Result<(), slint::PlatformError> {
+    let tray = AppTray::new()?;
+    let weak = ui.as_weak();
+    tray.on_open_requested(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        if ui.show().is_ok() {
+            let weak = ui.as_weak();
+            let _ = slint::spawn_local(async move {
+                if let Some(ui) = weak.upgrade()
+                    && let Ok(window) = ui.window().winit_window().await
+                {
+                    window.set_minimized(false);
+                    window.focus_window();
+                }
+            });
+        }
+    });
+    tray.on_quit(|| {
+        let _ = slint::quit_event_loop();
+    });
+
+    let weak = ui.as_weak();
+    ui.window().on_close_requested(move || {
+        if let Some(ui) = weak.upgrade() {
+            ui.invoke_select_capture_source(-1);
+        }
+        CloseRequestResponse::HideWindow
+    });
+
+    run_window(ui)
 }
 
 fn run_window(ui: &AppWindow) -> Result<(), slint::PlatformError> {
@@ -529,9 +564,8 @@ fn run_window(ui: &AppWindow) -> Result<(), slint::PlatformError> {
 }
 
 fn update_caption_colors(ui: &AppWindow, hwnd: NonZeroIsize) {
-    let color_ref = |color: slint::Color| {
-        u32::from_le_bytes([color.red(), color.green(), color.blue(), 0])
-    };
+    let color_ref =
+        |color: slint::Color| u32::from_le_bytes([color.red(), color.green(), color.blue(), 0]);
     title_bar::set_colors(
         hwnd,
         color_ref(ui.get_caption_background()),

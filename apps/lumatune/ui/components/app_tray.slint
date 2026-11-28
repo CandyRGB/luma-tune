@@ -1,0 +1,16 @@
+export component AppTray inherits SystemTrayIcon {
+    icon: @image-url("../icons/lumatune.png");
+    tooltip: "LumaTune";
+
+    callback open-requested();
+    callback quit();
+
+    clicked => { root.open-requested(); }
+
+    Menu {
+        MenuItem {
+            title: "退出 LumaTune";
+            activated => { root.quit(); }
+        }
+    }
+}

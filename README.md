@@ -78,6 +78,19 @@ cargo run -p gamma-probe --release -- report
 
 The desktop UI uses the published [`slint-winui` crate](https://crates.io/crates/slint-winui) for its navigation components.
 
+Closing the main window keeps display adjustments running in the Windows notification area. Left-click the LumaTune tray icon to reopen the window. Right-click it and choose **退出 LumaTune** to quit and restore the display settings.
+
+### Windows installer
+
+Build the x64 application with the C/C++ runtime linked statically, then package it with NSIS 3.
+
+```powershell
+cargo --config 'target.x86_64-pc-windows-msvc.rustflags=["-C","target-feature=+crt-static"]' build --locked --release -p lumatune --target x86_64-pc-windows-msvc
+makensis /INPUTCHARSET UTF8 installer/LumaTune.nsi
+```
+
+The installer is written to `target/LumaTune-<version>-Setup-x64.exe`. On first install, the folder defaults to `C:\Program Files\LumaTune` and can be changed. Updates reuse the registered installation folder. The installer compares the Windows file versions of the installed and bundled executables. It skips installation when the same or a newer version is already installed. Quit LumaTune from the tray before updating or uninstalling.
+
 ## Tests
 
 ```sh
