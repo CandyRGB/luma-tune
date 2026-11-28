@@ -1,8 +1,12 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use lumatune_core::FilterParams;
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -35,6 +39,14 @@ impl ThemeMode {
 pub struct Settings {
     #[serde(default)]
     pub theme: ThemeMode,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub desktop: BTreeMap<String, DesktopPreset>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DesktopPreset {
+    pub preset_id: String,
+    pub params: FilterParams,
 }
 
 fn base() -> PathBuf {
@@ -74,7 +86,10 @@ fn save_in(root: &Path, settings: &Settings) -> io::Result<()> {
     fs::create_dir_all(root)?;
     let text = serde_json::to_string_pretty(settings)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    fs::write(file_in(root), text)
+    let mut pending = NamedTempFile::new_in(root)?;
+    pending.write_all(text.as_bytes())?;
+    pending.persist(file_in(root))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -98,9 +113,33 @@ mod tests {
         let root = temp_root("roundtrip");
         let settings = Settings {
             theme: ThemeMode::Dark,
+            desktop: BTreeMap::from([
+                (
+                    "monitor-a".into(),
+                    DesktopPreset {
+                        preset_id: "built-in/daily.json".into(),
+                        params: FilterParams {
+                            brightness: 0.05,
+                            ..FilterParams::default()
+                        },
+                    },
+                ),
+                (
+                    "monitor-b".into(),
+                    DesktopPreset {
+                        preset_id: "built-in/reading.json".into(),
+                        params: FilterParams {
+                            temperature: 4800,
+                            ..FilterParams::default()
+                        },
+                    },
+                ),
+            ]),
         };
         save_in(&root, &settings).unwrap();
-        assert_eq!(load_in(&root).theme, ThemeMode::Dark);
+        let loaded = load_in(&root);
+        assert_eq!(loaded.theme, ThemeMode::Dark);
+        assert_eq!(loaded.desktop, settings.desktop);
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -2,10 +2,12 @@ import { Palette, ScrollView, Slider } from "std-widgets.slint";
 import {
     BreadcrumbBar, BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb,
     Button, ButtonFocusVisual, ButtonInput, ButtonStyle, ComboBox, ComboBoxBehavior, ComboBoxItem,
-    ContentDialog, ContentDialogButton, ContentDialogDecision, ContrastTheme, InfoBar, InfoSeverity,
+    ContentDialog, ContentDialogButton, ContentDialogDecision, ContrastTheme, Expander, ExpanderContentAlignment, InfoBar, InfoSeverity,
     NavigationView, NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind,
     NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewRow,
     NavigationViewTopContentWidths, NavigationViewTopLayout, TextBox,
+    NumberBox, NumberBoxMath, NumberBoxParseResult, NumberBoxValue,
+    RadioButton, RadioButtonsBehavior, RadioButtonsItem,
 } from "@winui";
 
 export { ContrastTheme, SystemContrastColors } from "@winui";
@@ -13,7 +15,9 @@ export {
     BreadcrumbBarBehavior, BreadcrumbLayout, BreadcrumbMeasurement, BreadcrumbRow, Crumb,
     ComboBoxBehavior, ComboBoxItem, NavigationViewBehavior, NavigationViewItem, NavigationViewItemKind,
     NavigationViewLeftLayout, NavigationViewMeasurement, NavigationViewRow,
-    NavigationViewTopContentWidths, NavigationViewTopLayout, PresetCardData, BindingDisplay, CoverChoice, InfoSeverity,
+    NavigationViewTopContentWidths, NavigationViewTopLayout, PresetCardData, BindingDisplay, CoverChoice, DisplayCard, InfoSeverity,
+    NumberBoxMath, NumberBoxParseResult, NumberBoxValue,
+    RadioButtonsBehavior, RadioButtonsItem,
 }
 
 struct PresetCardData {
@@ -26,8 +30,17 @@ struct PresetCardData {
 struct BindingDisplay {
     index: int,
     executable: string,
+    icon: image,
+}
+
+struct DisplayCard {
+    id: string,
+    title: string,
+    detail: string,
     preset: string,
-    active: bool,
+    preset-index: int,
+    foreground: string,
+    ready: bool,
 }
 
 struct CoverChoice {
@@ -37,15 +50,17 @@ struct CoverChoice {
 }
 
 global Design {
-    out property <color> text: Palette.color-scheme == ColorScheme.dark ? Palette.foreground : #17243a;
-    out property <color> subtle: Palette.color-scheme == ColorScheme.dark ? Palette.foreground.with-alpha(0.74) : #4c5b70;
-    out property <color> separator: Palette.foreground.with-alpha(0.10);
-    out property <color> stroke: Palette.foreground.with-alpha(0.14);
-    out property <brush> surface: Palette.color-scheme == ColorScheme.dark ? Palette.control-background : #fff;
+    out property <float> cover-height-ratio: 9 / 16;
+    out property <color> text: Palette.color-scheme == ColorScheme.dark ? Palette.foreground : #1b1b1b;
+    out property <color> subtle: Palette.color-scheme == ColorScheme.dark ? Palette.foreground.with-alpha(0.74) : #616161;
+    out property <color> separator: Palette.foreground.with-alpha(0.08);
+    // Match the card treatment of slint-winui's Expander headers.
+    out property <color> stroke: ContrastTheme.colors.active ? ContrastTheme.colors.button-text
+        : Palette.color-scheme == ColorScheme.dark ? #0000001a : #0000000f;
+    out property <brush> surface: ContrastTheme.colors.active ? ContrastTheme.colors.button-face
+        : Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #ffffffb3;
     out property <color> blue: Palette.color-scheme == ColorScheme.dark ? Palette.accent-background : #0862bf;
     out property <color> soft-blue: Palette.color-scheme == ColorScheme.dark ? Palette.accent-background.with-alpha(0.18) : #edf5ff;
-    out property <color> green: Palette.color-scheme == ColorScheme.dark ? #90dbbd : #126347;
-    out property <color> soft-green: Palette.color-scheme == ColorScheme.dark ? #204137 : #eaf7ee;
 }
 
 component Caption inherits Text {
@@ -57,25 +72,32 @@ component Caption inherits Text {
 component Body inherits Text {
     color: Design.text;
     font-size: 14px;
+    font-weight: 400;
     vertical-alignment: center;
 }
 
 component Heading inherits Body {
-    font-weight: 700;
-    font-size: 16px;
+    font-weight: 600;
 }
 
 component Surface inherits Rectangle {
     background: Design.surface;
     border-color: Design.stroke;
-    border-width: 1px;
-    border-radius: 8px;
+    border-width: ContrastTheme.colors.active ? 2px : 1px;
+    border-radius: 4px;
     clip: true;
 }
 
 component Hairline inherits Rectangle {
     height: 1px;
     background: Design.separator;
+}
+
+component CardGlyph inherits Image {
+    width: 20px;
+    height: 20px;
+    colorize: Design.text;
+    accessible-role: none;
 }
 
 component Mark inherits Rectangle {
@@ -94,26 +116,11 @@ component Mark inherits Rectangle {
     }
 }
 
-component Pill inherits Rectangle {
-    in property <string> label;
-    in property <color> fill: Design.soft-blue;
-    in property <color> ink: Design.blue;
-    width: round((copy.preferred-width + 20px) / 2px) * 2px;
-    height: 24px;
-    background: root.fill;
-    border-radius: 12px;
-    copy := Caption {
-        text: root.label;
-        color: root.ink;
-        font-weight: 700;
-        horizontal-alignment: center;
-    }
-}
-
 component IconAction inherits Rectangle {
     in property <image> glyph;
     in property <color> ink: button.foreground;
     in property <string> accessible-name;
+    in property <bool> enabled: true;
     callback clicked();
 
     width: 36px;
@@ -124,6 +131,7 @@ component IconAction inherits Rectangle {
         height: parent.height;
         appearance: ButtonStyle.subtle;
         accessible-name: root.accessible-name;
+        enabled: root.enabled;
         clicked => { root.clicked(); }
     }
     Image {
@@ -212,7 +220,7 @@ component PresetCard inherits Surface {
         padding: 1px;
         spacing: 0;
         art := CoverArtwork {
-            height: 144px;
+            height: self.width * Design.cover-height-ratio;
             cover: root.preset.cover;
             forward-focus: cover-input;
             accessible-role: button;
@@ -249,8 +257,8 @@ component PresetCard inherits Surface {
             alignment: center;
             HorizontalLayout {
                 height: 32px;
-                padding-left: 12px;
-                padding-right: 6px;
+                padding-left: 16px;
+                padding-right: 10px;
                 spacing: 8px;
                 Rectangle {
                     horizontal-stretch: 1;
@@ -261,7 +269,6 @@ component PresetCard inherits Surface {
                         width: parent.width;
                         height: parent.height;
                         text: root.preset.name;
-                        font-size: 16px;
                         overflow: elide;
                     }
                     ButtonInput {
@@ -288,10 +295,10 @@ component PresetGallery inherits Rectangle {
 
     private property <int> columns: root.width >= 680px ? 3 : 2;
     private property <length> gutter: 16px;
-    private property <length> tile-height: 192px;
     private property <length> tile-width: floor(
         (root.width - (root.columns - 1) * root.gutter) / root.columns / 2px
     ) * 2px;
+    private property <length> tile-height: (root.tile-width - 2px) * Design.cover-height-ratio + 48px;
     height: root.presets.length > 0
         ? ceil(root.presets.length / root.columns) * (root.tile-height + root.gutter) - root.gutter
         : 24px;
@@ -313,100 +320,210 @@ component PresetGallery inherits Rectangle {
 
 component BindingRow inherits Rectangle {
     in property <BindingDisplay> rule;
-    callback edit();
-    min-height: 76px;
-    max-height: 76px;
+    in property <[ComboBoxItem]> presets;
+    in property <Size> viewport;
+    callback unbind();
+    callback rebind(int);
+    height: 68px;
 
     HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
         spacing: 16px;
         VerticalLayout {
-            width: 40px;
+            width: 24px;
             alignment: center;
-            Mark { glyph: @image-url("@winui-icons/document_16_regular.svg"); }
+            if root.rule.icon.width > 0: Image {
+                width: 24px;
+                height: 24px;
+                image-fit: contain;
+                source: root.rule.icon;
+            }
+            if root.rule.icon.width == 0: CardGlyph {
+                source: @image-url("@winui-icons/document_16_regular.svg");
+            }
         }
         VerticalLayout {
             alignment: center;
             spacing: 4px;
             horizontal-stretch: 1;
-            Body { text: root.rule.executable; font-weight: 700; overflow: elide; }
+            Body { text: root.rule.executable; overflow: elide; }
         }
-        Body { text: root.rule.preset; width: 180px; overflow: elide; }
         VerticalLayout {
-            width: 138px;
+            width: 180px;
             alignment: center;
-            HorizontalLayout {
-                height: 24px;
-                alignment: start;
-                Pill {
-                    label: root.rule.active ? "正在应用" : "已绑定";
-                    fill: root.rule.active ? Design.soft-green : Palette.foreground.with-alpha(0.06);
-                    ink: root.rule.active ? Design.green : Design.subtle;
+            ComboBox {
+                height: 32px;
+                accessible-name: root.rule.executable + " 的关联预设";
+                items: root.presets;
+                selected-index: root.rule.index;
+                popup-viewport: root.viewport;
+                selection-changed(previous, index) => {
+                    if index >= 0 && index != root.rule.index {
+                        root.rebind(index);
+                    }
                 }
             }
         }
         VerticalLayout {
             alignment: center;
             IconAction {
-                glyph: @image-url("@winui-icons/more_horizontal_16_regular.svg");
-                accessible-name: "管理 " + root.rule.executable + " 的绑定";
-                clicked => { root.edit(); }
+                glyph: @image-url("@winui-icons/delete_16_regular.svg");
+                accessible-name: "解除 " + root.rule.executable + " 的绑定";
+                clicked => { root.unbind(); }
             }
         }
     }
     Hairline { y: root.height - self.height; }
 }
 
-component SettingRow inherits Rectangle {
+component DetailCard inherits Surface {
     in property <image> glyph;
+    in property <string> symbol;
     in property <string> label;
-    in property <string> detail;
-    height: 70px;
+    in property <[string]> details;
+    min-height: 68px;
 
     HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
-        spacing: 12px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 16px;
         VerticalLayout {
             width: 20px;
             alignment: center;
-            Image {
+            if root.symbol == "": Image {
                 width: 20px;
                 height: 20px;
                 source: root.glyph;
-                colorize: Design.text;
+                accessible-role: none;
+            }
+            if root.symbol != "": Text {
+                width: 20px;
+                height: 20px;
+                font-family: "Segoe MDL2 Assets";
+                font-size: 20px;
+                color: Design.text;
+                text: root.symbol;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                accessible-role: none;
             }
         }
         VerticalLayout {
-            spacing: 4px;
+            spacing: 2px;
             alignment: center;
             horizontal-stretch: 1;
-            Body { text: root.label; font-weight: 700; }
-            Caption { text: root.detail; }
+            Body { text: root.label; overflow: elide; }
+            for detail in root.details: Caption { text: detail; overflow: elide; }
         }
         VerticalLayout {
             horizontal-stretch: 0;
             alignment: center;
-            @children
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+                @children
+            }
+        }
+    }
+}
+
+component ThemeChoices inherits Rectangle {
+    in-out property <int> selected-index;
+    callback picked(int);
+
+    private property <[RadioButtonsItem]> options: [
+        { id: "system", text: "跟随系统" },
+        { id: "light", text: "浅色" },
+        { id: "dark", text: "深色" },
+    ];
+    private property <int> focused-index: -1;
+    private property <int> focus-target: -1;
+    private property <int> focus-request;
+
+    min-width: choices.min-width;
+    preferred-width: choices.preferred-width;
+    height: 32px;
+    horizontal-stretch: 0;
+    accessible-role: radio-group;
+    accessible-label: "应用主题";
+
+    function select(index: int) {
+        if root.selected-index != index {
+            root.selected-index = index;
+            root.picked(index);
+        }
+    }
+
+    choices := HorizontalLayout {
+        alignment: end;
+        spacing: 16px;
+        for option[index] in root.options: Rectangle {
+            width: ceil((measure.preferred-width + 28px) / 2px) * 2px;
+            measure := Text {
+                visible: false;
+                text: option.text;
+                font-family: "Segoe UI Variable Text";
+                font-size: 14px;
+                accessible-role: none;
+            }
+            RadioButton {
+                private property <int> focus-ticket: root.focus-target == index ? root.focus-request : 0;
+                width: parent.width;
+                text: option.text;
+                checked: index == root.selected-index;
+                index-in-set: index;
+                size-of-set: root.options.length;
+                tab-stop: index == (root.focused-index >= 0 ? root.focused-index : root.selected-index);
+                selection-requested => { root.select(index); }
+                changed focus-ticket => { if self.focus-ticket > 0 { self.focus(); } }
+                changed has-focus => {
+                    if self.has-focus { root.focused-index = index; }
+                    else if root.focused-index == index { root.focused-index = -1; }
+                }
+                unhandled-key-pressed(event) => {
+                    let backward = event.text == Key.LeftArrow || event.text == Key.UpArrow;
+                    let forward = event.text == Key.RightArrow || event.text == Key.DownArrow;
+                    if !backward && !forward { return reject; }
+                    let next = RadioButtonsBehavior.next-enabled(root.options, index, backward ? -1 : 1);
+                    if next >= 0 {
+                        root.focus-target = next;
+                        root.focus-request += 1;
+                        if !event.modifiers.control { root.select(next); }
+                    }
+                    return accept;
+                }
+            }
         }
     }
 }
 
 component AdjustmentRow inherits Rectangle {
     in property <string> label;
-    in property <string> suffix;
     in property <float> lower;
     in property <float> upper;
     in property <float> step: 0.01;
+    in property <bool> whole-number;
     in-out property <float> setting;
     callback edited();
     height: 54px;
 
+    private property <NumberBoxValue> box-value: { number: root.setting, has-value: true };
+
+    pure function round-value(n: float) -> float {
+        return root.whole-number ? round(n) : round(n * 100) / 100;
+    }
+
+    changed setting => {
+        if number.value != root.box-value { number.value = root.box-value; }
+    }
+
     HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 16px;
-        spacing: 16px;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
         Body { text: root.label; width: 72px; }
         VerticalLayout {
             alignment: center;
@@ -421,36 +538,153 @@ component AdjustmentRow inherits Rectangle {
                 changed => { root.edited(); }
             }
         }
-        Body {
-            width: 70px;
-            text: round(root.setting * 100) / 100 + root.suffix;
-            horizontal-alignment: right;
+        VerticalLayout {
+            width: 96px;
+            alignment: center;
+            number := NumberBox {
+                height: 32px;
+                accessible-name: root.label + "数值";
+                minimum: root.lower;
+                maximum: root.upper;
+                small-change: root.step;
+                large-change: root.step * 10;
+                text-alignment: right;
+                value: root.box-value;
+                format-number(n) => { return root.round-value(n); }
+                parse-text(text, expression) => {
+                    let parsed = NumberBoxMath.parse(text, expression, Platform.decimal-separator);
+                    if !parsed.valid || !parsed.value.has-value { return {}; }
+                    let bounded = clamp(parsed.value.number, root.lower, root.upper);
+                    return { valid: true, value: { number: root.round-value(bounded), has-value: true } };
+                }
+                value-changed(previous, next) => {
+                    if next.has-value && next.number != root.setting {
+                        root.setting = next.number;
+                        root.edited();
+                    }
+                }
+            }
+        }
+    }
+}
+
+component ComparePreview inherits Surface {
+    in property <image> before;
+    in property <image> after;
+    in property <float> aspect;
+    in property <string> status;
+    in-out property <float> split: 0.5;
+
+    background: Palette.color-scheme == ColorScheme.dark ? #181818 : #efefef;
+    vertical-stretch: 1;
+
+    if root.aspect <= 0: Caption {
+        x: 16px;
+        width: parent.width - 32px;
+        height: parent.height;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+        text: root.status;
+    }
+    if root.aspect > 0: image-area := Rectangle {
+        width: min(parent.width, parent.height * root.aspect);
+        height: self.width / root.aspect;
+        clip: true;
+
+        Image { source: root.after; width: parent.width; height: parent.height; }
+        original := Rectangle {
+            x: 0px;
+            width: parent.width * root.split;
+            height: parent.height;
+            clip: true;
+            Image { x: 0px; source: root.before; width: image-area.width; height: parent.height; }
+        }
+        Rectangle {
+            x: original.width - self.width / 2;
+            width: 2px;
+            height: parent.height;
+            background: white;
+        }
+        Rectangle {
+            x: clamp(original.width - self.width / 2, 0px, parent.width - self.width);
+            width: 40px;
+            height: 32px;
+            border-radius: 16px;
+            border-width: 1px;
+            border-color: #ffffffb0;
+            background: drag.pressed || drag.has-hover ? #222222 : #242424c9;
+            HorizontalLayout {
+                padding: 6px;
+                Image { source: @image-url("@winui-icons/chevron_left_16_regular.svg"); colorize: white; }
+                Image { source: @image-url("@winui-icons/chevron_right_16_regular.svg"); colorize: white; }
+            }
+        }
+        FocusScope {
+            width: parent.width;
+            height: parent.height;
+            accessible-role: slider;
+            accessible-label: "画面对比分割线";
+            accessible-value: "\{round(root.split * 100)}%";
+            key-pressed(event) => {
+                if event.text == Key.LeftArrow || event.text == Key.RightArrow {
+                    root.split = clamp(root.split + (event.text == Key.LeftArrow ? -0.05 : 0.05), 0, 1);
+                    return accept;
+                }
+                return reject;
+            }
+            drag := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: ew-resize;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                        root.split = clamp(self.mouse-x / self.width, 0, 1);
+                    }
+                }
+                moved => {
+                    if self.pressed { root.split = clamp(self.mouse-x / self.width, 0, 1); }
+                }
+            }
         }
     }
 }
 
 export component AppWindow inherits Window {
     title: "LumaTune";
+    icon: @image-url("icons/lumatune.png");
     preferred-width: 1160px;
     preferred-height: 716px;
     min-width: 960px;
     min-height: 580px;
+    background: root.caption-height > 0px ? transparent : Palette.background;
     default-font-family: "Microsoft YaHei UI";
     default-font-size: 14px;
 
+    in property <length> caption-height;
+    in property <length> maximized-caption-inset;
+    out property <color> caption-background: Palette.background;
+    out property <color> caption-foreground: Palette.foreground;
+    callback caption-colors-changed();
+    private property <length> caption-top: root.maximized && root.caption-height > 0px
+        ? root.maximized-caption-inset : 0px;
+    private property <length> caption-bottom: root.caption-top + root.caption-height;
     in property <[PresetCardData]> presets;
     in property <[BindingDisplay]> bindings;
     in property <[ComboBoxItem]> binding-presets;
-    in property <string> display-text;
-    in property <string> display-mode;
-    in property <string> desktop-preset: "未应用预设";
+    in property <[DisplayCard]> display-cards;
+    in property <[ComboBoxItem]> capture-sources;
+    in-out property <int> capture-index: -1;
+    in property <bool> capturing;
+    in property <image> preview-before;
+    in property <image> preview-after;
+    in property <float> preview-aspect;
+    in property <string> preview-status: "选择显示器或窗口开始预览";
     in-out property <int> theme-mode;
     in property <bool> built-in-draft;
     in property <bool> existing-draft;
     in-out property <string> preset-name;
     in-out property <string> original-name;
     in-out property <CoverChoice> edit-cover;
-    in-out property <bool> comparing;
     in-out property <float> gamma: 1;
     in-out property <float> contrast: 1;
     in-out property <float> brightness: 0;
@@ -465,20 +699,27 @@ export component AppWindow inherits Window {
     in-out property <float> gain-r: 1;
     in-out property <float> gain-g: 1;
     in-out property <float> gain-b: 1;
+    in-out property <float> hdr-toning;
+    in-out property <float> bloom;
+    in-out property <float> saturation;
+    in-out property <float> clarity;
+    in-out property <float> vibrance;
 
     callback open-preset(int);
     callback close-editor();
     callback parameters-edited();
     callback restore-defaults();
-    callback toggle-compare();
-    callback apply-preset();
+    callback apply-desktop(string, int);
+    callback restore-display(string);
+    callback refresh-capture-sources();
+    callback select-capture-source(int);
     callback save-preset(string, CoverChoice) -> bool;
-    callback delete-preset() -> bool;
     callback toggle-favorite(int);
     callback browse-cover() -> CoverChoice;
     callback browse-application() -> string;
     callback save-binding(string, int) -> bool;
-    callback remove-binding(string, int) -> bool;
+    callback remove-binding(string, int);
+    callback rebind-application(string, int);
     callback pick-theme(int);
     pure callback filter-presets([PresetCardData], string, bool) -> [PresetCardData];
 
@@ -487,26 +728,24 @@ export component AppWindow inherits Window {
     private property <InfoSeverity> notice-severity: InfoSeverity.informational;
     private property <string> notice-title;
     private property <string> notice-message;
-    private property <bool> modal-open: cover-dialog.open || binding-dialog.open
-        || unbind-dialog.open || delete-dialog.open;
+    private property <bool> modal-open: cover-dialog.open || binding-dialog.open;
     // ContentDialog's modal popup takes input above the main window. Leave the
     // notification outside its bounds so the form remains usable.
     private property <length> dialog-inset: root.modal-open && root.notice-open
         ? banner.y + banner.height + 12px : 0px;
-    private property <string> page-id: "library";
+    private property <string> page-id: "home";
     private property <bool> editing;
-    private property <bool> advanced-light;
-    private property <bool> advanced-color;
+    private property <float> preview-split: 0.5;
     private property <CoverChoice> pending-cover;
     private property <string> pending-executable;
     private property <int> pending-preset: -1;
-    private property <BindingDisplay> removing-binding;
     private property <[PresetCardData]> visible-presets: root.filter-presets(root.presets, root.query, false);
     private property <[PresetCardData]> favorite-presets: root.filter-presets(root.presets, "", true);
     private property <bool> favorites-empty: root.page-id == "favorites" && !root.editing
         && root.favorite-presets.length == 0;
     private property <bool> bindings-empty: root.page-id == "bindings" && root.bindings.length == 0;
-    private property <string> page-name: root.page-id == "library" ? "预设库"
+    private property <string> page-name: root.page-id == "home" ? "主页"
+        : root.page-id == "library" ? "预设库"
         : root.page-id == "favorites" ? "我的收藏"
         : root.page-id == "bindings" ? "应用绑定" : "设置";
 
@@ -552,29 +791,45 @@ export component AppWindow inherits Window {
 
     function begin-edit(index: int) {
         root.open-preset(index);
-        root.advanced-light = false;
-        root.advanced-color = false;
+        root.preview-split = 0.5;
         root.editing = true;
+        root.refresh-capture-sources();
         scroller.content-y = 0px;
     }
 
     function finish-edit() {
         root.editing = false;
+        root.select-capture-source(-1);
         root.close-editor();
         scroller.content-y = 0px;
     }
 
     init => { root.apply-theme(); }
     changed theme-mode => { root.apply-theme(); }
+    changed caption-background => { root.caption-colors-changed(); }
+    changed caption-foreground => { root.caption-colors-changed(); }
+
+    Rectangle {
+        x: 0px;
+        y: root.caption-bottom;
+        width: parent.width;
+        height: parent.height - self.y;
+        background: Palette.background;
+    }
 
     nav := NavigationView {
         width: parent.width;
         height: parent.height;
-        pane-title: root.title;
+        title-bar-height: root.caption-bottom;
+        is-title-bar-auto-padding-enabled: root.caption-height > 0px;
+        pane-title: root.caption-height > 0px ? "" : root.title;
         open-pane-length: 208px;
         selected-id <=> root.page-id;
+        is-back-button-visible: root.caption-height == 0px;
+        is-pane-toggle-button-visible: root.caption-height == 0px;
         is-back-enabled: root.editing;
         menu-items: [
+            { id: "home", label: "主页", icon: @image-url("@winui-icons/home_16_regular.svg") },
             { id: "library", label: "预设库", icon: @image-url("@winui-icons/library_16_regular.svg") },
             { id: "favorites", label: "我的收藏", icon: @image-url("@winui-icons/star_16_regular.svg") },
             { id: "bindings", label: "应用绑定", icon: @image-url("@winui-icons/document_16_regular.svg") },
@@ -599,8 +854,6 @@ export component AppWindow inherits Window {
             }
             if !root.editing: Body {
                 text: root.page-name;
-                font-size: 28px;
-                font-weight: 700;
                 horizontal-stretch: 1;
             }
             if !root.editing && root.page-id == "library": VerticalLayout {
@@ -647,7 +900,7 @@ export component AppWindow inherits Window {
             scroller := ScrollView {
                 width: parent.width;
                 height: parent.height;
-                visible: !root.favorites-empty && !root.bindings-empty;
+                visible: !root.editing && !root.favorites-empty && !root.bindings-empty;
                 content-width: self.visible-width;
                 content-height: max(self.visible-height, page.preferred-height);
                 page := VerticalLayout {
@@ -659,36 +912,42 @@ export component AppWindow inherits Window {
                     spacing: 16px;
                     alignment: start;
 
-                    if !root.editing && root.page-id == "library": VerticalLayout {
-                        spacing: 16px;
-                        Surface {
-                            height: 82px;
-                            background: @linear-gradient(100deg, Design.soft-blue 0%, Design.surface 82%);
-                            HorizontalLayout {
-                                padding: 16px;
-                                spacing: 14px;
-                                VerticalLayout {
-                                    width: 40px;
-                                    alignment: center;
-                                    Mark { glyph: @image-url("@winui-icons/checkmark_16_regular.svg"); }
-                                }
-                                VerticalLayout {
-                                    spacing: 4px;
-                                    alignment: center;
-                                    horizontal-stretch: 1;
-                                    Caption { text: "当前桌面预设"; }
-                                    Heading { text: root.desktop-preset; font-size: 20px; overflow: elide; }
-                                }
-                                VerticalLayout {
-                                    width: 220px;
-                                    alignment: center;
-                                    spacing: 4px;
-                                    Caption { text: "当前显示器"; horizontal-alignment: right; }
-                                    Body { text: root.display-text; horizontal-alignment: right; overflow: elide; }
-                                }
+                    if root.page-id == "home": VerticalLayout {
+                        spacing: 8px;
+                        Heading { text: "显示器"; }
+                        if root.display-cards.length == 0: Caption { text: "未检测到显示器"; }
+                        for screen in root.display-cards: DetailCard {
+                            symbol: "\u{E7F4}"; // TVMonitor
+                            label: screen.title;
+                            details: screen.foreground == ""
+                                ? [screen.detail, "桌面预设 · " + screen.preset]
+                                : [screen.detail, "桌面预设 · " + screen.preset, "前台应用预设 · " + screen.foreground];
+
+                            selection := ComboBox {
+                                width: 176px;
+                                placeholder-text: "选择预设";
+                                accessible-name: screen.title + "的预设";
+                                items: root.binding-presets;
+                                selected-index: screen.preset-index;
+                                popup-viewport: { width: root.width, height: root.height };
+                                enabled: screen.ready;
+                            }
+                            Button {
+                                text: "应用";
+                                appearance: ButtonStyle.accent;
+                                enabled: screen.ready && selection.selected-index >= 0;
+                                clicked => { root.apply-desktop(screen.id, selection.selected-index); }
+                            }
+                            Button {
+                                text: "恢复原始显示";
+                                enabled: screen.ready && screen.preset-index >= 0;
+                                clicked => { root.restore-display(screen.id); }
                             }
                         }
+                    }
 
+                    if !root.editing && root.page-id == "library": VerticalLayout {
+                        spacing: 16px;
                         HorizontalLayout {
                             spacing: 12px;
                             Heading { text: "全部预设"; horizontal-stretch: 1; }
@@ -714,128 +973,6 @@ export component AppWindow inherits Window {
                         toggle-favorite(index) => { root.toggle-favorite(index); }
                     }
 
-                    if root.editing: HorizontalLayout {
-                        spacing: 20px;
-                        VerticalLayout {
-                            width: 272px;
-                            alignment: start;
-                            spacing: 12px;
-                            Heading { text: "主图"; height: 26px; }
-                            Surface {
-                                height: 204px;
-                                VerticalLayout {
-                                    padding: 12px;
-                                    spacing: 12px;
-                                    CoverArtwork { height: 124px; cover: root.edit-cover.artwork; }
-                                    HorizontalLayout {
-                                        alignment: start;
-                                        Button {
-                                            text: "更换主图";
-                                            clicked => {
-                                                root.pending-cover = root.edit-cover;
-                                                cover-dialog.open = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            HorizontalLayout {
-                                alignment: start;
-                                spacing: 8px;
-                                if root.existing-draft: Button {
-                                    text: "应用到桌面";
-                                    clicked => {
-                                        root.apply-preset();
-                                        root.finish-edit();
-                                    }
-                                }
-                                Button {
-                                    text: root.comparing ? "结束对比" : "对比";
-                                    clicked => { root.toggle-compare(); }
-                                }
-                            }
-                            if root.existing-draft && !root.built-in-draft: Button {
-                                text: "删除预设";
-                                clicked => { delete-dialog.open = true; }
-                            }
-                        }
-
-                        VerticalLayout {
-                            horizontal-stretch: 1;
-                            alignment: start;
-                            spacing: 12px;
-                            Heading { text: "预设名称"; height: 26px; }
-                            TextBox {
-                                height: 34px;
-                                accessible-name: "预设名称";
-                                placeholder-text: "输入预设名称";
-                                text <=> root.preset-name;
-                            }
-                            Heading { text: "光照"; height: 26px; }
-                            Surface {
-                                VerticalLayout {
-                                    spacing: 0;
-                                    AdjustmentRow { label: "亮度"; lower: -0.12; upper: 0.12; setting <=> root.brightness; edited => { root.parameters-edited(); } }
-                                    Hairline {}
-                                    AdjustmentRow { label: "对比度"; lower: 0.2; upper: 3.0; setting <=> root.contrast; edited => { root.parameters-edited(); } }
-                                    Hairline {}
-                                    AdjustmentRow { label: "伽马"; lower: 0.2; upper: 5.0; setting <=> root.gamma; edited => { root.parameters-edited(); } }
-                                    if root.advanced-light: VerticalLayout {
-                                        spacing: 0;
-                                        Hairline {}
-                                        AdjustmentRow { label: "暗部"; lower: -0.3; upper: 0.3; setting <=> root.shadows; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "高光"; lower: -0.3; upper: 0.3; setting <=> root.highlights; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "输入黑位"; lower: 0; upper: 0.5; setting <=> root.black-point; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "输入白位"; lower: 0.5; upper: 1; setting <=> root.white-point; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "输出黑位"; lower: 0; upper: 0.15; setting <=> root.black-level; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "输出白位"; lower: 0.7; upper: 1; setting <=> root.white-level; edited => { root.parameters-edited(); } }
-                                    }
-                                }
-                            }
-                            Button {
-                                text: root.advanced-light ? "收起光照参数" : "展开光照参数";
-                                horizontal-stretch: 0;
-                                clicked => { root.advanced-light = !root.advanced-light; }
-                            }
-                            Heading { text: "色彩"; height: 26px; }
-                            Surface {
-                                VerticalLayout {
-                                    spacing: 0;
-                                    AdjustmentRow {
-                                        label: "色温";
-                                        lower: 1000;
-                                        upper: 10000;
-                                        step: 100;
-                                        suffix: " K";
-                                        setting <=> root.temperature;
-                                        edited => { root.parameters-edited(); }
-                                    }
-                                    if root.advanced-color: VerticalLayout {
-                                        spacing: 0;
-                                        Hairline {}
-                                        AdjustmentRow { label: "色调"; lower: -1; upper: 1; setting <=> root.tint; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "红增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-r; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "绿增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-g; edited => { root.parameters-edited(); } }
-                                        Hairline {}
-                                        AdjustmentRow { label: "蓝增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-b; edited => { root.parameters-edited(); } }
-                                    }
-                                }
-                            }
-                            Button {
-                                text: root.advanced-color ? "收起色彩参数" : "展开色彩参数";
-                                horizontal-stretch: 0;
-                                clicked => { root.advanced-color = !root.advanced-color; }
-                            }
-                        }
-                    }
-
                     if root.page-id == "bindings" && !root.bindings-empty: VerticalLayout {
                         spacing: 16px;
                         Surface {
@@ -850,77 +987,253 @@ export component AppWindow inherits Window {
                                         spacing: 16px;
                                         Caption { text: "应用"; horizontal-stretch: 1; }
                                         Caption { text: "关联预设"; width: 180px; }
-                                        Caption { text: "状态"; width: 138px; }
                                         Rectangle { width: 36px; }
                                     }
                                 }
                                 for rule in root.bindings: BindingRow {
                                     rule: rule;
-                                    edit => {
-                                        root.removing-binding = rule;
-                                        unbind-dialog.open = true;
-                                    }
+                                    presets: root.binding-presets;
+                                    viewport: { width: root.width, height: root.height };
+                                    rebind(index) => { root.rebind-application(rule.executable, index); }
+                                    unbind => { root.remove-binding(rule.executable, rule.index); }
                                 }
                             }
-                        }
-                        Caption {
-                            text: root.desktop-preset == "未应用预设"
-                                ? "切换到未绑定的应用时，恢复显示器原始状态。"
-                                : "切换到未绑定的应用时，恢复桌面预设「" + root.desktop-preset + "」。";
                         }
                     }
 
                     if root.page-id == "settings": VerticalLayout {
-                        spacing: 14px;
-                        Heading { text: "外观"; height: 24px; }
-                        Surface {
-                            height: 70px;
-                            SettingRow {
-                                glyph: @image-url("@winui-icons/settings_16_regular.svg");
+                        spacing: 24px;
+                        VerticalLayout {
+                            spacing: 8px;
+                            Heading { text: "外观"; height: 24px; }
+                            DetailCard {
+                                symbol: "\u{E790}"; // Color
                                 label: "应用主题";
-                                detail: "选择界面配色";
-                                ComboBox {
-                                    width: 168px;
-                                    height: 34px;
-                                    accessible-name: "应用主题";
-                                    selected-index: root.theme-mode;
-                                    popup-viewport: { width: root.width, height: root.height };
-                                    items: [{ text: "跟随系统" }, { text: "浅色" }, { text: "深色" }];
-                                    selection-changed(previous, index) => { root.pick-theme(index); }
+                                details: ["选择界面配色"];
+                                ThemeChoices {
+                                    selected-index <=> root.theme-mode;
+                                    picked(index) => { root.pick-theme(index); }
                                 }
                             }
                         }
-                        Heading { text: "显示器"; height: 24px; }
+                        VerticalLayout {
+                            spacing: 8px;
+                            Heading { text: "关于"; height: 24px; }
+                            DetailCard {
+                                glyph: root.icon;
+                                label: "LumaTune";
+                                details: ["作者 · CandyRGB", "更新日期 · 2026-11-27"];
+                                Caption { text: "版本 0.1.0"; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+            }
+            if root.editing: HorizontalLayout {
+                padding-left: 24px;
+                padding-top: 24px;
+                padding-bottom: 24px;
+                spacing: 20px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    min-width: 260px;
+                    spacing: 12px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        ComboBox {
+                            horizontal-stretch: 1;
+                            accessible-name: "捕获来源";
+                            placeholder-text: "选择捕获来源";
+                            items: root.capture-sources;
+                            selected-index <=> root.capture-index;
+                            popup-viewport: { width: root.width, height: root.height };
+                            selection-changed(previous, index) => {
+                                if index >= 0 { root.select-capture-source(index); }
+                            }
+                        }
+                        Button {
+                            text: "刷新";
+                            accessible-name: "刷新捕获来源";
+                            clicked => { root.refresh-capture-sources(); }
+                        }
+                        Button {
+                            text: "停止";
+                            enabled: root.capturing;
+                            clicked => { root.select-capture-source(-1); }
+                        }
+                    }
+                    HorizontalLayout {
+                        Caption { text: "应用前"; horizontal-stretch: 1; }
+                        Caption { text: "应用后"; horizontal-alignment: right; horizontal-stretch: 1; }
+                    }
+                    ComparePreview {
+                        before: root.preview-before;
+                        after: root.preview-after;
+                        aspect: root.preview-aspect;
+                        status: root.preview-status;
+                        split <=> root.preview-split;
+                    }
+                }
+
+                editor-scroll := ScrollView {
+                    width: 24px + min(460px, max(352px, round((parent.width - 48px) * 0.42 / 2px) * 2px));
+                    content-width: self.visible-width;
+                    content-height: max(self.visible-height, editor-controls.preferred-height);
+                    editor-controls := VerticalLayout {
+                        x: 0px;
+                        y: 0px;
+                        width: editor-scroll.visible-width;
+                        height: self.preferred-height;
+                        padding-right: 28px;
+                        spacing: 12px;
+                        alignment: start;
                         Surface {
-                            height: 142px;
-                            VerticalLayout {
-                                spacing: 0;
-                                SettingRow {
-                                    glyph: @image-url("@winui-icons/image_16_regular.svg");
-                                    label: "当前显示器";
-                                    detail: root.display-text;
-                                    Pill {
-                                        label: root.display-mode;
-                                        fill: Design.soft-green;
-                                        ink: Design.green;
+                            height: self.width * Design.cover-height-ratio;
+                            CoverArtwork { cover: root.edit-cover.artwork; }
+                            Rectangle {
+                                x: 12px;
+                                y: 12px;
+                                width: 44px;
+                                height: 26px;
+                                background: white;
+                                border-radius: 4px;
+                                Body {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    text: "封面";
+                                    color: black;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                            Surface {
+                                x: parent.width - self.width - 12px;
+                                y: parent.height - self.height - 12px;
+                                width: 36px;
+                                height: 32px;
+                                background: Palette.color-scheme == ColorScheme.dark ? Palette.control-background : #fbfbfb;
+                                IconAction {
+                                    glyph: @image-url("@winui-icons/edit_16_regular.svg");
+                                    accessible-name: "更换封面";
+                                    clicked => {
+                                        root.pending-cover = root.edit-cover;
+                                        cover-dialog.open = true;
                                     }
                                 }
-                                Hairline {}
-                                SettingRow {
-                                    glyph: @image-url("@winui-icons/arrow_clockwise_16_regular.svg");
-                                    label: "退出时恢复显示";
-                                    detail: "关闭 LumaTune 时恢复启动前的显示参数";
-                                    Caption { text: "已启用"; }
+                            }
+                        }
+                        Surface {
+                            height: 48px;
+                            HorizontalLayout {
+                                padding-left: 16px;
+                                padding-right: 16px;
+                                spacing: 12px;
+                                name-label := Body {
+                                    text: "名称";
+                                    horizontal-stretch: 1;
+                                }
+                                VerticalLayout {
+                                    width: round((parent.width - parent.padding-left - parent.padding-right
+                                        - parent.spacing - name-label.preferred-width) / 4px) * 2px;
+                                    alignment: center;
+                                    TextBox {
+                                        height: 32px;
+                                        accessible-name: "名称";
+                                        placeholder-text: "输入名称";
+                                        text <=> root.preset-name;
+                                    }
                                 }
                             }
                         }
-                        Heading { text: "关于"; height: 24px; }
-                        Surface {
-                            height: 70px;
-                            SettingRow {
-                                glyph: @image-url("@winui-icons/info_16_filled.svg");
-                                label: "LumaTune";
-                                detail: "版本 0.1.0";
+                        Expander {
+                            header: "光照";
+                            horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                            content-padding: 0px;
+                            VerticalLayout {
+                                spacing: 0;
+                                AdjustmentRow { label: "亮度"; lower: -0.12; upper: 0.12; setting <=> root.brightness; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "对比度"; lower: 0.2; upper: 3.0; setting <=> root.contrast; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "伽马"; lower: 0.2; upper: 5.0; setting <=> root.gamma; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "暗部"; lower: -0.3; upper: 0.3; setting <=> root.shadows; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "高光"; lower: -0.3; upper: 0.3; setting <=> root.highlights; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "输入黑位"; lower: 0; upper: 0.5; setting <=> root.black-point; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "输入白位"; lower: 0.5; upper: 1; setting <=> root.white-point; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "输出黑位"; lower: 0; upper: 0.15; setting <=> root.black-level; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "输出白位"; lower: 0.7; upper: 1; setting <=> root.white-level; edited => { root.parameters-edited(); } }
+                            }
+                        }
+                        Expander {
+                            header: "色彩";
+                            horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                            content-padding: 0px;
+                            VerticalLayout {
+                                spacing: 0;
+                                AdjustmentRow {
+                                    label: "色温（K）";
+                                    lower: 1000;
+                                    upper: 10000;
+                                    step: 100;
+                                    whole-number: true;
+                                    setting <=> root.temperature;
+                                    edited => { root.parameters-edited(); }
+                                }
+                                Hairline {}
+                                AdjustmentRow { label: "色调"; lower: -1; upper: 1; setting <=> root.tint; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "红增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-r; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "绿增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-g; edited => { root.parameters-edited(); } }
+                                Hairline {}
+                                AdjustmentRow { label: "蓝增益"; lower: 0.5; upper: 1.5; setting <=> root.gain-b; edited => { root.parameters-edited(); } }
+                            }
+                        }
+                        Expander {
+                            header: "画面后处理";
+                            horizontal-content-alignment: ExpanderContentAlignment.stretch;
+                            content-padding: 0px;
+                            VerticalLayout {
+                                spacing: 0;
+                                AdjustmentRow {
+                                    label: "HDR 色调";
+                                    lower: -1;
+                                    upper: 1;
+                                    setting <=> root.hdr-toning;
+                                }
+                                Hairline {}
+                                AdjustmentRow {
+                                    label: "散光";
+                                    lower: 0;
+                                    upper: 1;
+                                    setting <=> root.bloom;
+                                }
+                                Hairline {}
+                                AdjustmentRow {
+                                    label: "清晰度";
+                                    lower: -1;
+                                    upper: 1;
+                                    setting <=> root.clarity;
+                                }
+                                Hairline {}
+                                AdjustmentRow {
+                                    label: "饱和度";
+                                    lower: -1;
+                                    upper: 1;
+                                    setting <=> root.saturation;
+                                }
+                                Hairline {}
+                                AdjustmentRow {
+                                    label: "自然饱和度";
+                                    lower: 0;
+                                    upper: 1;
+                                    setting <=> root.vibrance;
+                                }
                             }
                         }
                     }
@@ -939,18 +1252,57 @@ export component AppWindow inherits Window {
         }
     }
 
+    if root.caption-height > 0px: Rectangle {
+        x: 0px;
+        y: root.caption-top;
+        height: root.caption-height;
+        width: parent.width;
+
+        // Keep these two hit targets inside the client region reserved by title_bar.rs.
+        IconAction {
+            x: 4px;
+            y: (parent.height - self.height) / 2;
+            accessible-name: "返回";
+            enabled: root.editing;
+            glyph: @image-url("@winui-icons/arrow_left_16_regular.svg");
+            clicked => { root.finish-edit(); }
+        }
+        IconAction {
+            x: 44px;
+            y: (parent.height - self.height) / 2;
+            accessible-name: nav.is-pane-open ? "收起导航" : "展开导航";
+            glyph: @image-url("@winui-icons/navigation_16_regular.svg");
+            clicked => { nav.toggle-pane(); }
+        }
+        Image {
+            x: 88px;
+            y: (parent.height - self.height) / 2;
+            width: 20px;
+            height: 20px;
+            source: root.icon;
+        }
+        Text {
+            x: 118px;
+            height: parent.height;
+            text: root.title;
+            font-size: 12px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+        }
+    }
+
     Rectangle {
         x: 0px;
-        y: 0px;
+        y: root.caption-bottom;
         width: root.width;
-        height: root.dialog-inset;
+        height: max(0px, root.dialog-inset - self.y);
         visible: self.height > 0px;
         background: ContrastTheme.colors.active ? ContrastTheme.colors.window.with-alpha(0.80) : #0000004d;
     }
 
     banner := InfoBar {
         x: round((root.width - self.width) / 4px) * 2px;
-        y: 16px;
+        y: root.caption-bottom + 16px;
         width: min(464px, root.width - 32px);
         height: self.preferred-height;
         open <=> root.notice-open;
@@ -971,14 +1323,14 @@ export component AppWindow inherits Window {
         height: max(0px, root.height - self.y);
 
         cover-dialog := ContentDialog {
-            title: "更换主图";
+            title: "更换封面";
             primary-label: "确定";
             default-button: ContentDialogButton.primary;
             accepted => { root.edit-cover = root.pending-cover; }
             VerticalLayout {
                 preferred-width: 432px;
                 spacing: 12px;
-                CoverArtwork { height: 216px; cover: root.pending-cover.artwork; }
+                CoverArtwork { height: self.width * Design.cover-height-ratio; cover: root.pending-cover.artwork; }
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: start;
@@ -1017,15 +1369,15 @@ export component AppWindow inherits Window {
                     TextBox {
                         height: 34px;
                         horizontal-stretch: 1;
-                        accessible-name: "应用程序文件名";
-                        placeholder-text: "例如 Game.exe";
+                        accessible-name: "应用程序文件名或路径";
+                        placeholder-text: "例如 Game.exe 或完整路径";
                         text <=> root.pending-executable;
                     }
                     Button {
                         text: "选择程序…";
                         clicked => {
-                            let name = root.browse-application();
-                            if (name != "") { root.pending-executable = name; }
+                            let path = root.browse-application();
+                            if (path != "") { root.pending-executable = path; }
                         }
                     }
                 }
@@ -1040,37 +1392,5 @@ export component AppWindow inherits Window {
             }
         }
 
-        unbind-dialog := ContentDialog {
-            title: "解除应用绑定";
-            primary-label: "解除绑定";
-            button-clicked(button, request) => {
-                if (button == ContentDialogButton.primary && !root.remove-binding(root.removing-binding.executable, root.removing-binding.index)) {
-                    return ContentDialogDecision.cancel;
-                }
-                return ContentDialogDecision.proceed;
-            }
-            VerticalLayout {
-                preferred-width: 368px;
-                spacing: 8px;
-                Body { text: root.removing-binding.executable + " · " + root.removing-binding.preset; wrap: word-wrap; }
-            }
-        }
-
-        delete-dialog := ContentDialog {
-            title: "删除预设";
-            primary-label: "删除";
-            button-clicked(button, request) => {
-                if (button == ContentDialogButton.primary && !root.delete-preset()) {
-                    return ContentDialogDecision.cancel;
-                }
-                return ContentDialogDecision.proceed;
-            }
-            accepted => { root.finish-edit(); }
-            VerticalLayout {
-                preferred-width: 368px;
-                spacing: 8px;
-                Body { text: "将删除「" + root.original-name + "」及它的应用绑定。"; wrap: word-wrap; }
-            }
-        }
     }
 }

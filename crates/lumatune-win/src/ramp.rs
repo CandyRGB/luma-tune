@@ -14,6 +14,17 @@ pub fn write(hdc: HDC, r: &Ramp) -> bool {
     unsafe { SetDeviceGammaRamp(hdc, r.as_ptr() as *const core::ffi::c_void) }.as_bool()
 }
 
+pub(crate) fn write_verified(hdc: HDC, expected: &Ramp) -> bool {
+    // The driver may quantize a 16-bit entry to eight bits or silently reject the write.
+    write(hdc, expected)
+        && read(hdc).is_some_and(|actual| {
+            actual
+                .iter()
+                .zip(expected)
+                .all(|(a, b)| a.abs_diff(*b) <= 257)
+        })
+}
+
 pub fn identity() -> Ramp {
     let mut r: Ramp = [0; 768];
     for i in 0..256 {
@@ -29,20 +40,31 @@ pub struct Session {
     hdc: HDC,
     original: Ramp,
     device: String,
+    recovery_key: String,
     active: bool,
 }
 
 impl Session {
     pub fn open(display: &Display) -> Option<Self> {
+        let recovery_key = display.identity.clone()?;
+        if crate::state::has_pending(display) {
+            return None;
+        }
         let hdc = display.hdc();
         if hdc.0.is_null() {
             return None;
         }
-        let original = read(hdc)?;
+        let Some(original) = read(hdc) else {
+            unsafe {
+                let _ = DeleteDC(hdc);
+            }
+            return None;
+        };
         Some(Self {
             hdc,
             original,
             device: display.device.clone(),
+            recovery_key,
             active: false,
         })
     }
@@ -57,18 +79,27 @@ impl Session {
 
     pub fn apply(&mut self, ramp: &Ramp) -> bool {
         if !self.active {
-            crate::state::mark_active(&self.device);
+            if !crate::state::mark_active(&self.recovery_key, &self.original) {
+                return false;
+            }
             self.active = true;
         }
-        write(self.hdc, ramp)
+        write_verified(self.hdc, ramp)
     }
 
-    pub fn restore(&mut self) {
+    pub fn restore(&mut self) -> bool {
         if self.active {
-            write(self.hdc, &self.original);
-            crate::state::clear_active();
+            if !write_verified(self.hdc, &self.original) {
+                return false;
+            }
+            crate::state::clear_active(&self.recovery_key);
             self.active = false;
         }
+        true
+    }
+
+    pub fn detach(mut self) {
+        self.active = false;
     }
 }
 

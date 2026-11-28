@@ -1,7 +1,14 @@
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
+use lumatune_core::Ramp;
+use tempfile::NamedTempFile;
+use windows::Win32::Graphics::Gdi::DeleteDC;
+
 use crate::display::Display;
+use crate::ramp;
 
 fn dir() -> PathBuf {
     std::env::var_os("APPDATA")
@@ -10,40 +17,95 @@ fn dir() -> PathBuf {
         .join("LumaTune")
 }
 
-fn flag() -> PathBuf {
-    dir().join("active.flag")
+pub fn claim() -> io::Result<fs::File> {
+    let root = dir();
+    fs::create_dir_all(&root)?;
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(root.join("display.lock"))?;
+    file.try_lock()?;
+    Ok(file)
 }
 
-pub fn mark_active(device: &str) {
-    let _ = fs::create_dir_all(dir());
-    let _ = fs::write(flag(), device);
+fn journal() -> io::Result<BTreeMap<String, Vec<u16>>> {
+    match fs::read(dir().join("display-recovery.json")) {
+        Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(BTreeMap::new()),
+        Err(error) => Err(error),
+    }
 }
 
-pub fn clear_active() {
-    let _ = fs::remove_file(flag());
+fn store(entries: &BTreeMap<String, Vec<u16>>) -> io::Result<()> {
+    let root = dir();
+    fs::create_dir_all(&root)?;
+    let mut pending = NamedTempFile::new_in(&root)?;
+    serde_json::to_writer(&mut pending, entries)?;
+    pending.flush()?;
+    pending.persist(root.join("display-recovery.json"))?;
+    Ok(())
 }
 
-pub fn pending_device() -> Option<String> {
-    fs::read_to_string(flag()).ok().map(|s| s.trim().to_string())
+pub(crate) fn mark_active(display: &str, original: &Ramp) -> bool {
+    (|| -> io::Result<()> {
+        let mut entries = journal()?;
+        entries.insert(display.to_owned(), original.to_vec());
+        store(&entries)
+    })()
+    .is_ok()
 }
 
-pub fn heal(displays: &[Display]) -> bool {
-    let Some(stale) = pending_device() else {
+pub(crate) fn clear_active(display: &str) {
+    if let Ok(mut entries) = journal()
+        && entries.remove(display).is_some()
+    {
+        let _ = store(&entries);
+    }
+}
+
+pub fn heal(display: &Display) -> bool {
+    let Some(id) = &display.identity else {
         return false;
     };
-    let target = displays
-        .iter()
-        .find(|d| d.device == stale)
-        .or_else(|| crate::display::primary(displays));
-    if let Some(d) = target {
-        let hdc = d.hdc();
-        if !hdc.0.is_null() {
-            let _ = crate::ramp::write(hdc, &crate::ramp::identity());
-            unsafe {
-                let _ = windows::Win32::Graphics::Gdi::DeleteDC(hdc);
-            }
+    let Ok(mut entries) = journal() else {
+        return false;
+    };
+    if let Some(saved) = entries.get(id) {
+        let Ok(original) = <&Ramp>::try_from(saved.as_slice()) else {
+            return false;
+        };
+        if restore(display, original) {
+            entries.remove(id);
+            let _ = store(&entries);
+            return true;
         }
+        return false;
     }
-    clear_active();
-    true
+
+    // Before the journal existed, only one device name was recorded.
+    let legacy = dir().join("active.flag");
+    if fs::read_to_string(&legacy).is_ok_and(|device| device.trim() == display.device)
+        && restore(display, &ramp::identity())
+    {
+        let _ = fs::remove_file(legacy);
+        return true;
+    }
+    false
+}
+
+pub(crate) fn has_pending(display: &Display) -> bool {
+    journal().map_or(true, |entries| entries.contains_key(display.key()))
+}
+
+fn restore(display: &Display, original: &Ramp) -> bool {
+    let hdc = display.hdc();
+    if hdc.0.is_null() {
+        return false;
+    }
+    let restored = ramp::write_verified(hdc, original);
+    unsafe {
+        let _ = DeleteDC(hdc);
+    }
+    restored
 }

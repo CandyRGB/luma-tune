@@ -4,6 +4,64 @@ use crate::params::FilterParams;
 
 pub const SCHEMA_VERSION: u32 = 1;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PostProcessParams {
+    pub hdr_toning: f32,
+    pub bloom: f32,
+    pub saturation: f32,
+    pub clarity: f32,
+    pub vibrance: f32,
+}
+
+impl PostProcessParams {
+    pub fn normalized(self) -> Self {
+        Self {
+            hdr_toning: self.hdr_toning.clamp(-1.0, 1.0),
+            bloom: self.bloom.clamp(0.0, 1.0),
+            saturation: self.saturation.clamp(-1.0, 1.0),
+            clarity: self.clarity.clamp(-1.0, 1.0),
+            vibrance: self.vibrance.clamp(0.0, 1.0),
+        }
+    }
+
+    pub fn is_neutral(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct StoredPostProcess {
+    enabled: Option<bool>,
+    #[serde(flatten)]
+    params: PostProcessParams,
+}
+
+impl StoredPostProcess {
+    fn read<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<PostProcessParams, D::Error> {
+        let stored = Self::deserialize(deserializer)?;
+        Ok(if stored.enabled == Some(false) {
+            PostProcessParams::default()
+        } else {
+            stored.params
+        })
+    }
+
+    fn write<S: serde::Serializer>(
+        params: &PostProcessParams,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        // Older versions require this flag to render a preset with effects.
+        Self {
+            enabled: Some(true),
+            params: *params,
+        }
+        .serialize(serializer)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preset {
@@ -19,6 +77,13 @@ pub struct Preset {
     pub cover: Option<String>,
     #[serde(rename = "operators")]
     pub params: FilterParams,
+    #[serde(
+        default,
+        skip_serializing_if = "PostProcessParams::is_neutral",
+        deserialize_with = "StoredPostProcess::read",
+        serialize_with = "StoredPostProcess::write"
+    )]
+    pub post_process: PostProcessParams,
 }
 
 impl Preset {
@@ -31,6 +96,7 @@ impl Preset {
             favorite: false,
             cover: None,
             params,
+            post_process: PostProcessParams::default(),
         }
     }
 
@@ -67,8 +133,19 @@ mod tests {
         let mut preset = Preset::new("暗部增强", params);
         preset.favorite = true;
         preset.cover = Some("cover-example.png".into());
+        preset.post_process = PostProcessParams {
+            hdr_toning: -0.4,
+            bloom: 0.65,
+            saturation: -0.25,
+            clarity: -0.35,
+            vibrance: 0.55,
+        };
 
         let text = serde_json::to_string_pretty(&preset).unwrap();
+        assert_eq!(
+            serde_json::to_value(&preset).unwrap()["postProcess"]["enabled"],
+            true
+        );
         let back: Preset = serde_json::from_str(&text).unwrap();
         assert_eq!(preset, back);
     }
@@ -84,6 +161,41 @@ mod tests {
         assert!(preset.display.is_none());
         assert!(!preset.favorite);
         assert!(preset.cover.is_none());
+        assert_eq!(preset.post_process, PostProcessParams::default());
+        assert!(
+            serde_json::to_value(preset)
+                .unwrap()
+                .get("postProcess")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn existing_post_process_settings_default_missing_effects_to_zero() {
+        let params: PostProcessParams =
+            serde_json::from_str(r#"{"enabled":true,"hdrToning":-0.4,"bloom":0.65}"#).unwrap();
+        assert_eq!(
+            params,
+            PostProcessParams {
+                hdr_toning: -0.4,
+                bloom: 0.65,
+                ..PostProcessParams::default()
+            }
+        );
+    }
+
+    #[test]
+    fn reads_legacy_disabled_and_flagless_post_process_presets() {
+        let base = Preset::new("test", FilterParams::default());
+        let mut stored = serde_json::to_value(base).unwrap();
+
+        stored["postProcess"] = serde_json::json!({"enabled": false, "vibrance": 0.75});
+        let legacy: Preset = serde_json::from_value(stored.clone()).unwrap();
+        assert!(legacy.post_process.is_neutral());
+
+        stored["postProcess"] = serde_json::json!({"vibrance": 0.75});
+        let flagless: Preset = serde_json::from_value(stored).unwrap();
+        assert_eq!(flagless.post_process.vibrance, 0.75);
     }
 
     #[test]

@@ -3,6 +3,7 @@ use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 
 use lumatune_core::{FilterParams, Preset};
+use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
 fn base() -> PathBuf {
@@ -49,6 +50,19 @@ pub struct StoredPreset {
 }
 
 impl StoredPreset {
+    pub fn id(&self) -> String {
+        let file = self
+            .path
+            .file_name()
+            .expect("preset file")
+            .to_string_lossy();
+        if self.defaults.is_some() {
+            format!("built-in/{file}")
+        } else {
+            file.into_owned()
+        }
+    }
+
     pub fn save(&mut self, preset: Preset) -> io::Result<()> {
         write(&self.path, &preset, true)?;
         self.preset = preset;
@@ -64,6 +78,80 @@ impl StoredPreset {
         }
         fs::remove_file(&self.path)
     }
+}
+
+#[derive(Deserialize, Serialize)]
+struct BindingMove {
+    executable: String,
+    from: String,
+    to: String,
+}
+
+pub fn recover_binding_move(presets: &mut [StoredPreset]) -> io::Result<()> {
+    recover_binding_move_in(&dir(), presets)
+}
+
+fn recover_binding_move_in(root: &Path, presets: &mut [StoredPreset]) -> io::Result<()> {
+    let path = root.join(".binding-move");
+    let pending: BindingMove = match fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice(&bytes)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    // Removal from the source is the commit point. Roll back the target while
+    // the source still owns the binding.
+    if presets
+        .iter()
+        .any(|entry| entry.id() == pending.from && entry.preset.matches_exe(&pending.executable))
+        && let Some(target) = presets.iter_mut().find(|entry| entry.id() == pending.to)
+    {
+        target.preset.unbind(&pending.executable);
+        write(&target.path, &target.preset, true)?;
+    }
+    fs::remove_file(path)
+}
+
+pub fn rebind(from: &mut StoredPreset, to: &mut StoredPreset, name: &str) -> io::Result<()> {
+    rebind_in(&dir(), from, to, name)
+}
+
+fn rebind_in(
+    root: &Path,
+    from: &mut StoredPreset,
+    to: &mut StoredPreset,
+    name: &str,
+) -> io::Result<()> {
+    if !from.preset.matches_exe(name) || to.preset.matches_exe(name) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "该应用的绑定已发生变化",
+        ));
+    }
+    let marker = root.join(".binding-move");
+    let pending = BindingMove {
+        executable: name.to_owned(),
+        from: from.id(),
+        to: to.id(),
+    };
+    write(&marker, &pending, false)?;
+
+    let mut next = to.preset.clone();
+    next.bind_to(name);
+    if let Err(error) = write(&to.path, &next, true) {
+        let _ = fs::remove_file(marker);
+        return Err(error);
+    }
+    let mut previous = from.preset.clone();
+    previous.unbind(name);
+    if let Err(error) = from.save(previous) {
+        if write(&to.path, &to.preset, true).is_ok() {
+            let _ = fs::remove_file(marker);
+        }
+        return Err(error);
+    }
+    to.preset = next;
+    let _ = fs::remove_file(marker);
+    Ok(())
 }
 
 fn read(path: &Path) -> Option<Preset> {
@@ -94,10 +182,10 @@ fn list_in(root: &Path) -> Vec<StoredPreset> {
     out
 }
 
-fn write(path: &Path, preset: &Preset, replace: bool) -> io::Result<()> {
+fn write(path: &Path, value: &impl Serialize, replace: bool) -> io::Result<()> {
     let parent = path.parent().expect("preset path has a parent directory");
     fs::create_dir_all(parent)?;
-    let text = serde_json::to_string_pretty(preset).map_err(io::Error::other)?;
+    let text = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
     let mut pending = NamedTempFile::new_in(parent)?;
     pending.write_all(text.as_bytes())?;
     if replace {
@@ -288,6 +376,58 @@ mod tests {
 
         entry.delete().unwrap();
         assert!(list_in(&root).is_empty());
+    }
+
+    #[test]
+    fn binding_move_recovers_when_only_the_target_was_written() {
+        let scratch = Scratch::new("binding-recovery");
+        let root = scratch.root();
+        let mut original = Preset::new("Original", FilterParams::default());
+        original.bind_to("viewer.exe");
+        let source = create_in(&root, original).unwrap();
+        let mut target = Preset::new("Target", FilterParams::default());
+        target.bind_to("viewer.exe");
+        let target = create_in(&root, target).unwrap();
+        let marker = root.join(".binding-move");
+        write(
+            &marker,
+            &BindingMove {
+                executable: "viewer.exe".into(),
+                from: source.id(),
+                to: target.id(),
+            },
+            false,
+        )
+        .unwrap();
+
+        let mut loaded = list_in(&root);
+        recover_binding_move_in(&root, &mut loaded).unwrap();
+        assert!(!marker.exists());
+        assert_eq!(
+            list_in(&root)
+                .iter()
+                .filter(|entry| entry.preset.matches_exe("viewer.exe"))
+                .map(StoredPreset::id)
+                .collect::<Vec<_>>(),
+            [source.id()]
+        );
+    }
+
+    #[test]
+    fn binding_move_rolls_back_if_the_source_write_fails() {
+        let scratch = Scratch::new("binding-rollback");
+        let root = scratch.root();
+        let mut original = Preset::new("Original", FilterParams::default());
+        original.bind_to("viewer.exe");
+        let mut source = create_in(&root, original).unwrap();
+        let mut target = create_in(&root, Preset::new("Target", FilterParams::default())).unwrap();
+        fs::remove_file(&source.path).unwrap();
+        fs::create_dir(&source.path).unwrap();
+
+        assert!(rebind_in(&root, &mut source, &mut target, "viewer.exe").is_err());
+        assert!(source.preset.matches_exe("viewer.exe"));
+        assert!(!read(&target.path).unwrap().matches_exe("viewer.exe"));
+        assert!(!root.join(".binding-move").exists());
     }
 
     #[test]

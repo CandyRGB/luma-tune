@@ -5,4 +5,4 @@ pub mod preset;
 pub mod white;
 
 pub use params::{FilterParams, Levels, Ramp};
-pub use preset::Preset;
+pub use preset::{PostProcessParams, Preset};
